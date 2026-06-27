@@ -1,0 +1,32 @@
+imageType:
+  Original: {}
+  LoG:
+    sigma: [1.0, 2.0, 3.0]
+  Wavelet: {}
+
+featureClass:
+  firstorder: []
+  shape: []
+  glcm: []
+  glrlm: []
+  glszm: []
+  gldm: []
+  ngtdm: []
+
+setting:
+  # CT is HU-calibrated — no normalization needed
+  normalize: false
+  binWidth: 25                      # fixed bin width (HU); IBSI-preferred for CT
+  resampledPixelSpacing: [1, 1, 1]  # isotropic 1mm for rotational invariance
+  interpolator: sitkBSpline         # image resampling
+  label: 1                          # foreground label in mask
+  padDistance: 5                    # padding around ROI in voxels
+
+  # IBSI deviations (documented):
+  # 1. Fixed-bin-width edges anchored at 0 HU (not at ROI minimum)
+  # 2. Resampling grid aligned to origin voxel corner
+  # Both are known PyRadiomics v3.x behaviors
+
+  force2D: false
+  force2Ddimension: 0
+  voxelArrayShift: 1000             # shift HU values to positive range for GLCM
