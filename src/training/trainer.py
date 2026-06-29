@@ -54,7 +54,7 @@ def train_one_epoch(
             inputs, labels = inputs.to(device), labels.to(device)
             optimizer.zero_grad()
             if scaler:
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast(device.type):
                     loss = criterion(model(inputs), labels)
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
@@ -69,7 +69,7 @@ def train_one_epoch(
             img, rad, labels = img.to(device), rad.to(device), labels.to(device)
             optimizer.zero_grad()
             if scaler:
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast(device.type):
                     loss = criterion(model(img, rad), labels)
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
@@ -124,7 +124,7 @@ def run_kfold_cv(
     weight_decay: float = 1e-4,
     patience: int = 10,
     batch_size: int = 16,
-    device_str: str = "cuda",
+    device_str: str = "auto",
     mixed_precision: bool = True,
     checkpoint_dir: str = "results/checkpoints",
     is_fusion: bool = False,
@@ -134,7 +134,11 @@ def run_kfold_cv(
     NOTE: Call with training code skipped when only evaluating architecture.
     Set epochs=0 to skip training (architecture validation only).
     """
-    device = torch.device(device_str if torch.cuda.is_available() else "cpu")
+    if device_str == "auto":
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(device_str)
+    logger.info("Using device: %s", device)
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     fold_results = []
@@ -151,7 +155,7 @@ def run_kfold_cv(
         criterion = nn.CrossEntropyLoss()
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
         early_stopper = EarlyStopping(patience=patience, mode="max")
-        amp_scaler = torch.cuda.amp.GradScaler() if mixed_precision and device.type == "cuda" else None
+        amp_scaler = torch.amp.GradScaler() if mixed_precision and device.type == "cuda" else None
 
         best_auc = 0.0
         for epoch in range(epochs):

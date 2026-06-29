@@ -54,7 +54,7 @@ def train_fusion_epoch(
         optimizer.zero_grad()
 
         if scaler is not None:
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast(device.type):
                 logits = model(img, rad)
                 loss = criterion(logits, labels)
             scaler.scale(loss).backward()

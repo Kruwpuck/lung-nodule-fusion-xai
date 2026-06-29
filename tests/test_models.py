@@ -1,6 +1,7 @@
 """Tests for backbone and fusion model architectures."""
-import torch
 import pytest
+
+torch = pytest.importorskip("torch", reason="torch not installed — skip model tests")
 from src.models.backbones import BackboneClassifier
 from src.models.fusion_net import FusionNet
 
