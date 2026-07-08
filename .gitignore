@@ -18,3 +18,17 @@ venv.bak/
 
 # Agent artifacts
 compass_artifact_*.md
+
+# Dataset (too large for git)
+data/raw/
+data/interim/
+data/processed/
+
+# Results & checkpoints
+results/
+
+# Lock files
+requirements.lock
+
+# dcm2niix download artifacts
+dcm2niix_win.zip
