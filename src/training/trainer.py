@@ -15,6 +15,33 @@ from torch.utils.data import DataLoader
 logger = logging.getLogger(__name__)
 
 
+def save_ckpt(path: str, model, optimizer, epoch: int, best_auc: float) -> None:
+    import torch
+    torch.save(
+        {
+            "epoch": epoch,
+            "model_state": model.state_dict(),
+            "optim_state": optimizer.state_dict(),
+            "best_auc": best_auc,
+        },
+        path,
+    )
+
+
+def maybe_resume(path: str, model, optimizer):
+    import torch
+    if not os.path.exists(path):
+        return 0, 0.0
+    try:
+        ck = torch.load(path, weights_only=True, map_location="cpu")
+    except TypeError:
+        ck = torch.load(path, map_location="cpu")
+    model.load_state_dict(ck["model_state"])
+    optimizer.load_state_dict(ck["optim_state"])
+    logger.info("Resumed from epoch %d (best_auc=%.4f)", ck["epoch"], ck["best_auc"])
+    return ck["epoch"] + 1, ck["best_auc"]
+
+
 class EarlyStopping:
     def __init__(self, patience: int = 10, mode: str = "max") -> None:
         self.patience = patience
@@ -128,6 +155,7 @@ def run_kfold_cv(
     mixed_precision: bool = True,
     checkpoint_dir: str = "results/checkpoints",
     is_fusion: bool = False,
+    log_dir: str = None,
 ) -> dict:
     """Run n-fold cross-validation. Returns dict with per-fold AUC + aggregate stats.
 
@@ -158,7 +186,18 @@ def run_kfold_cv(
         amp_scaler = torch.amp.GradScaler() if mixed_precision and device.type == "cuda" else None
 
         best_auc = 0.0
+        csv_log = None
+        if log_dir:
+            from src.utils.logger import CSVLogger
+            os.makedirs(log_dir, exist_ok=True)
+            csv_log = CSVLogger(
+                f"{log_dir}/fold{fold}.csv",
+                ["epoch", "train_loss", "val_auc", "time_sec"],
+            )
+
         for epoch in range(epochs):
+            import time
+            t0 = time.time()
             train_loss = train_one_epoch(
                 model, train_loader, optimizer, criterion, device, amp_scaler
             )
@@ -167,6 +206,10 @@ def run_kfold_cv(
             from sklearn.metrics import roc_auc_score
             auc = roc_auc_score(y_true, y_prob)
             scheduler.step()
+
+            if csv_log:
+                csv_log.log({"epoch": epoch, "train_loss": round(train_loss, 6),
+                             "val_auc": round(auc, 6), "time_sec": round(time.time() - t0, 2)})
 
             if auc > best_auc:
                 best_auc = auc
@@ -177,8 +220,15 @@ def run_kfold_cv(
                 logger.info("Early stop at epoch %d (fold %d)", epoch, fold)
                 break
 
+        if csv_log:
+            csv_log.close()
+
         # final eval with best weights
-        model.load_state_dict(torch.load(f"{checkpoint_dir}/fold{fold}_best.pt"))
+        try:
+            state = torch.load(f"{checkpoint_dir}/fold{fold}_best.pt", weights_only=True, map_location="cpu")
+        except TypeError:
+            state = torch.load(f"{checkpoint_dir}/fold{fold}_best.pt", map_location="cpu")
+        model.load_state_dict(state)
         y_true, y_prob = evaluate(model, val_loader, device, is_fusion)
         fold_results.append({"fold": fold, "y_true": y_true, "y_prob": y_prob})
         logger.info("Fold %d best AUC: %.4f", fold, best_auc)
