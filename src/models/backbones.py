@@ -75,6 +75,48 @@ def build_2d_backbone(name: str, n_input_channels: int = 3, pretrained: bool = T
         features = nn.Sequential(model.features, nn.AdaptiveAvgPool2d(1), nn.Flatten())
         emb_dim = 768
 
+    elif name == "mobilenet_v3_small":
+        weights = "IMAGENET1K_V1" if pretrained else None
+        model = tvm.mobilenet_v3_small(weights=weights)
+        old_conv = model.features[0][0]
+        model.features[0][0] = nn.Conv2d(
+            n_input_channels, old_conv.out_channels,
+            kernel_size=old_conv.kernel_size, stride=old_conv.stride,
+            padding=old_conv.padding, bias=old_conv.bias is not None,
+        )
+        if pretrained and n_input_channels != 3:
+            with torch.no_grad():
+                model.features[0][0].weight.data = \
+                    old_conv.weight.data.mean(dim=1, keepdim=True).repeat(1, n_input_channels, 1, 1) / n_input_channels
+        features = nn.Sequential(model.features, nn.AdaptiveAvgPool2d(1), nn.Flatten())
+        emb_dim = 576
+
+    elif name == "vgg16":
+        # ponytail: 224×224 input recommended; works at 64×64 but accuracy degrades
+        weights = "IMAGENET1K_V1" if pretrained else None
+        model = tvm.vgg16(weights=weights)
+        old_conv = model.features[0]
+        model.features[0] = nn.Conv2d(
+            n_input_channels, old_conv.out_channels,
+            kernel_size=old_conv.kernel_size, stride=old_conv.stride,
+            padding=old_conv.padding, bias=old_conv.bias is not None,
+        )
+        features = nn.Sequential(model.features, nn.AdaptiveAvgPool2d(1), nn.Flatten())
+        emb_dim = 512
+
+    elif name == "vit_b_16":
+        # ponytail: 224×224 input required for ViT patch tokenisation
+        weights = "IMAGENET1K_V1" if pretrained else None
+        model = tvm.vit_b_16(weights=weights)
+        old_proj = model.conv_proj
+        model.conv_proj = nn.Conv2d(
+            n_input_channels, old_proj.out_channels,
+            kernel_size=old_proj.kernel_size, stride=old_proj.stride,
+        )
+        model.heads = nn.Identity()
+        features = model
+        emb_dim = 768
+
     else:
         raise ValueError(f"Unknown backbone: {name}")
 
