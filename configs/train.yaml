@@ -51,6 +51,17 @@ backbones:
   - name: resnet3d_10
     pretrained: false
     input_mode: 3d
+  - name: mobilenet_v3_small
+    pretrained: true
+    input_mode: 2_5d
+  - name: vgg16
+    pretrained: true
+    input_mode: 2_5d
+    input_res: 224
+  - name: vit_b_16
+    pretrained: true
+    input_mode: 2_5d
+    input_res: 224
 
 fusion:
   embedding_dim: 256
