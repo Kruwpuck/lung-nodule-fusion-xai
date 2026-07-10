@@ -36,3 +36,28 @@ dcm2niix_win.zip
 
 artifacts/
 data_pipeline_detached.log
+
+# LaTeX build
+paper/build/
+paper/*.aux
+paper/*.bbl
+paper/*.bcf
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.out
+paper/*.run.xml
+paper/*.synctex.gz
+paper/*.toc
+paper/*.pdf
+# LaTeX template zips + duplicate Zotero export (keep refs.bib only)
+*.zip
+paper/My Library.bib
+
+# Secrets
+*.key
+# Editor/OS
+.vscode/
+.DS_Store
+*.swp
