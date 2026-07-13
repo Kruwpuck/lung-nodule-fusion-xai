@@ -22,11 +22,12 @@ def run(cfg: dict) -> None:
     import torch
     import numpy as np
     from torch.utils.data import DataLoader
-    from src.models.registry import build_model
+    from src.models.registry import build_model, _NAME_MAP
     from src.training.dataset import NoduleDataset2_5D
     from src.xai.gradcam_utils import compute_gradcam
 
     backbone = cfg.get("track1_fusion", {}).get("backbone", "mobilenetv3_small")
+    backbone_internal = _NAME_MAP.get(backbone, backbone)
     fold = 0
     best_pt = os.path.join(cfg["paths"]["checkpoints"], backbone, f"fold{fold}_best.pt")
 
@@ -39,8 +40,8 @@ def run(cfg: dict) -> None:
 
     try:
         state = torch.load(best_pt, weights_only=True, map_location="cpu")
-    except TypeError:
-        state = torch.load(best_pt, map_location="cpu")
+    except (TypeError, __import__("pickle").UnpicklingError):
+        state = torch.load(best_pt, weights_only=False, map_location="cpu")
     if isinstance(state, dict) and "model_state" in state:
         model.load_state_dict(state["model_state"])
     else:
@@ -59,7 +60,7 @@ def run(cfg: dict) -> None:
     os.makedirs(xai_dir, exist_ok=True)
     for i, (img, label) in enumerate(val_loader):
         img = img.to(device)
-        cam = compute_gradcam(model, img)
+        cam = compute_gradcam(model, img, backbone_internal)
         _save_cam_png(img[0].cpu().numpy(), cam, label.item(), i, xai_dir)
 
     with open(sentinel, "w") as f:
@@ -69,6 +70,8 @@ def run(cfg: dict) -> None:
 
 def _save_cam_png(img_chw, cam, label: int, idx: int, out_dir: str) -> None:
     try:
+        import matplotlib
+        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         mid = img_chw.shape[0] // 2
         fig, axes = plt.subplots(1, 2, figsize=(6, 3))

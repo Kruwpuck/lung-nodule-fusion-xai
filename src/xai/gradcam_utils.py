@@ -14,7 +14,9 @@ def _get_target_layer(model: Any, backbone_name: str) -> Any:
     name = backbone_name.lower()
 
     if "mobilenet_v3" in name:
-        return model.cnn_branch[-1]  # FusionNet or BackboneClassifier
+        if hasattr(model, "cnn_branch"):
+            return model.cnn_branch[-1]  # FusionNet
+        return model.features[0][-1]  # BackboneClassifier: features = Sequential(backbone_features, pool, flatten)
 
     if "efficientnet" in name:
         # features[-1] is the last MBConv stage

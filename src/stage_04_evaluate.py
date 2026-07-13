@@ -44,6 +44,7 @@ def run(cfg: dict) -> None:
         params_M = round(count_params(model) / 1e6, 3)
         gflops, _ = measure_flops(model, input_res=(n_slices, patch_xy, patch_xy))
         latency_ms = measure_latency(model, input_res=(n_slices, patch_xy, patch_xy))
+        model = model.to(device)  # measure_latency moves model to CPU in-place
 
         for fold in range(n_folds):
             best_pt = os.path.join(cfg["paths"]["checkpoints"], model_name, f"fold{fold}_best.pt")
@@ -53,8 +54,8 @@ def run(cfg: dict) -> None:
 
             try:
                 state = torch.load(best_pt, weights_only=True, map_location="cpu")
-            except TypeError:
-                state = torch.load(best_pt, map_location="cpu")
+            except (TypeError, __import__("pickle").UnpicklingError):
+                state = torch.load(best_pt, weights_only=False, map_location="cpu")
             if isinstance(state, dict) and "model_state" in state:
                 model.load_state_dict(state["model_state"])
             else:
