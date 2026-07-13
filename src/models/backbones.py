@@ -162,9 +162,18 @@ class BackboneClassifier(nn.Module):
         else:
             raise ValueError(f"Unknown mode: {mode}")
         self.classifier = nn.Linear(emb_dim, n_classes)
+        # ViT requires fixed 224x224 input for patch tokenisation
+        self._resize_to = 224 if backbone_name == "vit_b_16" else None
+
+    def _maybe_resize(self, x: torch.Tensor) -> torch.Tensor:
+        if self._resize_to is not None and x.shape[-1] != self._resize_to:
+            x = nn.functional.interpolate(
+                x, size=(self._resize_to, self._resize_to), mode="bilinear", align_corners=False
+            )
+        return x
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.classifier(self.features(x))
+        return self.classifier(self.features(self._maybe_resize(x)))
 
     def get_embedding(self, x: torch.Tensor) -> torch.Tensor:
-        return self.features(x)
+        return self.features(self._maybe_resize(x))

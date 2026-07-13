@@ -22,7 +22,7 @@ def save_ckpt(path: str, model, optimizer, epoch: int, best_auc: float) -> None:
             "epoch": epoch,
             "model_state": model.state_dict(),
             "optim_state": optimizer.state_dict(),
-            "best_auc": best_auc,
+            "best_auc": float(best_auc),
         },
         path,
     )
@@ -34,12 +34,12 @@ def maybe_resume(path: str, model, optimizer):
         return 0, 0.0
     try:
         ck = torch.load(path, weights_only=True, map_location="cpu")
-    except TypeError:
-        ck = torch.load(path, map_location="cpu")
+    except (TypeError, __import__("pickle").UnpicklingError):
+        ck = torch.load(path, weights_only=False, map_location="cpu")
     model.load_state_dict(ck["model_state"])
     optimizer.load_state_dict(ck["optim_state"])
     logger.info("Resumed from epoch %d (best_auc=%.4f)", ck["epoch"], ck["best_auc"])
-    return ck["epoch"] + 1, ck["best_auc"]
+    return ck["epoch"] + 1, float(ck["best_auc"])
 
 
 class EarlyStopping:

@@ -34,7 +34,7 @@ def build_nodule_dataset(
     consensus_level: float = 0.5,
     exclude_score: int = 3,
     min_annotations: int = 1,
-    pad: tuple = ((20, 20), (20, 20), (0, 0)),
+    pad: list = [(20, 20), (20, 20), (0, 0)],
 ) -> pd.DataFrame:
     """Query all LIDC scans, extract nodules with consensus masks and binary labels.
 

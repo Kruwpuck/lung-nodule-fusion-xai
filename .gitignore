@@ -33,3 +33,6 @@ requirements.lock
 
 # dcm2niix download artifacts
 dcm2niix_win.zip
+
+artifacts/
+data_pipeline_detached.log
