@@ -38,6 +38,10 @@ def extract_features_from_arrays(
 
     image_sitk = sitk.GetImageFromArray(patch.astype(np.float32))
     mask_sitk = sitk.GetImageFromArray(mask.astype(np.uint8))
+    # Explicit spacing required — GetImageFromArray defaults to (1,1,1) regardless
+    # of true voxel size, making resampledPixelSpacing config a silent no-op.
+    image_sitk.SetSpacing((1.0, 1.0, 1.0))
+    mask_sitk.SetSpacing((1.0, 1.0, 1.0))
 
     result = extractor.execute(image_sitk, mask_sitk)
 

@@ -32,14 +32,15 @@ def maybe_resume(path: str, model, optimizer):
     import torch
     if not os.path.exists(path):
         return 0, 0.0
+    import pickle
     try:
         ck = torch.load(path, weights_only=True, map_location="cpu")
-    except (TypeError, __import__("pickle").UnpicklingError):
-        ck = torch.load(path, weights_only=False, map_location="cpu")
+    except (TypeError, pickle.UnpicklingError):
+        ck = torch.load(path, map_location="cpu")
     model.load_state_dict(ck["model_state"])
     optimizer.load_state_dict(ck["optim_state"])
     logger.info("Resumed from epoch %d (best_auc=%.4f)", ck["epoch"], ck["best_auc"])
-    return ck["epoch"] + 1, float(ck["best_auc"])
+    return ck["epoch"] + 1, ck["best_auc"]
 
 
 class EarlyStopping:

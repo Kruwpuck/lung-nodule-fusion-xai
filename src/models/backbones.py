@@ -162,13 +162,14 @@ class BackboneClassifier(nn.Module):
         else:
             raise ValueError(f"Unknown mode: {mode}")
         self.classifier = nn.Linear(emb_dim, n_classes)
-        # ViT requires fixed 224x224 input for patch tokenisation
-        self._resize_to = 224 if backbone_name == "vit_b_16" else None
+        # ViT requires exactly 224×224 — auto-resize if input is smaller
+        self._resize_to: int | None = 224 if backbone_name == "vit_b_16" else None
 
     def _maybe_resize(self, x: torch.Tensor) -> torch.Tensor:
         if self._resize_to is not None and x.shape[-1] != self._resize_to:
-            x = nn.functional.interpolate(
-                x, size=(self._resize_to, self._resize_to), mode="bilinear", align_corners=False
+            x = torch.nn.functional.interpolate(
+                x, size=(self._resize_to, self._resize_to),
+                mode="bilinear", align_corners=False,
             )
         return x
 

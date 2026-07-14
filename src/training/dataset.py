@@ -42,25 +42,18 @@ class NoduleDataset2_5D(Dataset):
         return (arr - self.hu_min) / (self.hu_max - self.hu_min)
 
     def _extract_2_5d(self, volume: np.ndarray) -> np.ndarray:
-        """Extract center slice ± half_slices, return (n_slices, H, W)."""
+        """Extract center slice ± half_slices, return (n_slices, H, W).
+
+        Patches are pre-centered and pre-sized by lidc_loader — just stack slices.
+        """
         Z, H, W = volume.shape
         cz = Z // 2
         half = self.n_slices // 2
-        p = self.patch_size
-
-        # center crop in XY
-        cy, cx = H // 2, W // 2
-        y0, y1 = max(0, cy - p // 2), min(H, cy + p // 2)
-        x0, x1 = max(0, cx - p // 2), min(W, cx + p // 2)
-
         slices = []
         for offset in range(-half, half + 1):
             z = max(0, min(Z - 1, cz + offset))
-            sl = np.zeros((p, p), dtype=np.float32)
-            crop = volume[z, y0:y1, x0:x1]
-            sl[:crop.shape[0], :crop.shape[1]] = crop
-            slices.append(sl)
-        return np.stack(slices, axis=0)  # (n_slices, p, p)
+            slices.append(volume[z])
+        return np.stack(slices, axis=0)  # (n_slices, H, W)
 
     def _augment(self, tensor: torch.Tensor) -> torch.Tensor:
         if random.random() > 0.5:
@@ -110,8 +103,6 @@ class NoduleDataset3D(Dataset):
     def _center_crop_3d(self, volume: np.ndarray) -> np.ndarray:
         p = self.patch_size
         out = np.zeros((p, p, p), dtype=np.float32)
-        for i, dim in enumerate(volume.shape):
-            pass  # handled below
         Z, Y, X = volume.shape
         cz, cy, cx = Z // 2, Y // 2, X // 2
         half = p // 2

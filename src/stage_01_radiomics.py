@@ -25,6 +25,8 @@ def run(cfg: dict) -> None:
     features_df = extract_dataset_features(
         df,
         params_yaml=cfg["radiomics"]["params_yaml"],
+        output_parquet=out,
+        force_rebuild=cfg.get("force_rerun", False),
     )
     features_df.to_parquet(out, index=False)
     print(f"[DONE] {out}  ({len(features_df)} rows)")

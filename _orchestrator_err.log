@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\Adaptive Network\Documents\Lung Cancer\lung-nodule-fusion-xai\_run_all_training.py", line 24, in <module>
+    log(f"=== training run started {time.strftime('%Y-%m-%d %H:%M:%S')} ===")
+  File "C:\Users\Adaptive Network\Documents\Lung Cancer\lung-nodule-fusion-xai\_run_all_training.py", line 18, in log
+    with open(log_path, "a", encoding="utf-8") as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '_training_progress.log'

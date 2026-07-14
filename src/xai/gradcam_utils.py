@@ -16,29 +16,31 @@ def _get_target_layer(model: Any, backbone_name: str) -> Any:
     if "mobilenet_v3" in name:
         if hasattr(model, "cnn_branch"):
             return model.cnn_branch[-1]  # FusionNet
-        return model.features[0][-1]  # BackboneClassifier: features = Sequential(backbone_features, pool, flatten)
+        # BackboneClassifier: features is Sequential(model.features, AvgPool, Flatten)
+        return model.features[0][-1]
 
     if "efficientnet" in name:
-        # features[-1] is the last MBConv stage
         if hasattr(model, "cnn_branch"):
             return model.cnn_branch[0][-1]
-        return model.features[-1]
+        return model.features[0][-1]
 
     if "resnet" in name and "3d" not in name:
-        # model.layer4[-1] for ResNet-50
         if hasattr(model, "features"):
-            return list(model.features.children())[-2]  # before avgpool
+            return list(model.features.children())[-2]
         return model.layer4[-1]
 
     if "densenet" in name:
         if hasattr(model, "cnn_branch"):
             return model.cnn_branch[0][-1]
-        return model.features[-1]
+        return model.features[0][-1]
 
     if "convnext" in name:
         if hasattr(model, "cnn_branch"):
             return model.cnn_branch[0][-1]
-        return model.features[-1]
+        return model.features[0][-1]
+
+    if "vit" in name:
+        raise ValueError("Grad-CAM not supported for ViT — use attention rollout or EigenCAM")
 
     raise ValueError(f"Cannot resolve target layer for backbone: {backbone_name}")
 

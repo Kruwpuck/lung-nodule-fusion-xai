@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 def run(cfg: dict) -> None:
+    import pickle
     import pandas as pd
+    import numpy as np
     import torch
     from src.models.registry import build_model
     from src.training.trainer import evaluate
@@ -29,6 +31,9 @@ def run(cfg: dict) -> None:
         print(f"[SKIP] {out}")
         return
 
+    preds_dir = os.path.join(results_dir, "preds")
+    os.makedirs(preds_dir, exist_ok=True)
+
     n_slices = cfg["data"].get("n_slices", 3)
     patch_xy = cfg["data"].get("patch_xy", 64)
     batch_size = cfg["train"].get("batch_size", 16)
@@ -40,11 +45,12 @@ def run(cfg: dict) -> None:
     rows = []
 
     for model_name in all_models:
-        model = build_model(model_name, cfg).to(device)
+        model = build_model(model_name, cfg)
         params_M = round(count_params(model) / 1e6, 3)
         gflops, _ = measure_flops(model, input_res=(n_slices, patch_xy, patch_xy))
         latency_ms = measure_latency(model, input_res=(n_slices, patch_xy, patch_xy))
-        model = model.to(device)  # measure_latency moves model to CPU in-place
+        # measure_latency moves model to CPU in-place — restore to training device
+        model = model.to(device)
 
         for fold in range(n_folds):
             best_pt = os.path.join(cfg["paths"]["checkpoints"], model_name, f"fold{fold}_best.pt")
@@ -54,8 +60,8 @@ def run(cfg: dict) -> None:
 
             try:
                 state = torch.load(best_pt, weights_only=True, map_location="cpu")
-            except (TypeError, __import__("pickle").UnpicklingError):
-                state = torch.load(best_pt, weights_only=False, map_location="cpu")
+            except (TypeError, pickle.UnpicklingError):
+                state = torch.load(best_pt, map_location="cpu")
             if isinstance(state, dict) and "model_state" in state:
                 model.load_state_dict(state["model_state"])
             else:
@@ -66,6 +72,10 @@ def run(cfg: dict) -> None:
             val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
 
             y_true, y_prob = evaluate(model, val_loader, device)
+            np.savez(
+                os.path.join(preds_dir, f"{model_name}_fold{fold}.npz"),
+                y_true=y_true, y_prob=y_prob,
+            )
             m = compute_metrics(y_true, y_prob)
             rows.append({
                 "model": model_name,
