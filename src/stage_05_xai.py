@@ -28,6 +28,7 @@ def run(cfg: dict) -> None:
     from src.xai.gradcam_utils import (
         compute_gradcam,
         dice_iou,
+        dice_size_matched,
         pointing_hit,
         energy_pointing_game,
     )
@@ -92,14 +93,14 @@ def run(cfg: dict) -> None:
         # Self-test: target layer must produce a spatial (H, W > 1) activation map.
         try:
             dummy = torch.zeros(1, n_slices, patch_xy, patch_xy, device=device)
-            _ = compute_gradcam(model, dummy, backbone_name=backbone_internal, method="gradcam")
+            _ = compute_gradcam(model, dummy, backbone_name=backbone_internal)
         except Exception as e:
             logger.warning("Target-layer self-test failed for %s: %s — skip", backbone, e)
             continue
 
         tp_candidates = []   # (prob, idx, img_chw, cam, mask2d, label, pred)
         fail_candidates = []
-        dices, ious, hits, energies = [], [], [], []
+        dices, ious, hits, energies, dices_sm = [], [], [], [], []
 
         for i, row in val_df.iterrows():
             img = load_patch_tensor(row["patch_path"]).to(device)
@@ -109,16 +110,18 @@ def run(cfg: dict) -> None:
                 pred = int(logits.argmax(dim=1).item())
             label = int(row["label"])
 
-            cam = compute_gradcam(model, img, backbone_name=backbone_internal, method="gradcam")
+            cam = compute_gradcam(model, img, backbone_name=backbone_internal)
 
             mask_full = np.load(row["mask_path"]).astype(np.float32)
             mid = mask_full.shape[0] // 2
             mask2d = mask_full[mid]
 
             d, iou = dice_iou(cam, mask2d)
+            d_sm = dice_size_matched(cam, mask2d)
             hit = pointing_hit(cam, mask2d)
             energy = energy_pointing_game(cam, mask2d)
             dices.append(d); ious.append(iou); hits.append(hit); energies.append(energy)
+            dices_sm.append(d_sm)
 
             img_chw = img[0].detach().cpu().numpy()
             entry = (prob, i, img_chw, cam, mask2d, label, pred)
@@ -133,6 +136,7 @@ def run(cfg: dict) -> None:
             "n": n,
             "dice": float(np.mean(dices)) if dices else float("nan"),
             "iou": float(np.mean(ious)) if ious else float("nan"),
+            "dice_size_matched": float(np.mean(dices_sm)) if dices_sm else float("nan"),
             "pointing_acc": float(np.mean(hits)) if hits else float("nan"),
             "energy_mean": float(np.mean(energies)) if energies else float("nan"),
             "threshold_pct": 0.80,
@@ -186,7 +190,7 @@ def _save_figure(backbone: str, curated: list, failures: list, out_dir: str) -> 
 
             axes[r, 2].imshow(ct, cmap="gray")
             axes[r, 2].imshow(cam, alpha=0.5, cmap="jet")
-            axes[r, 2].set_title("Grad-CAM (predicted class)")
+            axes[r, 2].set_title("Layer-CAM (predicted class)")
 
             for c in range(3):
                 axes[r, c].axis("off")

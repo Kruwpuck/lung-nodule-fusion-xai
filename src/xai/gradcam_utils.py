@@ -63,12 +63,53 @@ def _get_target_layer(model: Any, backbone_name: str) -> Any:
     raise ValueError(f"Cannot resolve target layer for backbone: {backbone_name}")
 
 
+def _auto_target_layer(model: Any, sample_input: Any, lo: int = 7, hi: int = 10) -> Any:
+    """Pick the deepest spatial (4D) submodule whose feature-map height falls in [lo, hi].
+
+    For small (e.g. 64x64) inputs, the last conv layer of stride-32 backbones collapses
+    to ~2x2, which is too coarse for CAM to localize a small lesion. This scans all
+    submodules via forward hooks and returns the deepest one with an ~8x8 map instead.
+    Falls back to None if no candidate is found (caller should fall back to
+    `_get_target_layer`).
+    """
+    import torch
+
+    candidates: list[tuple[int, Any]] = []
+    order = 0
+
+    def make_hook(module: Any):
+        nonlocal order
+
+        def hook(mod: Any, inp: Any, out: Any) -> None:
+            nonlocal order
+            if isinstance(out, torch.Tensor) and out.dim() == 4:
+                h = out.shape[2]
+                if lo <= h <= hi:
+                    candidates.append((order, mod))
+            order += 1
+
+        return hook
+
+    handles = [m.register_forward_hook(make_hook(m)) for m in model.modules()]
+    try:
+        with torch.no_grad():
+            model(sample_input)
+    finally:
+        for h in handles:
+            h.remove()
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda t: t[0])
+    return candidates[-1][1]  # deepest (last-executed) module in the target resolution band
+
+
 def compute_gradcam(
     model: Any,
     img_tensor: Any,
     backbone_name: str,
     target_class: Optional[int] = None,
-    method: str = "gradcam",
+    method: str = "layercam",
 ) -> np.ndarray:
     """Compute saliency map using pytorch-grad-cam.
 
@@ -82,13 +123,25 @@ def compute_gradcam(
             but note this produces an empty/near-zero map on samples the
             model does not associate with that class — expected Grad-CAM
             behavior (ReLU zeroes out unsupported classes), not a bug.
-        method: one of 'gradcam', 'gradcampp', 'scorecam', 'eigencam'
+        method: one of 'layercam', 'hirescam', 'gradcam', 'gradcampp', 'scorecam',
+            'eigencam'. Default 'layercam': at a small (e.g. 64x64) input, the last
+            conv layer of stride-32 CNN backbones collapses to ~2x2, too coarse to
+            localize a small nodule. For non-ViT backbones the target layer is
+            auto-selected as the deepest ~8x8 feature map (`_auto_target_layer`)
+            instead of the last (2x2) layer.
 
     Returns:
         grayscale_cam: (H, W) numpy array, values in [0, 1]
     """
     try:
-        from pytorch_grad_cam import GradCAM, GradCAMPlusPlus, ScoreCAM, EigenCAM
+        from pytorch_grad_cam import (
+            GradCAM,
+            GradCAMPlusPlus,
+            ScoreCAM,
+            EigenCAM,
+            LayerCAM,
+            HiResCAM,
+        )
         from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
     except ImportError as e:
         raise ImportError(
@@ -100,11 +153,18 @@ def compute_gradcam(
         "gradcampp": GradCAMPlusPlus,
         "scorecam": ScoreCAM,
         "eigencam": EigenCAM,
+        "layercam": LayerCAM,
+        "hirescam": HiResCAM,
     }
     if method not in cam_classes:
         raise ValueError(f"method must be one of {list(cam_classes)}")
 
-    target_layer = _get_target_layer(model, backbone_name)
+    is_vit = "vit" in backbone_name.lower()
+    target_layer = None
+    if not is_vit:
+        target_layer = _auto_target_layer(model, img_tensor)
+    if target_layer is None:
+        target_layer = _get_target_layer(model, backbone_name)
     targets = None if target_class is None else [ClassifierOutputTarget(target_class)]
 
     reshape_transform = vit_reshape_transform if "vit" in backbone_name.lower() else None
@@ -169,6 +229,26 @@ def dice_iou(cam_map: np.ndarray, mask: np.ndarray, pct: float = 0.80) -> tuple[
     dice = 2 * inter / (s.sum() + g.sum() + 1e-7)
     iou = inter / (np.logical_or(s, g).sum() + 1e-7)
     return float(dice), float(iou)
+
+
+def dice_size_matched(cam_map: np.ndarray, mask: np.ndarray) -> float:
+    """Dice using a size-matched threshold: top-k CAM pixels, k = nodule area in pixels.
+
+    Avoids the IoU/Dice ceiling imposed by a fixed top-20% threshold when the nodule
+    occupies a much smaller fraction of the patch (e.g. <10%).
+    """
+    g = mask.astype(bool)
+    k = int(g.sum())
+    if k == 0:
+        return 0.0
+    flat = cam_map.ravel()
+    k = min(k, flat.size)
+    thr_idx = np.argpartition(flat, -k)[-k:]
+    s = np.zeros_like(flat, dtype=bool)
+    s[thr_idx] = True
+    s = s.reshape(cam_map.shape)
+    inter = np.logical_and(s, g).sum()
+    return float(2 * inter / (s.sum() + g.sum() + 1e-7))
 
 
 def pointing_hit(cam_map: np.ndarray, mask: np.ndarray) -> bool:
