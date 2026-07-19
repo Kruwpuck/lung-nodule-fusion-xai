@@ -18,3 +18,10 @@ venv.bak/
 
 # Agent artifacts
 compass_artifact_*.md
+
+# Windows folder metadata
+desktop.ini
+
+# Stray root-level run logs
+_*.log
+*.log
