@@ -1,0 +1,40 @@
+seed: 42
+force_rerun: true
+
+paths:
+  raw: "./data/raw/LIDC-IDRI"
+  interim: "./artifacts/patches"
+  features: "./artifacts/features/radiomics.parquet"
+  splits: "./artifacts/splits/folds.json"
+  checkpoints: "./artifacts/checkpoints"
+  logs: "./artifacts/logs"
+  results: "./artifacts/results"
+
+data:
+  n_slices: 3
+  patch_xy: 64
+  n_folds: 5
+  include_indeterminate: true   # keep median==3 nodules (label=-1), don't discard
+  skip_existing: true           # don't re-crop the ~1391 nodules already extracted
+  freeze_from: "data/processed/labels_binary_v1.csv"  # keep old patient folds stable
+
+train:
+  epochs: 50
+  batch_size: 16
+  lr: 0.0001
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+  checkpoint_every: 5
+  mixed_precision: true
+
+models:
+  lightweight: ["mobilenetv3_small", "efficientnet_b0", "densenet121"]
+  heavyweight: ["resnet50", "vgg16", "vit_base"]
+
+track1_fusion:
+  enabled: true
+  backbone: "mobilenetv3_small"
+
+radiomics:
+  params_yaml: "configs/radiomics_params.yaml"
+  incremental: true   # only extract features for nodules not already in the cache

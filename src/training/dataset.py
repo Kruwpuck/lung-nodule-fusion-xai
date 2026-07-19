@@ -26,13 +26,20 @@ class NoduleDataset2_5D(Dataset):
         augment: bool = False,
         hu_min: float = -1000.0,
         hu_max: float = 400.0,
+        target_col: str = "label",
+        target_dtype: str = "long",
     ) -> None:
+        """target_col/target_dtype select the training target per task:
+        "label" (long, binary) | "median_rating" (float, ordinal) | "grade3"/"grade4" (long).
+        """
         self.df = df.reset_index(drop=True)
         self.patch_size = patch_size
         self.n_slices = n_slices
         self.augment = augment
         self.hu_min = hu_min
         self.hu_max = hu_max
+        self.target_col = target_col
+        self.target_dtype = target_dtype
 
     def __len__(self) -> int:
         return len(self.df)
@@ -42,25 +49,18 @@ class NoduleDataset2_5D(Dataset):
         return (arr - self.hu_min) / (self.hu_max - self.hu_min)
 
     def _extract_2_5d(self, volume: np.ndarray) -> np.ndarray:
-        """Extract center slice ± half_slices, return (n_slices, H, W)."""
+        """Extract center slice ± half_slices, return (n_slices, H, W).
+
+        Patches are pre-centered and pre-sized by lidc_loader — just stack slices.
+        """
         Z, H, W = volume.shape
         cz = Z // 2
         half = self.n_slices // 2
-        p = self.patch_size
-
-        # center crop in XY
-        cy, cx = H // 2, W // 2
-        y0, y1 = max(0, cy - p // 2), min(H, cy + p // 2)
-        x0, x1 = max(0, cx - p // 2), min(W, cx + p // 2)
-
         slices = []
         for offset in range(-half, half + 1):
             z = max(0, min(Z - 1, cz + offset))
-            sl = np.zeros((p, p), dtype=np.float32)
-            crop = volume[z, y0:y1, x0:x1]
-            sl[:crop.shape[0], :crop.shape[1]] = crop
-            slices.append(sl)
-        return np.stack(slices, axis=0)  # (n_slices, p, p)
+            slices.append(volume[z])
+        return np.stack(slices, axis=0)  # (n_slices, H, W)
 
     def _augment(self, tensor: torch.Tensor) -> torch.Tensor:
         if random.random() > 0.5:
@@ -79,8 +79,11 @@ class NoduleDataset2_5D(Dataset):
         tensor = torch.from_numpy(patch_2_5d)
         if self.augment:
             tensor = self._augment(tensor)
-        label = torch.tensor(int(row["label"]), dtype=torch.long)
-        return tensor, label
+        if self.target_dtype == "float":
+            target = torch.tensor(float(row[self.target_col]), dtype=torch.float32)
+        else:
+            target = torch.tensor(int(row[self.target_col]), dtype=torch.long)
+        return tensor, target
 
 
 class NoduleDataset3D(Dataset):
@@ -93,12 +96,16 @@ class NoduleDataset3D(Dataset):
         augment: bool = False,
         hu_min: float = -1000.0,
         hu_max: float = 400.0,
+        target_col: str = "label",
+        target_dtype: str = "long",
     ) -> None:
         self.df = df.reset_index(drop=True)
         self.patch_size = patch_size
         self.augment = augment
         self.hu_min = hu_min
         self.hu_max = hu_max
+        self.target_col = target_col
+        self.target_dtype = target_dtype
 
     def __len__(self) -> int:
         return len(self.df)
@@ -110,8 +117,6 @@ class NoduleDataset3D(Dataset):
     def _center_crop_3d(self, volume: np.ndarray) -> np.ndarray:
         p = self.patch_size
         out = np.zeros((p, p, p), dtype=np.float32)
-        for i, dim in enumerate(volume.shape):
-            pass  # handled below
         Z, Y, X = volume.shape
         cz, cy, cx = Z // 2, Y // 2, X // 2
         half = p // 2
@@ -128,5 +133,8 @@ class NoduleDataset3D(Dataset):
         volume = self._normalize(volume)
         patch = self._center_crop_3d(volume)  # (D, H, W)
         tensor = torch.from_numpy(patch).unsqueeze(0)  # (1, D, H, W)
-        label = torch.tensor(int(row["label"]), dtype=torch.long)
-        return tensor, label
+        if self.target_dtype == "float":
+            target = torch.tensor(float(row[self.target_col]), dtype=torch.float32)
+        else:
+            target = torch.tensor(int(row[self.target_col]), dtype=torch.long)
+        return tensor, target
