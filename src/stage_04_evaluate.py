@@ -59,7 +59,8 @@ def run(cfg: dict, task: str = "binary") -> None:
         model = model.to(device)
 
         for fold in range(n_folds):
-            best_pt = os.path.join(cfg["paths"]["checkpoints"], f"{model_name}_{task}", f"fold{fold}_best.pt")
+            ckpt_subdir = model_name if task == "binary" else f"{model_name}_{task}"
+            best_pt = os.path.join(cfg["paths"]["checkpoints"], ckpt_subdir, f"fold{fold}_best.pt")
             if not os.path.exists(best_pt):
                 logger.warning("Missing checkpoint: %s", best_pt)
                 continue
@@ -79,10 +80,12 @@ def run(cfg: dict, task: str = "binary") -> None:
             val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
 
             y_true, y_out = _evaluate(model, val_loader, device, task)
-            np.savez(
-                os.path.join(preds_dir, f"{model_name}_{task}_fold{fold}.npz"),
-                y_true=y_true, y_out=y_out,
-            )
+            if task == "binary":
+                np.savez(os.path.join(preds_dir, f"{model_name}_fold{fold}.npz"),
+                          y_true=y_true, y_prob=y_out[:, 1])
+            else:
+                np.savez(os.path.join(preds_dir, f"{model_name}_{task}_fold{fold}.npz"),
+                          y_true=y_true, y_out=y_out)
             if task == "binary":
                 m = compute_metrics(y_true, y_out[:, 1])
             elif task in ("grade4", "grade3"):

@@ -1,0 +1,4 @@
+fusion_arm,fusion_auc,best_single_arm,best_single_auc,delong_p,fusion_significantly_better
+fusion_intermediate,0.9303775980160605,radiomics,0.9331798142024877,0.6007786211678998,False
+fusion_early,0.9205440088175091,radiomics,0.9331798142024877,0.018567277706549756,False
+fusion_late,0.918315029129271,radiomics,0.9331798142024877,0.0014646741383623763,False

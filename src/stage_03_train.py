@@ -75,10 +75,12 @@ def run(cfg: dict, model_name: str, fold: int, task: str = "binary") -> None:
     fix_seed(cfg.get("seed", 42))
 
     tcfg = _TASK_CFG[task]
-    ckpt_dir = os.path.join(cfg["paths"]["checkpoints"], f"{model_name}_{task}")
+    ckpt_subdir = model_name if task == "binary" else f"{model_name}_{task}"
+    ckpt_dir = os.path.join(cfg["paths"]["checkpoints"], ckpt_subdir)
     last_pt = os.path.join(ckpt_dir, f"fold{fold}_last.pt")
     best_pt = os.path.join(ckpt_dir, f"fold{fold}_best.pt")
-    log_path = os.path.join(cfg["paths"]["logs"], f"{model_name}_{task}_fold{fold}.csv")
+    log_name = f"{model_name}_fold{fold}.csv" if task == "binary" else f"{model_name}_{task}_fold{fold}.csv"
+    log_path = os.path.join(cfg["paths"]["logs"], log_name)
 
     import pandas as pd
     import torch
