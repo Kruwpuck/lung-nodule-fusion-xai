@@ -89,6 +89,7 @@ def run(cfg: dict, fold: int = 0) -> None:
 
         mask_path = row.get("mask_path")
         hit = None
+        mask2d = None
         if isinstance(mask_path, str) and os.path.exists(mask_path):
             mask_vol = np.load(mask_path)
             mz = mask_vol.shape[0] // 2
@@ -98,27 +99,61 @@ def run(cfg: dict, fold: int = 0) -> None:
                 mask2d = cv2.resize(mask2d.astype(np.uint8), cam.shape[::-1], interpolation=cv2.INTER_NEAREST).astype(bool)
             hit = pointing_hit(cam, mask2d)
 
-        center_slice_rgb = np.stack([img_chw[n_slices // 2]] * 3, axis=-1)
-        overlay = overlay_cam_on_image(center_slice_rgb, cam)
+        ct = img_chw[n_slices // 2]
 
-        fig, axes = plt.subplots(1, 2, figsize=(13, 6))
-        axes[0].imshow(overlay)
-        axes[0].set_title(f"Grad-CAM (CNN branch)\npointing_hit={hit}")
-        axes[0].axis("off")
+        # Render each panel to its own figure (shap.plots.waterfall manages its own
+        # layout internally and squashes a shared subplot axis), then stitch with PIL.
+        title = f"{label_name} nodule (fold {fold}, idx {idx}) — prob={prob[idx]:.3f}"
+
+        # 3-panel CNN view, same style as Track 2's xai_{backbone}.png: raw CT,
+        # CT + mask contour, CT + matplotlib alpha-blended jet heatmap (much more
+        # legible than cv2.addWeighted, which over-saturates a low-contrast CT patch).
+        fig_cam, axc = plt.subplots(1, 3, figsize=(10, 3.6))
+        axc[0].imshow(ct, cmap="gray")
+        axc[0].set_title("CT (center slice)", fontsize=11)
+        axc[1].imshow(ct, cmap="gray")
+        if mask2d is not None:
+            axc[1].contour(mask2d, colors="lime", linewidths=1.2)
+        axc[1].set_title("nodule mask", fontsize=11)
+        axc[2].imshow(ct, cmap="gray")
+        axc[2].imshow(cam, alpha=0.5, cmap="jet")
+        axc[2].set_title(f"Grad-CAM\npointing_hit={hit}", fontsize=11)
+        for a in axc:
+            a.axis("off")
+        plt.tight_layout()
+        cam_path = os.path.join(out_dir, f"_tmp_cam_{label_name}.png")
+        plt.savefig(cam_path, dpi=150, bbox_inches="tight")
+        plt.close(fig_cam)
 
         exp = shap.Explanation(
             values=shap_values[idx], base_values=explainer.expected_value,
             data=X_val_sel[idx], feature_names=selected,
         )
-        plt.sca(axes[1])
+        fig_shap = plt.figure(figsize=(9, 6))
         shap.plots.waterfall(exp, show=False, max_display=12)
-        axes[1].set_title("SHAP (radiomics branch)")
-
-        fig.suptitle(f"{label_name} nodule (fold {fold}, idx {idx}) — prob={prob[idx]:.3f}")
+        plt.title("SHAP (radiomics branch)", fontsize=13)
         plt.tight_layout()
+        shap_path = os.path.join(out_dir, f"_tmp_shap_{label_name}.png")
+        plt.savefig(shap_path, dpi=150, bbox_inches="tight")
+        plt.close(fig_shap)
+
+        from PIL import Image
+        img_cam = Image.open(cam_path)
+        img_shap = Image.open(shap_path)
+        h = max(img_cam.height, img_shap.height)
+        img_cam = img_cam.resize((int(img_cam.width * h / img_cam.height), h))
+        img_shap = img_shap.resize((int(img_shap.width * h / img_shap.height), h))
+        pad = 30
+        combined = Image.new("RGB", (img_cam.width + img_shap.width + pad, h + 40), "white")
+        combined.paste(img_cam, (0, 40))
+        combined.paste(img_shap, (img_cam.width + pad, 40))
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(combined)
+        draw.text((10, 10), title, fill="black")
         fname = f"sidebyside_{label_name}.png"
-        plt.savefig(os.path.join(out_dir, fname), dpi=120, bbox_inches="tight")
-        plt.close(fig)
+        combined.save(os.path.join(out_dir, fname))
+        os.remove(cam_path)
+        os.remove(shap_path)
         logger.info("%s saved (pointing_hit=%s)", fname, hit)
 
     with open(sentinel, "w") as f:
