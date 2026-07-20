@@ -35,7 +35,8 @@ Temuan utama: backbone **vgg16** meraih AUC binary tertinggi (0.9103 +- 0.0336),
 | XAI Track 2 (Grad-CAM/Layer-CAM) | Selesai | Grid A, Grid B, xai_metrics.csv |
 | Distribusi data + dataset overview | Selesai | Table 3.1-3.3 + dataset_overview.png |
 | Track 1 — Fusion + SHAP | Selesai (ablation + SHAP + sidebyside) | ablation_summary.csv, shap_*.png |
-| Fig 11 (diagram arsitektur fusion) / Fig 14 (cross-val SHAP<->CAM, >2 sample) | Belum | menyusul di fase penulisan Track 1 lanjutan |
+| Fig 11 (diagram arsitektur fusion) | Draft | fusion_architecture.png (desain manual, menunggu wiring final) |
+| Fig 14 (cross-val SHAP<->CAM, >2 sample) | Belum | menyusul di fase penulisan Track 1 lanjutan |
 | Validasi eksternal | Opsional, belum dikerjakan | pipeline ada, belum dijalankan |
 
 ---
@@ -91,7 +92,7 @@ Rentang commit git: **2026-06-27** (initial commit) s/d **2026-07-20** (commit t
 ### Fase 8 — Track 1 Fusion (selesai)
 - Feature selection (mRMR fallback mutual_info + LASSO per fold) -> ablation 5 arm (cnn_only/radiomics_only/fusion_early/intermediate/late) -> SHAP + Grad-CAM sidebyside
 - Hasil: lihat Bab 6.3. Fusion TIDAK mengalahkan radiomics-only (dilaporkan transparan)
-- Sisa: Fig 11 (diagram arsitektur fusion) & Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample) -- didesain menyusul saat penulisan Track 1 lanjutan, bukan blocker hasil
+- Fig 11 (diagram arsitektur fusion) sudah dibuat sebagai draft (fusion_architecture.png); Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample) menyusul saat penulisan Track 1 lanjutan, bukan blocker hasil
 
 ---
 
@@ -289,6 +290,10 @@ Benign-vs-malignant AUC pada subset nodul saja (headline, anti-inflasi):
 
 ### 6.3 Track 1 — Fusion + XAI
 
+![Diagram arsitektur fusion - DRAFT](../../artifacts/results/figures/fusion_architecture.png)
+
+Diagram di atas skema 5 arm yang diablasi: dua modalitas tunggal (cnn_only, radiomics_only) plus tiga titik penggabungan (fusion_early feature-level, fusion_intermediate embedding 256+128=384 di FusionNet, fusion_late decision-level). Ini desain manual, arm sesuai ablation eksploratif; bisa berubah saat Track 1 di-wire final.
+
 **Ablation 5-arm, pooled AUC (mean lintas 5 fold):**
 
 | arm | pooled_auc | auc_std | n_folds |
@@ -346,11 +351,11 @@ Kedua figure di atas membandingkan atensi spasial CNN (Grad-CAM) dengan kontribu
 - Fig G -- Confusion matrices: `figures/confusion_matrices.png`
 - Fig H -- SHAP beeswarm: `xai_track1/shap_beeswarm.png`
 - Fig I -- Grad-CAM + SHAP side-by-side: `xai_track1/sidebyside_malignant.png`, `sidebyside_benign.png`
+- Fig J -- Diagram arsitektur fusion (DRAFT): `figures/fusion_architecture.png`
 - Table 3.1-3.3 -- distribusi class per arm, per fold, karakteristik dataset
 
 **Belum ada (menyusul fase Track 1 lanjutan):**
-- Fig -- Diagram arsitektur fusion (desain manual, menunggu wiring final)
-- Fig -- Cross-validation SHAP<->Grad-CAM lintas >2 sample (Level 2 XAI)
+- Fig 14 -- Cross-validation SHAP<->Grad-CAM lintas >2 sample (Level 2 XAI)
 
 > Rekomendasi presentasi: fokus Fig D (Params vs AUC) + Fig B (Grid backbone XAI) + Table hasil utama Bab 6.1 + Bab 6.3 (temuan negatif fusion, integritas riset).
 
@@ -369,7 +374,7 @@ Kedua figure di atas membandingkan atensi spasial CNN (Grad-CAM) dengan kontribu
 
 ## 9. RENCANA LANJUTAN
 
-1. Fig 11 (diagram arsitektur fusion) + Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample) -- fase Track 1 lanjutan
+1. Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample, Level 2 XAI) -- fase Track 1 lanjutan; Fig 11 sudah draft
 2. Validasi eksternal (opsional): LUNGx/NLST/LNDb, cek kontaminasi data
 3. Penulisan paper/skripsi
 4. Target sidang: <<ISI: target sidang/deadline>>

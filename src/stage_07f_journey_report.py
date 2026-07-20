@@ -235,7 +235,8 @@ def run(cfg: dict, repo_root: str) -> None:
     a("| XAI Track 2 (Grad-CAM/Layer-CAM) | Selesai | Grid A, Grid B, xai_metrics.csv |")
     a("| Distribusi data + dataset overview | Selesai | Table 3.1-3.3 + dataset_overview.png |")
     a("| Track 1 — Fusion + SHAP | Selesai (ablation + SHAP + sidebyside) | ablation_summary.csv, shap_*.png |")
-    a("| Fig 11 (diagram arsitektur fusion) / Fig 14 (cross-val SHAP<->CAM, >2 sample) | Belum | menyusul di fase penulisan Track 1 lanjutan |")
+    a("| Fig 11 (diagram arsitektur fusion) | Draft | fusion_architecture.png (desain manual, menunggu wiring final) |")
+    a("| Fig 14 (cross-val SHAP<->CAM, >2 sample) | Belum | menyusul di fase penulisan Track 1 lanjutan |")
     a("| Validasi eksternal | Opsional, belum dikerjakan | pipeline ada, belum dijalankan |\n")
     a("---\n")
 
@@ -287,8 +288,9 @@ def run(cfg: dict, repo_root: str) -> None:
     a("- Feature selection (mRMR fallback mutual_info + LASSO per fold) -> ablation 5 arm "
       "(cnn_only/radiomics_only/fusion_early/intermediate/late) -> SHAP + Grad-CAM sidebyside")
     a("- Hasil: lihat Bab 6.3. Fusion TIDAK mengalahkan radiomics-only (dilaporkan transparan)")
-    a("- Sisa: Fig 11 (diagram arsitektur fusion) & Fig 14 (cross-validation SHAP<->Grad-CAM "
-      "lintas lebih banyak sample) -- didesain menyusul saat penulisan Track 1 lanjutan, bukan blocker hasil\n")
+    a("- Fig 11 (diagram arsitektur fusion) sudah dibuat sebagai draft (fusion_architecture.png); "
+      "Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample) menyusul saat "
+      "penulisan Track 1 lanjutan, bukan blocker hasil\n")
     a("---\n")
 
     a("## 4. DATASET (detail)\n")
@@ -386,6 +388,11 @@ def run(cfg: dict, repo_root: str) -> None:
     a("---\n")
 
     a("### 6.3 Track 1 — Fusion + XAI\n")
+    a(f"![Diagram arsitektur fusion - DRAFT]({fig('figures/fusion_architecture.png')})\n")
+    a("Diagram di atas skema 5 arm yang diablasi: dua modalitas tunggal (cnn_only, radiomics_only) "
+      "plus tiga titik penggabungan (fusion_early feature-level, fusion_intermediate embedding "
+      "256+128=384 di FusionNet, fusion_late decision-level). Ini desain manual, arm sesuai "
+      "ablation eksploratif; bisa berubah saat Track 1 di-wire final.\n")
     a("**Ablation 5-arm, pooled AUC (mean lintas 5 fold):**\n")
     if not fusion_pooled.empty:
         a(_df_to_markdown(fusion_pooled) + "\n")
@@ -420,10 +427,10 @@ def run(cfg: dict, repo_root: str) -> None:
     a("- Fig G -- Confusion matrices: `figures/confusion_matrices.png`")
     a("- Fig H -- SHAP beeswarm: `xai_track1/shap_beeswarm.png`")
     a("- Fig I -- Grad-CAM + SHAP side-by-side: `xai_track1/sidebyside_malignant.png`, `sidebyside_benign.png`")
+    a("- Fig J -- Diagram arsitektur fusion (DRAFT): `figures/fusion_architecture.png`")
     a("- Table 3.1-3.3 -- distribusi class per arm, per fold, karakteristik dataset\n")
     a("**Belum ada (menyusul fase Track 1 lanjutan):**")
-    a("- Fig -- Diagram arsitektur fusion (desain manual, menunggu wiring final)")
-    a("- Fig -- Cross-validation SHAP<->Grad-CAM lintas >2 sample (Level 2 XAI)\n")
+    a("- Fig 14 -- Cross-validation SHAP<->Grad-CAM lintas >2 sample (Level 2 XAI)\n")
     a("> Rekomendasi presentasi: fokus Fig D (Params vs AUC) + Fig B (Grid backbone XAI) + "
       "Table hasil utama Bab 6.1 + Bab 6.3 (temuan negatif fusion, integritas riset).\n")
     a("---\n")
@@ -438,7 +445,7 @@ def run(cfg: dict, repo_root: str) -> None:
     a("---\n")
 
     a("## 9. RENCANA LANJUTAN\n")
-    a("1. Fig 11 (diagram arsitektur fusion) + Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample) -- fase Track 1 lanjutan")
+    a("1. Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample, Level 2 XAI) -- fase Track 1 lanjutan; Fig 11 sudah draft")
     a("2. Validasi eksternal (opsional): LUNGx/NLST/LNDb, cek kontaminasi data")
     a("3. Penulisan paper/skripsi")
     a(f"4. Target sidang: {TARGET_SIDANG}\n")
