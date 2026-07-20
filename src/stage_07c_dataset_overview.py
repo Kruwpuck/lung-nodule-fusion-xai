@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 _MAX_CENTER_OFFSET_PX = 6.0
 _N_PER_CLASS = 3
-_CLASS_ORDER = [(1, "benign"), (3, "malignant"), (2, "indeterminate"), (0, "no_nodule")]
+_CLASS_ORDER = [(0, "no_nodule"), (1, "benign"), (2, "indeterminate"), (3, "malignant")]
 
 
 def _mask_center_offset(mask_path: str) -> tuple[float, bool]:
