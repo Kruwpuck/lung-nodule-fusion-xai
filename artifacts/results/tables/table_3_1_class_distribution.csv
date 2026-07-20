@@ -1,0 +1,7 @@
+class,arm_A_binary,arm_C_grade3,arm_D_grade4,arm_B_ordinal
+benign,937,937,937.0,
+malignant,454,454,454.0,
+indeterminate,dropped,747,747.0,
+no_nodule,,excluded,2138.0,
+TOTAL,1391,2138,4276.0,
+"rating_1/2/3/4/5 (arm B, rounded)",,,,1:260 / 2:677 / 3:747 / 4:353 / 5:101

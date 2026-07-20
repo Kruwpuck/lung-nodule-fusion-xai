@@ -1,0 +1,15 @@
+metric,value
+n_patients,717
+n_scans,725
+n_nodule_rows_total,4276
+n_nodule_rows (class_kind=nodule),2138
+n_no_nodule_hard_negatives,2138
+slice_thickness_mm_min,0.45
+slice_thickness_mm_median,1.25
+slice_thickness_mm_max,5.0
+n_annotations_per_nodule_median,0.5
+label_aggregation_rule,median of radiologist malignancy ratings (1-5)
+arm_A_exclude_rule,median_rating == 3 (indeterminate) dropped
+no_nodule_source,LUNA16 class-0 candidates (hard negatives)
+"nodule_diameter_mm_median (3D max, radiomics)",11.0
+"nodule_diameter_mm_range (3D max, radiomics)",2.45-54.28
