@@ -296,11 +296,17 @@ def run(cfg: dict, repo_root: str) -> None:
     a("- LIDC-IDRI + LUNA16 hard-negative")
     a("- Aturan label: median rating 4 radiolog; >3 malignant, <3 benign, =3 indeterminate\n")
     a(class_dist_md + "\n")
+    a(f"![Dataset overview - contoh patch per kelas, terurut no_nodule->benign->indeterminate->malignant]({fig('figures/dataset_overview.png')})\n")
+    a("Kontur hijau pada figure di atas adalah mask segmentasi dari anotasi radiolog di dataset "
+      "(bukan output model) -- dipakai sebagai referensi lokasi nodul saat membaca hasil Grad-CAM di Bab 6.2.\n")
     a("### 4.2 Preprocessing")
-    a("- Patch 2.5D: 3 slice axial di sekitar centroid, ditumpuk sebagai channel")
+    a("- Patch 2.5D: 3 slice axial di sekitar centroid, ditumpuk sebagai channel (kompromi antara "
+      "context 3D volumetric dan biaya komputasi 2D CNN standar)")
     a("- Ukuran: 64x64 pixel")
-    a("- Window HU: -1000 s/d 400")
-    a("- Resample: 1mm isotropic\n")
+    a("- Window HU: -1000 s/d 400 (rentang lung window standar radiologi, mencakup jaringan paru s/d "
+      "jaringan lunak/nodul solid)")
+    a("- Resample: 1mm isotropic (menyamakan resolusi spasial antar scan, sebagian besar slice "
+      "thickness asli berbeda-beda, lihat tabel karakteristik di bawah)\n")
     a("### 4.3 Split")
     a("- Patient-level stratified 5-fold (semua nodul 1 pasien di fold sama)")
     a("- Fixed: `artifacts/splits/folds.json` (seed=42)\n")
@@ -397,6 +403,10 @@ def run(cfg: dict, repo_root: str) -> None:
         a(_df_to_markdown(shap_top) + "\n")
     a(f"![SHAP beeswarm]({fig('xai_track1/shap_beeswarm.png')})\n")
     a(f"![Grad-CAM + SHAP side-by-side (malignant)]({fig('xai_track1/sidebyside_malignant.png')})\n")
+    a(f"![Grad-CAM + SHAP side-by-side (benign)]({fig('xai_track1/sidebyside_benign.png')})\n")
+    a("Kedua figure di atas membandingkan atensi spasial CNN (Grad-CAM) dengan kontribusi fitur "
+      "radiomics (SHAP) pada sample sama -- level pertama dari cross-modality XAI. Cross-validation "
+      "kuantitatif lintas lebih banyak sample (Level 2) menyusul di Fig 14, fase Track 1 lanjutan.\n")
     a("---\n")
 
     a("## 7. FIGURE YANG DITAMPILKAN KE DOSEN\n")

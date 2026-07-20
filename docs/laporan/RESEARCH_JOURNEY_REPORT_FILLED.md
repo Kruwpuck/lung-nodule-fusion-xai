@@ -110,11 +110,15 @@ Rentang commit git: **2026-06-27** (initial commit) s/d **2026-07-20** (commit t
 | TOTAL | 1391 | 2138 | 4276.0 | nan |
 | rating_1/2/3/4/5 (arm B, rounded) | nan | nan | nan | 1:260 / 2:677 / 3:747 / 4:353 / 5:101 |
 
+![Dataset overview - contoh patch per kelas, terurut no_nodule->benign->indeterminate->malignant](../../artifacts/results/figures/dataset_overview.png)
+
+Kontur hijau pada figure di atas adalah mask segmentasi dari anotasi radiolog di dataset (bukan output model) -- dipakai sebagai referensi lokasi nodul saat membaca hasil Grad-CAM di Bab 6.2.
+
 ### 4.2 Preprocessing
-- Patch 2.5D: 3 slice axial di sekitar centroid, ditumpuk sebagai channel
+- Patch 2.5D: 3 slice axial di sekitar centroid, ditumpuk sebagai channel (kompromi antara context 3D volumetric dan biaya komputasi 2D CNN standar)
 - Ukuran: 64x64 pixel
-- Window HU: -1000 s/d 400
-- Resample: 1mm isotropic
+- Window HU: -1000 s/d 400 (rentang lung window standar radiologi, mencakup jaringan paru s/d jaringan lunak/nodul solid)
+- Resample: 1mm isotropic (menyamakan resolusi spasial antar scan, sebagian besar slice thickness asli berbeda-beda, lihat tabel karakteristik di bawah)
 
 ### 4.3 Split
 - Patient-level stratified 5-fold (semua nodul 1 pasien di fold sama)
@@ -323,6 +327,10 @@ Benign-vs-malignant AUC pada subset nodul saja (headline, anti-inflasi):
 ![SHAP beeswarm](../../artifacts/results/xai_track1/shap_beeswarm.png)
 
 ![Grad-CAM + SHAP side-by-side (malignant)](../../artifacts/results/xai_track1/sidebyside_malignant.png)
+
+![Grad-CAM + SHAP side-by-side (benign)](../../artifacts/results/xai_track1/sidebyside_benign.png)
+
+Kedua figure di atas membandingkan atensi spasial CNN (Grad-CAM) dengan kontribusi fitur radiomics (SHAP) pada sample sama -- level pertama dari cross-modality XAI. Cross-validation kuantitatif lintas lebih banyak sample (Level 2) menyusul di Fig 14, fase Track 1 lanjutan.
 
 ---
 
