@@ -1,4 +1,5 @@
-"""LIDC-IDRI data loading: DICOM -> fixed-window patches, binary labels, 5-fold CV splits.
+"""LIDC-IDRI data loading: DICOM -> fixed-window patches, ordinal malignancy
+targets (median_rating, binary label, grade3), 5-fold CV splits.
 
 Critical note: pylidc.Scan.to_volume() returns (Y, X, Z) — Z is the LAST axis.
 All functions here transpose to (Z, Y, X) before processing.
@@ -17,13 +18,22 @@ from sklearn.model_selection import StratifiedKFold
 logger = logging.getLogger(__name__)
 
 
-def _median_label(anns: list, exclude_score: int = 3) -> Optional[int]:
-    """Binary label from median of annotation malignancy ratings."""
-    ratings = [a.malignancy for a in anns]
-    med = np.median(ratings)
-    if med == exclude_score:
-        return None
-    return int(med > exclude_score)
+def _malignancy_targets(anns: list) -> dict:
+    """All malignancy targets for a nodule, derived from its annotation group.
+
+    No nodule is ever dropped here (median==3 kept, label=-1 marks it as
+    indeterminate for consumers that need to mask it out of binary loss/eval).
+    """
+    ratings = [float(a.malignancy) for a in anns]
+    med = float(np.median(ratings))
+    return {
+        "median_rating": med,                                   # ordinal target, 1.0-5.0
+        "label": int(med > 3) if med != 3 else -1,               # binary; -1 = indeterminate
+        "grade3": 0 if med < 3 else (1 if med == 3 else 2),      # 0=benign 1=indeterminate 2=malignant
+        "grade4": (1 if med < 3 else (2 if med == 3 else 3)),    # 0=no-nodule(reserved) 1=benign 2=indeterminate 3=malignant
+        "n_annotations": len(anns),
+        "rating_std": float(np.std(ratings)),
+    }
 
 
 def _crop_fixed_window(
@@ -147,20 +157,69 @@ def _crop_and_resample_nodule(
     return patch_out[:tz, :ty, :tx], (mask_out[:tz, :ty, :tx] > 0.5).astype(np.uint8)
 
 
+def crop_and_resample_point(
+    vol_zyx: np.ndarray,
+    center_zyx: Tuple[int, int, int],
+    native_spacing_zyx: Tuple[float, float, float],
+    window_mm: Tuple[float, float, float] = (64.0, 64.0, 16.0),
+    target_spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> np.ndarray:
+    """Crop+resample the same fixed physical window as `_crop_and_resample_nodule`,
+    but centered on an arbitrary voxel coordinate instead of a consensus mask
+    centroid. Used for no-nodule negatives (LUNA16 candidates) so the CT patch
+    preprocessing is byte-for-byte identical between positive and negative
+    classes — only the crop *center* differs, not the pipeline.
+
+    Returns patch_zyx of exactly (tz, ty, tx) voxels (no mask — negatives get
+    a synthetic ROI for radiomics, built by the caller).
+    """
+    from scipy.ndimage import zoom
+
+    sz, sy, sx = native_spacing_zyx
+    wy_mm, wx_mm, wz_mm = window_mm
+
+    hz_vox = max(1, int(round(wz_mm / 2 / sz)))
+    hy_vox = max(1, int(round(wy_mm / 2 / sy)))
+    hx_vox = max(1, int(round(wx_mm / 2 / sx)))
+    half_vox = (hz_vox, hy_vox, hx_vox)
+
+    patch_native = _crop_fixed_window(vol_zyx, center_zyx, half_vox, fill_value=-1000.0)
+
+    zoom_factors = (sz / target_spacing[0], sy / target_spacing[1], sx / target_spacing[2])
+    patch_rs = zoom(patch_native, zoom_factors, order=3)
+
+    tz = int(round(wz_mm / target_spacing[0]))
+    ty = int(round(wy_mm / target_spacing[1]))
+    tx = int(round(wx_mm / target_spacing[2]))
+
+    crs = tuple(s // 2 for s in patch_rs.shape)
+    patch_out = _crop_fixed_window(patch_rs, crs, (tz // 2, ty // 2, tx // 2), fill_value=-1000.0)
+    return patch_out[:tz, :ty, :tx]
+
+
 def build_nodule_dataset(
     lidc_path: str = "data/raw/LIDC-IDRI",
     interim_path: str = "data/interim",
     consensus_level: float = 0.5,
-    exclude_score: int = 3,
+    include_indeterminate: bool = True,
     min_annotations: int = 1,
     window_mm: Tuple[float, float, float] = (64.0, 64.0, 16.0),
     target_spacing: Tuple[float, float, float] = (1.0, 1.0, 1.0),
+    skip_existing: bool = False,
 ) -> pd.DataFrame:
-    """Query all LIDC scans, extract nodules with fixed-window crop and binary labels.
+    """Query all LIDC scans, extract nodules with fixed-window crop and ordinal targets.
+
+    include_indeterminate: if True (default), median==3 nodules are kept with
+        label=-1 (indeterminate) instead of being dropped. Set False to
+        reproduce the old binary-only behavior (median==3 excluded).
+    skip_existing: if True, nodules whose patch.npy/mask.npy already exist on
+        disk are not re-cropped (record is rebuilt from the saved mask +
+        annotation targets only) — used to add newly-included median==3
+        nodules without re-processing the ~1391 nodules already extracted.
 
     Returns DataFrame with columns:
         patient_id, scan_id, nodule_idx, label, mask_path, patch_path,
-        median_rating, n_annotations, centroid_z/y/x, spacing_z/y/x
+        median_rating, grade3, n_annotations, rating_std, centroid_z/y/x, spacing_z/y/x
     All patches saved as (Z, Y, X) numpy arrays of shape (16, 64, 64).
     """
     import pylidc as pl
@@ -174,36 +233,56 @@ def build_nodule_dataset(
 
     for scan in scans:
         pid = scan.patient_id
-        try:
-            # to_volume() returns (Y, X, Z) — Z is LAST (often only 2–20 slices)
-            vol_yxz = scan.to_volume(verbose=False)
-        except Exception as e:
-            logger.warning("Failed to load volume for %s: %s", pid, e)
-            continue
+        vol = None  # lazily loaded — skip_existing nodules don't need it
 
-        # Transpose to (Z, Y, X)
-        vol = vol_yxz.transpose(2, 0, 1)
+        def _get_vol():
+            nonlocal vol
+            if vol is None:
+                vol_yxz = scan.to_volume(verbose=False)  # (Y, X, Z) — Z LAST
+                vol = vol_yxz.transpose(2, 0, 1)
+            return vol
 
-        # Native spacing (Z, Y, X) in mm/voxel
         ps = float(scan.pixel_spacing)
         sz = float(getattr(scan, "slice_spacing", None) or getattr(scan, "slice_thickness", 1.0))
         native_spacing = (sz, ps, ps)
 
-        nodule_groups = scan.cluster_annotations()
+        try:
+            nodule_groups = scan.cluster_annotations()
+        except Exception as e:
+            logger.warning("cluster_annotations failed for %s: %s", pid, e)
+            continue
 
         for nidx, anns in enumerate(nodule_groups):
             if len(anns) < min_annotations:
                 continue
 
-            label = _median_label(anns, exclude_score)
-            if label is None:
+            targets = _malignancy_targets(anns)
+            if not include_indeterminate and targets["label"] == -1:
+                continue
+
+            nodule_dir = Path(interim_path) / pid / f"nodule_{nidx:03d}"
+            mask_path  = str(nodule_dir / "mask.npy")
+            patch_path = str(nodule_dir / "patch.npy")
+
+            if skip_existing and os.path.exists(mask_path) and os.path.exists(patch_path):
+                mask_out = np.load(mask_path)
+                nz_local = np.array(mask_out.nonzero()).mean(axis=1)
+                records.append({
+                    "patient_id": pid, "scan_id": scan.id, "nodule_idx": nidx,
+                    "mask_path": mask_path, "patch_path": patch_path,
+                    "centroid_z": float(nz_local[0]), "centroid_y": float(nz_local[1]),
+                    "centroid_x": float(nz_local[2]),
+                    "spacing_z": native_spacing[0], "spacing_y": native_spacing[1],
+                    "spacing_x": native_spacing[2],
+                    **targets,
+                })
                 continue
 
             try:
                 # pad=0 — we handle cropping ourselves with fixed window
                 cmask, cbbox, _ = consensus(
                     anns, clevel=consensus_level,
-                    pad=((0, 0), (0, 0), (0, 0)),
+                    pad=0,  # pylidc 0.2.2 rejects tuple-of-tuples; 0 == no pad
                 )
             except Exception as e:
                 logger.warning("Consensus failed %s nodule %d: %s", pid, nidx, e)
@@ -215,7 +294,7 @@ def build_nodule_dataset(
 
             try:
                 patch, mask_out = _crop_and_resample_nodule(
-                    vol, cmask, cbbox, native_spacing, window_mm, target_spacing
+                    _get_vol(), cmask, cbbox, native_spacing, window_mm, target_spacing
                 )
             except Exception as e:
                 logger.warning("Crop/resample failed %s nodule %d: %s", pid, nidx, e)
@@ -225,10 +304,7 @@ def build_nodule_dataset(
                 logger.warning("Empty mask after resample %s nodule %d — skip", pid, nidx)
                 continue
 
-            nodule_dir = Path(interim_path) / pid / f"nodule_{nidx:03d}"
             nodule_dir.mkdir(parents=True, exist_ok=True)
-            mask_path  = str(nodule_dir / "mask.npy")
-            patch_path = str(nodule_dir / "patch.npy")
             np.save(mask_path,  mask_out.astype(np.uint8))
             np.save(patch_path, patch.astype(np.float32))
 
@@ -239,41 +315,63 @@ def build_nodule_dataset(
                 "patient_id":    pid,
                 "scan_id":       scan.id,
                 "nodule_idx":    nidx,
-                "label":         label,
                 "mask_path":     mask_path,
                 "patch_path":    patch_path,
-                "median_rating": float(np.median([a.malignancy for a in anns])),
-                "n_annotations": len(anns),
                 "centroid_z":    float(nz_local[0]),
                 "centroid_y":    float(nz_local[1]),
                 "centroid_x":    float(nz_local[2]),
                 "spacing_z":     native_spacing[0],
                 "spacing_y":     native_spacing[1],
                 "spacing_x":     native_spacing[2],
+                **targets,
             })
 
     df = pd.DataFrame(records)
     logger.info(
-        "Dataset: %d nodules | %d malignant | %d benign",
-        len(df), (df.label == 1).sum(), (df.label == 0).sum(),
+        "Dataset: %d nodules | %d malignant | %d benign | %d indeterminate",
+        len(df), (df.label == 1).sum(), (df.label == 0).sum(), (df.label == -1).sum(),
     )
     return df
 
 
-def add_kfold_splits(df: pd.DataFrame, n_folds: int = 5, seed: int = 42) -> pd.DataFrame:
-    """Patient-level stratified k-fold. All nodules from one patient stay in same fold."""
-    patient_df = (
-        df.groupby("patient_id")
-        .agg(patient_label=("label", lambda x: int(x.mode()[0])))
-        .reset_index()
-    )
-    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
-    patient_df["fold"] = -1
-    for fold_idx, (_, val_idx) in enumerate(
-        skf.split(patient_df["patient_id"], patient_df["patient_label"])
-    ):
-        patient_df.loc[val_idx, "fold"] = fold_idx
-    return df.merge(patient_df[["patient_id", "fold"]], on="patient_id", how="left")
+def add_kfold_splits(
+    df: pd.DataFrame,
+    n_folds: int = 5,
+    seed: int = 42,
+    freeze_from: Optional[str] = None,
+) -> pd.DataFrame:
+    """Patient-level stratified k-fold. All nodules from one patient stay in same fold.
+
+    freeze_from: path to an old labels.csv. Patients present there keep their
+    original fold (so AUC on old data stays comparable across runs); only
+    newly-added patients are freshly stratified, using grade3 mode (not the
+    binary label mode, since a new patient could be all-indeterminate).
+    """
+    frozen: dict = {}
+    if freeze_from and os.path.exists(freeze_from):
+        old = pd.read_csv(freeze_from)
+        frozen = dict(old.drop_duplicates("patient_id")[["patient_id", "fold"]].values)
+
+    known_mask = df["patient_id"].isin(frozen)
+    known = df[known_mask].copy()
+    known["fold"] = known["patient_id"].map(frozen).astype(int)
+
+    new = df[~known_mask].copy()
+    if len(new):
+        patient_df = (
+            new.groupby("patient_id")
+            .agg(patient_grade=("grade3", lambda x: int(x.mode()[0])))
+            .reset_index()
+        )
+        skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=seed)
+        patient_df["fold"] = -1
+        for fold_idx, (_, val_idx) in enumerate(
+            skf.split(patient_df["patient_id"], patient_df["patient_grade"])
+        ):
+            patient_df.loc[val_idx, "fold"] = fold_idx
+        new = new.merge(patient_df[["patient_id", "fold"]], on="patient_id", how="left")
+
+    return pd.concat([known, new], ignore_index=True) if len(new) else known
 
 
 def load_and_split(
@@ -283,6 +381,9 @@ def load_and_split(
     n_folds: int = 5,
     seed: int = 42,
     force_rebuild: bool = False,
+    include_indeterminate: bool = True,
+    skip_existing: bool = False,
+    freeze_from: Optional[str] = None,
 ) -> pd.DataFrame:
     """Full pipeline: build nodule dataset + k-fold splits. Caches to processed/labels.csv."""
     labels_csv = Path(processed_path) / "labels.csv"
@@ -290,8 +391,11 @@ def load_and_split(
         logger.info("Loading cached labels from %s", labels_csv)
         return pd.read_csv(labels_csv)
 
-    df = build_nodule_dataset(lidc_path=lidc_path, interim_path=interim_path)
-    df = add_kfold_splits(df, n_folds=n_folds, seed=seed)
+    df = build_nodule_dataset(
+        lidc_path=lidc_path, interim_path=interim_path,
+        include_indeterminate=include_indeterminate, skip_existing=skip_existing,
+    )
+    df = add_kfold_splits(df, n_folds=n_folds, seed=seed, freeze_from=freeze_from)
     os.makedirs(processed_path, exist_ok=True)
     df.to_csv(labels_csv, index=False)
     logger.info("Saved labels to %s", labels_csv)

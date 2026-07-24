@@ -14,6 +14,9 @@ data:
   n_slices: 3
   patch_xy: 64
   n_folds: 5
+  include_indeterminate: true   # keep median==3 nodules (label=-1), don't discard
+  skip_existing: true           # don't re-crop the ~1391 nodules already extracted
+  freeze_from: "data/processed/labels_binary_v1.csv"  # keep old patient folds stable
 
 train:
   epochs: 50
@@ -34,3 +37,4 @@ track1_fusion:
 
 radiomics:
   params_yaml: "configs/radiomics_params.yaml"
+  incremental: true   # only extract features for nodules not already in the cache

@@ -1,0 +1,145 @@
+{
+  "fold": 0,
+  "backbones": [
+    "mobilenetv3_small",
+    "efficientnet_b0",
+    "densenet121",
+    "resnet50",
+    "vgg16",
+    "vit_base"
+  ],
+  "samples": [
+    {
+      "slot": "S1",
+      "description": "TP malignant, high-conf, small nodule",
+      "patient_id": "LIDC-IDRI-0732",
+      "scan_id": 923,
+      "nodule_idx": 1,
+      "fold": 0,
+      "label": 1,
+      "patch_path": "artifacts\\patches\\LIDC-IDRI-0732\\nodule_001\\patch.npy",
+      "mask_path": "artifacts\\patches\\LIDC-IDRI-0732\\nodule_001\\mask.npy",
+      "diameter_mm": 15.937377450509228,
+      "mean_prob_malignant": 0.9195392727851868,
+      "std_prob_malignant": 0.052404459565877914,
+      "per_backbone_prob": {
+        "mobilenetv3_small": 0.894346296787262,
+        "efficientnet_b0": 0.931728184223175,
+        "densenet121": 0.9987803101539612,
+        "resnet50": 0.9696733355522156,
+        "vgg16": 0.8694286942481995,
+        "vit_base": 0.853278636932373
+      }
+    },
+    {
+      "slot": "S2",
+      "description": "TP malignant, high-conf, medium nodule",
+      "patient_id": "LIDC-IDRI-0194",
+      "scan_id": 195,
+      "nodule_idx": 1,
+      "fold": 0,
+      "label": 1,
+      "patch_path": "artifacts\\patches\\LIDC-IDRI-0194\\nodule_001\\patch.npy",
+      "mask_path": "artifacts\\patches\\LIDC-IDRI-0194\\nodule_001\\mask.npy",
+      "diameter_mm": 29.563490998188964,
+      "mean_prob_malignant": 0.9355375170707703,
+      "std_prob_malignant": 0.08619271963834763,
+      "per_backbone_prob": {
+        "mobilenetv3_small": 0.7574101090431213,
+        "efficientnet_b0": 0.9946209192276001,
+        "densenet121": 0.9999490976333618,
+        "resnet50": 0.9998805522918701,
+        "vgg16": 0.9532526135444641,
+        "vit_base": 0.908111572265625
+      }
+    },
+    {
+      "slot": "S3",
+      "description": "TP malignant, high-conf, large nodule",
+      "patient_id": "LIDC-IDRI-0075",
+      "scan_id": 85,
+      "nodule_idx": 1,
+      "fold": 0,
+      "label": 1,
+      "patch_path": "artifacts\\patches\\LIDC-IDRI-0075\\nodule_001\\patch.npy",
+      "mask_path": "artifacts\\patches\\LIDC-IDRI-0075\\nodule_001\\mask.npy",
+      "diameter_mm": 48.31148931672465,
+      "mean_prob_malignant": 0.9146082401275635,
+      "std_prob_malignant": 0.0893566906452179,
+      "per_backbone_prob": {
+        "mobilenetv3_small": 0.7714842557907104,
+        "efficientnet_b0": 0.9938573241233826,
+        "densenet121": 0.9998156428337097,
+        "resnet50": 0.999925971031189,
+        "vgg16": 0.8398790955543518,
+        "vit_base": 0.8826870918273926
+      }
+    },
+    {
+      "slot": "S4",
+      "description": "TP malignant, high-conf, smallest nodule (resolution stress test)",
+      "patient_id": "LIDC-IDRI-0164",
+      "scan_id": 165,
+      "nodule_idx": 10,
+      "fold": 0,
+      "label": 1,
+      "patch_path": "artifacts\\patches\\LIDC-IDRI-0164\\nodule_010\\patch.npy",
+      "mask_path": "artifacts\\patches\\LIDC-IDRI-0164\\nodule_010\\mask.npy",
+      "diameter_mm": 13.19090595827292,
+      "mean_prob_malignant": 0.797902524471283,
+      "std_prob_malignant": 0.1108512356877327,
+      "per_backbone_prob": {
+        "mobilenetv3_small": 0.8231842517852783,
+        "efficientnet_b0": 0.7906841039657593,
+        "densenet121": 0.8854770064353943,
+        "resnet50": 0.9647882580757141,
+        "vgg16": 0.6754615306854248,
+        "vit_base": 0.647819995880127
+      }
+    },
+    {
+      "slot": "S5",
+      "description": "True benign, high-conf (all backbones agree)",
+      "patient_id": "LIDC-IDRI-0491",
+      "scan_id": 497,
+      "nodule_idx": 1,
+      "fold": 0,
+      "label": 0,
+      "patch_path": "artifacts\\patches\\LIDC-IDRI-0491\\nodule_001\\patch.npy",
+      "mask_path": "artifacts\\patches\\LIDC-IDRI-0491\\nodule_001\\mask.npy",
+      "diameter_mm": 5.744562646538029,
+      "mean_prob_malignant": 0.029802486300468445,
+      "std_prob_malignant": 0.032249800860881805,
+      "per_backbone_prob": {
+        "mobilenetv3_small": 0.030322114005684853,
+        "efficientnet_b0": 0.005406856071203947,
+        "densenet121": 0.0017246995121240616,
+        "resnet50": 0.0002565552422311157,
+        "vgg16": 0.08875200897455215,
+        "vit_base": 0.052352674305438995
+      }
+    },
+    {
+      "slot": "S6",
+      "description": "Disagreement / failure case across backbones",
+      "patient_id": "LIDC-IDRI-0469",
+      "scan_id": 474,
+      "nodule_idx": 0,
+      "fold": 0,
+      "label": 0,
+      "patch_path": "artifacts\\patches\\LIDC-IDRI-0469\\nodule_000\\patch.npy",
+      "mask_path": "artifacts\\patches\\LIDC-IDRI-0469\\nodule_000\\mask.npy",
+      "diameter_mm": 22.494443758403985,
+      "mean_prob_malignant": 0.4633811414241791,
+      "std_prob_malignant": 0.31728827953338623,
+      "per_backbone_prob": {
+        "mobilenetv3_small": 0.9614930748939514,
+        "efficientnet_b0": 0.4257063865661621,
+        "densenet121": 0.2615467309951782,
+        "resnet50": 0.012131823226809502,
+        "vgg16": 0.3457222878932953,
+        "vit_base": 0.7736867666244507
+      }
+    }
+  ]
+}

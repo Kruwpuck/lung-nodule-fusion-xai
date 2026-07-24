@@ -84,6 +84,56 @@ def aggregate_fold_results(
     return summary
 
 
+def ordinal_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
+    """MAE, Quadratic Weighted Kappa, and within-1-grade accuracy for a 1-5 ordinal target.
+
+    y_true/y_pred are raw (possibly fractional) ratings; rounded to the nearest
+    integer grade in [1, 5] for QWK and within-1 accuracy.
+    """
+    from sklearn.metrics import cohen_kappa_score
+
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+    mae = float(np.abs(y_true - y_pred).mean())
+    t = np.clip(np.round(y_true), 1, 5).astype(int)
+    p = np.clip(np.round(y_pred), 1, 5).astype(int)
+    return {
+        "mae": mae,
+        "qwk": float(cohen_kappa_score(t, p, weights="quadratic")),
+        "acc_within_1": float((np.abs(t - p) <= 1).mean()),
+    }
+
+
+def derive_binary(y_rating_true: np.ndarray, y_rating_pred: np.ndarray) -> dict[str, float]:
+    """Binary AUC/metrics derived from ordinal predictions, on the median!=3 subset only.
+
+    This is the endpoint directly comparable to the existing binary baseline
+    (arm A), since that baseline also excludes median==3 nodules.
+    """
+    y_rating_true = np.asarray(y_rating_true, dtype=float)
+    y_rating_pred = np.asarray(y_rating_pred, dtype=float)
+    mask = y_rating_true != 3.0
+    y_true_bin = (y_rating_true[mask] > 3).astype(int)
+    # compute_metrics expects a [0,1] probability; ordinal predictions live on
+    # the 1-5 rating scale, so rescale linearly (rating=3 -> prob=0.5, the
+    # same boundary used for y_true_bin above).
+    y_prob = np.clip((y_rating_pred[mask] - 1.0) / 4.0, 0.0, 1.0)
+    return compute_metrics(y_true_bin, y_prob)
+
+
+def derive_grade3(
+    y_rating_true: np.ndarray,
+    y_rating_pred: np.ndarray,
+    lo: float = 2.75,
+    hi: float = 3.25,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Bin ordinal ratings into 3 classes: 0=benign, 1=indeterminate, 2=malignant."""
+    def to3(v: np.ndarray) -> np.ndarray:
+        return np.where(v < lo, 0, np.where(v > hi, 2, 1))
+
+    return to3(np.asarray(y_rating_true, dtype=float)), to3(np.asarray(y_rating_pred, dtype=float))
+
+
 def build_calibration_data(
     y_true: np.ndarray,
     y_prob: np.ndarray,
@@ -98,3 +148,43 @@ def build_calibration_data(
         "mean_predicted": mean_predicted_value,
         "fraction_positive": fraction_of_positives,
     })
+
+
+def grade4_metrics(y_true: np.ndarray, y_prob: np.ndarray) -> dict[str, float]:
+    """Macro-AUC (OvR), accuracy, macro-F1 for the 4-class
+    no-nodule/benign/indeterminate/malignant task (arm D)."""
+    from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
+
+    y_pred = np.argmax(y_prob, axis=1)
+    return {
+        "auc_macro": float(roc_auc_score(y_true, y_prob, multi_class="ovr", average="macro")),
+        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "f1_macro": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
+    }
+
+
+def grade4_nodule_only_metrics(y_true: np.ndarray, y_prob: np.ndarray) -> dict[str, float]:
+    """Benign-vs-malignant metrics on the nodule-only subset of arm D (grade4).
+
+    Excludes class 0 (no-nodule) and class 2 (indeterminate) so a strong 4-class
+    macro-AUC/accuracy can't be inflated by the trivially separable no-nodule
+    negatives. This is the headline metric for arm D, per the anti-inflation gate.
+    """
+    y_true = np.asarray(y_true)
+    mask = np.isin(y_true, [1, 3])
+    if mask.sum() == 0:
+        return {"auc_nodule_only": float("nan"), "accuracy_nodule_only": float("nan"),
+                "sensitivity_nodule_only": float("nan"), "specificity_nodule_only": float("nan"),
+                "precision_nodule_only": float("nan"), "f1_nodule_only": float("nan"),
+                "balanced_accuracy_nodule_only": float("nan"), "brier_score_nodule_only": float("nan"),
+                "n_nodule_only": 0}
+
+    y_true_bin = (y_true[mask] == 3).astype(int)
+    p_benign = y_prob[mask, 1]
+    p_malignant = y_prob[mask, 3]
+    p_bin = p_malignant / (p_benign + p_malignant + 1e-10)
+
+    m = compute_metrics(y_true_bin, p_bin)
+    out = {f"{k}_nodule_only": v for k, v in m.items() if k not in ("tp", "tn", "fp", "fn")}
+    out["n_nodule_only"] = int(mask.sum())
+    return out

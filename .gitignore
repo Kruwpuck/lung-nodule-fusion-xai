@@ -36,3 +36,10 @@ dcm2niix_win.zip
 
 artifacts/
 data_pipeline_detached.log
+
+# Windows folder metadata
+desktop.ini
+
+# Stray root-level run logs
+_*.log
+*.log

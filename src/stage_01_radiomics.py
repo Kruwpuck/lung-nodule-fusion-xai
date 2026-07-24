@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 def run(cfg: dict) -> None:
     from src.utils.io import cached
     out = cfg["paths"]["features"]
-    if cached(out) and not cfg.get("force_rerun", False):
+    incremental = cfg["radiomics"].get("incremental", True)
+    force_rerun = cfg.get("force_rerun", False)
+    if cached(out) and not force_rerun and not incremental:
         print(f"[SKIP] {out}")
         return
 
@@ -26,7 +28,8 @@ def run(cfg: dict) -> None:
         df,
         params_yaml=cfg["radiomics"]["params_yaml"],
         output_parquet=out,
-        force_rebuild=cfg.get("force_rerun", False),
+        force_rebuild=force_rerun,
+        incremental=incremental,
     )
     features_df.to_parquet(out, index=False)
     print(f"[DONE] {out}  ({len(features_df)} rows)")
