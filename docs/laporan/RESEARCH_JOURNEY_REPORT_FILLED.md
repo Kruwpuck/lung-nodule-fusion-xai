@@ -13,9 +13,8 @@
 - **Peneliti**:
   - Ihab Hasanain Akmal (103032330054)
   - Siti Nurhayati Syafaningrum (101012330012)
-- **Pembimbing**: Naufal Hanan Lutfianto
+- **Pembimbing**: Felix Corputty
 - **Periode**: 2026-06-27 s/d 2026-07-20 (dari git log)
-- **Target sidang**: <<ISI: target sidang/deadline>>
 
 ---
 
