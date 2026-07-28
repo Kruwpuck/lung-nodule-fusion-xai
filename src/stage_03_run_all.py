@@ -21,7 +21,10 @@ def run(cfg: dict, task: str = "binary") -> None:
     for model_name in track1_backbones:
         for fold in range(n_folds):
             logger.info("[TRACK1] %s fold%d", model_name, fold)
-            train_run(cfg, model_name, fold, task)
+            try:
+                train_run(cfg, model_name, fold, task)
+            except Exception:
+                logger.exception("[TRACK1 FAILED] %s fold%d -- continuing with next combo", model_name, fold)
 
     logger.info("[TRACK2] starting sweep")
     sweep_run(cfg, task)

@@ -54,7 +54,10 @@ def run(cfg: dict, task: str = "binary") -> None:
                         logger.info("[SKIP] %s already completed", run_id)
                         continue
                     logger.info("[RUN] %s", run_id)
-                    train_run(cfg, model_name, fold, task, optimizer_name, wd)
+                    try:
+                        train_run(cfg, model_name, fold, task, optimizer_name, wd)
+                    except Exception:
+                        logger.exception("[RUN FAILED] %s -- continuing with next combo", run_id)
 
     print(f"[DONE] sweep: {total} combos, {skipped} skipped (already completed)")
 

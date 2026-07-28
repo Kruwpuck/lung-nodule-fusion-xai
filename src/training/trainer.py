@@ -16,16 +16,36 @@ logger = logging.getLogger(__name__)
 
 
 def save_ckpt(path: str, model, optimizer, epoch: int, best_auc: float) -> None:
+    """Save checkpoint via a temp file + atomic rename, with retries.
+
+    The project directory is synced by OneDrive (confirmed via stray desktop.ini
+    litter in .git/refs), which transiently locks files mid-write and raises
+    PytorchStreamWriter "file write failed" errors. Writing to a temp file first
+    means a failed/interrupted write never corrupts the previous good checkpoint,
+    and a short retry loop rides out the transient lock instead of killing the
+    whole sweep run.
+    """
+    import time
     import torch
-    torch.save(
-        {
-            "epoch": epoch,
-            "model_state": model.state_dict(),
-            "optim_state": optimizer.state_dict(),
-            "best_auc": float(best_auc),
-        },
-        path,
-    )
+
+    payload = {
+        "epoch": epoch,
+        "model_state": model.state_dict(),
+        "optim_state": optimizer.state_dict(),
+        "best_auc": float(best_auc),
+    }
+    tmp_path = f"{path}.tmp"
+    last_err = None
+    for attempt in range(5):
+        try:
+            torch.save(payload, tmp_path)
+            os.replace(tmp_path, path)
+            return
+        except RuntimeError as e:
+            last_err = e
+            logger.warning("save_ckpt attempt %d failed for %s: %s", attempt + 1, path, e)
+            time.sleep(2 * (attempt + 1))
+    raise last_err
 
 
 def maybe_resume(path: str, model, optimizer):
