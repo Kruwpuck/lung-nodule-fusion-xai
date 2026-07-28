@@ -1,5 +1,5 @@
 seed: 42
-force_rerun: false
+force_rerun: true
 
 paths:
   raw: "./data/raw/LIDC-IDRI"
