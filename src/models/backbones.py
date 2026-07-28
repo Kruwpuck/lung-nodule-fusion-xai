@@ -137,7 +137,7 @@ def build_2d_backbone(name: str, n_input_channels: int = 3, pretrained: bool = T
 
     elif name == "googlenet":
         weights = "IMAGENET1K_V1" if pretrained else None
-        model = tvm.googlenet(weights=weights, aux_logits=(weights is None), init_weights=(weights is None))
+        model = tvm.googlenet(weights=weights, aux_logits=True, init_weights=(weights is None))
         model.aux_logits = False
         model.aux1 = None
         model.aux2 = None
@@ -152,7 +152,7 @@ def build_2d_backbone(name: str, n_input_channels: int = 3, pretrained: bool = T
 
     elif name == "inception_v3":
         weights = "IMAGENET1K_V1" if pretrained else None
-        model = tvm.inception_v3(weights=weights, aux_logits=(weights is None), init_weights=(weights is None))
+        model = tvm.inception_v3(weights=weights, aux_logits=True, init_weights=(weights is None))
         model.aux_logits = False
         model.AuxLogits = None
         old_conv = model.Conv2d_1a_3x3.conv
