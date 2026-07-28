@@ -27,9 +27,27 @@ train:
   checkpoint_every: 5
   mixed_precision: true
 
-models:
+models:            # legacy: set 6-backbone di balik 120 checkpoint existing
   lightweight: ["mobilenetv3_small", "efficientnet_b0", "densenet121"]
   heavyweight: ["resnet50", "vgg16", "vit_base"]
+
+tracks:
+  track2:          # model comparison + hyperparameter/stability study
+    backbones: ["mobilenetv2", "efficientnet_b0", "resnet50", "vgg16"]
+    input_size: null          # semua native 64x64, tanpa upsample
+  track1:          # fusion radiomics-CNN + xAI per-arm
+    backbones: ["densenet121", "inceptionv3", "xception", "googlenet",
+                "convnext_tiny", "inception_resnet_v2", "densenet201"]
+    input_size: 96             # seragam lintas arm; >= 75 (floor InceptionV3/IRv2)
+
+track2_sweep:
+  enabled: true
+  optimizers: ["sgd", "adam", "adamw"]
+  weight_decays:               # default PyTorch per-optimizer +/- 1 order of magnitude
+    sgd:   [1.0e-5, 1.0e-4, 1.0e-3]
+    adam:  [1.0e-5, 1.0e-4, 1.0e-3]
+    adamw: [1.0e-3, 1.0e-2, 1.0e-1]
+  momentum: 0.9                # untuk SGD+momentum
 
 track1_fusion:
   enabled: true

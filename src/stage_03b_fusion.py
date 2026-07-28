@@ -189,9 +189,51 @@ def run(cfg: dict) -> None:
 
     merged, feat_cols = _load_merged(cfg)
     n_folds = cfg["data"].get("n_folds", 5)
-    model_name = cfg["track1_fusion"].get("backbone", "mobilenetv3_small")
-    backbone_internal = _NAME_MAP.get(model_name, model_name)
+    track1_backbones = cfg.get("tracks", {}).get("track1", {}).get("backbones")
+    if not track1_backbones:
+        track1_backbones = [cfg["track1_fusion"].get("backbone", "mobilenetv3_small")]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    all_rows = []
+    all_delong_rows = []
+
+    for model_name in track1_backbones:
+        backbone_internal = _NAME_MAP.get(model_name, model_name)
+        ckpt_subdir_check = os.path.join(cfg["paths"]["checkpoints"], model_name, "fold0_best.pt")
+        if not os.path.exists(ckpt_subdir_check):
+            logger.warning("Skipping Track 1 backbone %r — no checkpoint at %s "
+                            "(run stage_03_train for this backbone first)", model_name, ckpt_subdir_check)
+            continue
+
+        rows, delong_rows = _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_folds, device)
+        all_rows.extend(rows)
+        all_delong_rows.extend(delong_rows)
+
+    summary = pd.DataFrame(all_rows)
+    summary.to_csv(out_csv, index=False)
+    print(f"[DONE] {out_csv}  ({len(all_rows)} rows)")
+
+    delong_df = pd.DataFrame(all_delong_rows)
+    delong_csv = os.path.join(fusion_dir, "delong_fusion.csv")
+    delong_df.to_csv(delong_csv, index=False)
+    print(f"[DONE] {delong_csv}")
+    for r in all_delong_rows:
+        headline = r["fusion_arm"] if r["fusion_significantly_better"] else r["best_single_arm"]
+        logger.info("[%s] %s AUC=%.4f vs %s AUC=%.4f (p=%.4f) -> headline: %s",
+                    r["backbone"], r["fusion_arm"], r["fusion_auc"], r["best_single_arm"], r["best_single_auc"],
+                    r["delong_p"], headline)
+
+
+def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_folds, device):
+    """Run all 5 Track 1 arms for one backbone across all folds. Returns (rows, delong_rows)."""
+    import torch
+    from src.fusion.early_fusion import extract_cnn_embeddings, build_early_fusion_features, train_early_fusion_xgboost
+    from src.fusion.late_fusion import average_fusion, stacking_fusion
+    from src.evaluation.metrics import compute_metrics
+    from src.evaluation.statistical_tests import delong_test
+    from src.models.backbones import BackboneClassifier
+    from src.training.dataset import NoduleDataset2_5D
+    from torch.utils.data import DataLoader
 
     rows = []
     pooled = {"cnn": [], "radiomics": [], "fusion_intermediate": [], "fusion_early": [], "fusion_late": [], "y_true": []}
@@ -247,7 +289,7 @@ def run(cfg: dict) -> None:
         for arm_name, m in [("cnn_only", m_cnn), ("radiomics_only", m_rad),
                              ("fusion_intermediate", m_fus), ("fusion_late", m_late),
                              ("fusion_early", m_early)]:
-            rows.append({"arm": arm_name, "fold": fold, "n_val": len(val_df), **m})
+            rows.append({"backbone": model_name, "arm": arm_name, "fold": fold, "n_val": len(val_df), **m})
 
         pooled["y_true"].append(y_val)
         pooled["cnn"].append(cnn_prob)
@@ -256,11 +298,8 @@ def run(cfg: dict) -> None:
         pooled["fusion_late"].append(late_prob)
         pooled["fusion_early"].append(early_prob)
 
-    summary = pd.DataFrame(rows)
-    summary.to_csv(out_csv, index=False)
-    print(f"[DONE] {out_csv}  ({len(rows)} rows)")
-
     # --- pooled DeLong across arms + decision rule ---
+    import numpy as np
     y_true_all = np.concatenate(pooled["y_true"])
     delong_rows = []
     arm_probs = {k: np.concatenate(v) for k, v in pooled.items() if k != "y_true"}
@@ -271,20 +310,14 @@ def run(cfg: dict) -> None:
     for fusion_arm in ("fusion_intermediate", "fusion_early", "fusion_late"):
         _, p_val, _ = delong_test(y_true_all, arm_probs[fusion_arm], arm_probs[best_single])
         delong_rows.append({
+            "backbone": model_name,
             "fusion_arm": fusion_arm, "fusion_auc": aucs[fusion_arm],
             "best_single_arm": best_single, "best_single_auc": aucs[best_single],
             "delong_p": p_val,
             "fusion_significantly_better": bool(p_val < 0.05 and aucs[fusion_arm] > aucs[best_single]),
         })
-    delong_df = pd.DataFrame(delong_rows)
-    delong_csv = os.path.join(fusion_dir, "delong_fusion.csv")
-    delong_df.to_csv(delong_csv, index=False)
-    print(f"[DONE] {delong_csv}")
-    for r in delong_rows:
-        headline = r["fusion_arm"] if r["fusion_significantly_better"] else r["best_single_arm"]
-        logger.info("%s AUC=%.4f vs %s AUC=%.4f (p=%.4f) -> headline: %s",
-                    r["fusion_arm"], r["fusion_auc"], r["best_single_arm"], r["best_single_auc"],
-                    r["delong_p"], headline)
+
+    return rows, delong_rows
 
 
 def main() -> None:

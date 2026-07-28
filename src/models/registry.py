@@ -10,6 +10,12 @@ _NAME_MAP = {
     "resnet50":          "resnet50",
     "vgg16":             "vgg16",
     "vit_base":          "vit_b_16",
+    "mobilenetv2":         "mobilenet_v2",
+    "inceptionv3":         "inception_v3",
+    "xception":            "xception",
+    "googlenet":           "googlenet",
+    "inception_resnet_v2": "inception_resnet_v2",
+    "densenet201":         "densenet201",
 }
 
 
@@ -22,9 +28,14 @@ _TASK_N_CLASSES = {"binary": 2, "ordinal": 1, "grade3": 3, "grade4": 4}
 
 def build_model(name: str, cfg: dict, task: str = "binary"):
     from src.models.backbones import BackboneClassifier
+    from src.utils.tracks import track_input_size
     backbone = _NAME_MAP.get(name, name)
     n_slices = cfg.get("data", {}).get("n_slices", 3)
     if task not in _TASK_N_CLASSES:
         raise ValueError(f"Unknown task: {task!r}. Expected one of {list(_TASK_N_CLASSES)}")
     n_classes = _TASK_N_CLASSES[task]
-    return BackboneClassifier(backbone, n_input_channels=n_slices, n_classes=n_classes, pretrained=True)
+    input_size = track_input_size(cfg, name)
+    return BackboneClassifier(
+        backbone, n_input_channels=n_slices, n_classes=n_classes, pretrained=True,
+        input_size=input_size,
+    )

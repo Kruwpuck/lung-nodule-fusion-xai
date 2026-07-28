@@ -22,6 +22,7 @@ def run(cfg: dict, task: str = "binary") -> None:
     from src.evaluation.metrics import compute_metrics, ordinal_metrics, grade4_metrics, grade4_nodule_only_metrics
     from src.evaluation.efficiency import count_params, measure_flops, measure_latency
     from src.stage_03_train import _TASK_CFG, _filter_for_task, _evaluate
+    from src.utils.tracks import resolve_track
     from torch.utils.data import DataLoader
 
     labels_path = os.path.join(cfg["paths"]["interim"], "labels.csv")
@@ -45,8 +46,10 @@ def run(cfg: dict, task: str = "binary") -> None:
     batch_size = cfg["train"].get("batch_size", 16)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    all_models = (cfg["models"].get("lightweight", []) +
-                  cfg["models"].get("heavyweight", []))
+    legacy_models = cfg["models"].get("lightweight", []) + cfg["models"].get("heavyweight", [])
+    track_models = (cfg.get("tracks", {}).get("track1", {}).get("backbones", []) +
+                     cfg.get("tracks", {}).get("track2", {}).get("backbones", []))
+    all_models = list(dict.fromkeys(legacy_models + track_models))  # dedup, preserve order
     n_folds = cfg["data"].get("n_folds", 5)
     rows = []
     tcfg = _TASK_CFG[task]
@@ -79,7 +82,7 @@ def run(cfg: dict, task: str = "binary") -> None:
                                         target_col=tcfg["target_col"], target_dtype=tcfg["target_dtype"])
             val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
 
-            y_true, y_out = _evaluate(model, val_loader, device, task)
+            y_true, y_out, _val_loss = _evaluate(model, val_loader, device, task)
             if task == "binary":
                 np.savez(os.path.join(preds_dir, f"{model_name}_fold{fold}.npz"),
                           y_true=y_true, y_prob=y_out[:, 1])
@@ -97,8 +100,12 @@ def run(cfg: dict, task: str = "binary") -> None:
 
             rows.append({
                 "model": model_name,
+                "track": resolve_track(cfg, model_name) or "legacy",
                 "task": task,
                 "fold": fold,
+                "optimizer": "adamw",
+                "weight_decay": cfg["train"].get("weight_decay", 1e-4),
+                "run_id": f"{model_name}_{task}_f{fold}_adamw_wd{cfg['train'].get('weight_decay', 1e-4):g}",
                 "params_M": params_M,
                 "gflops": gflops,
                 "latency_ms": latency_ms,

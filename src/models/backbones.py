@@ -4,6 +4,16 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
+# Minimum square input side required by architecture (torchvision/timm docs).
+# BackboneClassifier auto-resizes below this; Track 1 config applies one
+# uniform input_size (>= max of these) across all arms for XAI fairness.
+_MIN_INPUT = {
+    "vit_b_16": 224,
+    "inception_v3": 75,
+    "xception": 71,
+    "inception_resnet_v2": 75,
+}
+
 
 def build_2d_backbone(name: str, n_input_channels: int = 3, pretrained: bool = True) -> tuple[nn.Module, int]:
     """Build 2D/2.5D backbone. Returns (feature_extractor, embedding_dim).
@@ -104,6 +114,72 @@ def build_2d_backbone(name: str, n_input_channels: int = 3, pretrained: bool = T
         features = nn.Sequential(model.features, nn.AdaptiveAvgPool2d(1), nn.Flatten())
         emb_dim = 512
 
+    elif name == "mobilenet_v2":
+        weights = "IMAGENET1K_V2" if pretrained else None
+        model = tvm.mobilenet_v2(weights=weights)
+        old_conv = model.features[0][0]
+        model.features[0][0] = nn.Conv2d(
+            n_input_channels, old_conv.out_channels,
+            kernel_size=old_conv.kernel_size, stride=old_conv.stride,
+            padding=old_conv.padding, bias=old_conv.bias is not None,
+        )
+        features = nn.Sequential(model.features, nn.AdaptiveAvgPool2d(1), nn.Flatten())
+        emb_dim = 1280
+
+    elif name == "densenet201":
+        weights = "IMAGENET1K_V1" if pretrained else None
+        model = tvm.densenet201(weights=weights)
+        model.features.conv0 = nn.Conv2d(
+            n_input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
+        )
+        features = nn.Sequential(model.features, nn.AdaptiveAvgPool2d(1), nn.Flatten())
+        emb_dim = 1920
+
+    elif name == "googlenet":
+        weights = "IMAGENET1K_V1" if pretrained else None
+        model = tvm.googlenet(weights=weights, aux_logits=(weights is None), init_weights=(weights is None))
+        model.aux_logits = False
+        model.aux1 = None
+        model.aux2 = None
+        model.conv1.conv = nn.Conv2d(
+            n_input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False
+        )
+        children = [m for m in model.children() if m is not None and not isinstance(m, nn.Linear)]
+        # drop dropout (kept) but exclude fc (nn.Linear, filtered above); keep avgpool
+        backbone = nn.Sequential(*children, nn.Flatten())
+        features = backbone
+        emb_dim = 1024
+
+    elif name == "inception_v3":
+        weights = "IMAGENET1K_V1" if pretrained else None
+        model = tvm.inception_v3(weights=weights, aux_logits=(weights is None), init_weights=(weights is None))
+        model.aux_logits = False
+        model.AuxLogits = None
+        old_conv = model.Conv2d_1a_3x3.conv
+        model.Conv2d_1a_3x3.conv = nn.Conv2d(
+            n_input_channels, old_conv.out_channels,
+            kernel_size=old_conv.kernel_size, stride=old_conv.stride, bias=False,
+        )
+        backbone = nn.Sequential(*list(model.children())[:-1], nn.Flatten())
+        features = backbone
+        emb_dim = 2048
+
+    elif name == "xception":
+        import timm
+        model = timm.create_model(
+            "legacy_xception", pretrained=pretrained, num_classes=0, in_chans=n_input_channels
+        )
+        features = model
+        emb_dim = 2048
+
+    elif name == "inception_resnet_v2":
+        import timm
+        model = timm.create_model(
+            "inception_resnet_v2", pretrained=pretrained, num_classes=0, in_chans=n_input_channels
+        )
+        features = model
+        emb_dim = 1536
+
     elif name == "vit_b_16":
         # ponytail: 224×224 input required for ViT patch tokenisation
         weights = "IMAGENET1K_V1" if pretrained else None
@@ -151,6 +227,7 @@ class BackboneClassifier(nn.Module):
         n_classes: int = 2,
         pretrained: bool = True,
         mode: str = "2_5d",
+        input_size: int | None = None,
     ) -> None:
         super().__init__()
         if mode in ("2d", "2_5d"):
@@ -162,8 +239,9 @@ class BackboneClassifier(nn.Module):
         else:
             raise ValueError(f"Unknown mode: {mode}")
         self.classifier = nn.Linear(emb_dim, n_classes)
-        # ViT requires exactly 224×224 — auto-resize if input is smaller
-        self._resize_to: int | None = 224 if backbone_name == "vit_b_16" else None
+        # Explicit input_size (from Track config) wins; else fall back to the
+        # architecture's own minimum (e.g. ViT 224, InceptionV3/Xception/IRv2).
+        self._resize_to: int | None = input_size if input_size is not None else _MIN_INPUT.get(backbone_name)
 
     def _maybe_resize(self, x: torch.Tensor) -> torch.Tensor:
         if self._resize_to is not None and x.shape[-1] != self._resize_to:

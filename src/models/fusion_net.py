@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-from src.models.backbones import build_2d_backbone, build_3d_backbone
+from src.models.backbones import build_2d_backbone, build_3d_backbone, _MIN_INPUT
 
 
 class FusionNet(nn.Module):
@@ -26,6 +26,7 @@ class FusionNet(nn.Module):
         dropout: float = 0.3,
         pretrained: bool = True,
         mode: str = "2_5d",
+        input_size: int | None = None,
     ) -> None:
         super().__init__()
 
@@ -39,6 +40,7 @@ class FusionNet(nn.Module):
             raise ValueError(f"Unknown mode: {mode}")
 
         self.cnn_branch = backbone
+        self._resize_to: int | None = input_size if input_size is not None else _MIN_INPUT.get(backbone_name)
         self.img_proj = nn.Sequential(
             nn.Linear(backbone_out, emb_dim),
             nn.ReLU(inplace=True),
@@ -56,13 +58,21 @@ class FusionNet(nn.Module):
             nn.Linear(fusion_dim, n_classes),
         )
 
+    def _maybe_resize(self, x: torch.Tensor) -> torch.Tensor:
+        if self._resize_to is not None and x.shape[-1] != self._resize_to:
+            x = torch.nn.functional.interpolate(
+                x, size=(self._resize_to, self._resize_to),
+                mode="bilinear", align_corners=False,
+            )
+        return x
+
     def forward(self, img: torch.Tensor, rad: torch.Tensor) -> torch.Tensor:
-        img_emb = self.img_proj(self.cnn_branch(img))
+        img_emb = self.img_proj(self.cnn_branch(self._maybe_resize(img)))
         rad_emb = self.rad_branch(rad)
         return self.classifier(torch.cat([img_emb, rad_emb], dim=1))
 
     def get_cnn_embedding(self, img: torch.Tensor) -> torch.Tensor:
-        return self.img_proj(self.cnn_branch(img))
+        return self.img_proj(self.cnn_branch(self._maybe_resize(img)))
 
     def get_radiomic_embedding(self, rad: torch.Tensor) -> torch.Tensor:
         return self.rad_branch(rad)

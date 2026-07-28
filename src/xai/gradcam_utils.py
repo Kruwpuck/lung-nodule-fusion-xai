@@ -60,6 +60,26 @@ def _get_target_layer(model: Any, backbone_name: str) -> Any:
         # BackboneClassifier.features = the full torchvision ViT (heads=Identity)
         return model.features.encoder.layers[-1].ln_1
 
+    if "googlenet" in name:
+        if hasattr(model, "cnn_branch"):
+            return list(model.cnn_branch.children())[-2]
+        return model.features[-2]
+
+    if "inception_resnet_v2" in name:
+        # timm inception_resnet_v2: last spatial conv before global pool
+        m = model.cnn_branch if hasattr(model, "cnn_branch") else model.features
+        return m.conv2d_7b
+
+    if "inception_v3" in name:
+        if hasattr(model, "cnn_branch"):
+            return list(model.cnn_branch.children())[-2]
+        return model.features[-2]
+
+    if "xception" in name:
+        # timm legacy_xception: last block before global pool
+        m = model.cnn_branch if hasattr(model, "cnn_branch") else model.features
+        return m.conv4 if hasattr(m, "conv4") else list(m.children())[-2]
+
     raise ValueError(f"Cannot resolve target layer for backbone: {backbone_name}")
 
 
