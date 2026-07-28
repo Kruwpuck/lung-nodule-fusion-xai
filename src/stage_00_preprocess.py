@@ -18,13 +18,19 @@ def run(cfg: dict) -> None:
     from src.data_loading.lidc_loader import load_and_split
     os.makedirs(cfg["paths"]["interim"], exist_ok=True)
 
+    force_rerun = cfg.get("force_rerun", False)
     df = load_and_split(
         lidc_path=cfg["paths"]["raw"],
         interim_path=cfg["paths"]["interim"],
         n_folds=cfg["data"]["n_folds"],
+        force_rebuild=force_rerun,
+        include_indeterminate=cfg["data"].get("include_indeterminate", True),
+        skip_existing=cfg["data"].get("skip_existing", True),
+        freeze_from=cfg["data"].get("freeze_from"),
     )
     df.to_csv(out, index=False)
-    print(f"[DONE] {out}  ({len(df)} nodules)")
+    n_indet = int((df["label"] == -1).sum())
+    print(f"[DONE] {out}  ({len(df)} nodules, {n_indet} indeterminate)")
 
 
 def main() -> None:

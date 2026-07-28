@@ -26,13 +26,20 @@ class NoduleDataset2_5D(Dataset):
         augment: bool = False,
         hu_min: float = -1000.0,
         hu_max: float = 400.0,
+        target_col: str = "label",
+        target_dtype: str = "long",
     ) -> None:
+        """target_col/target_dtype select the training target per task:
+        "label" (long, binary) | "median_rating" (float, ordinal) | "grade3"/"grade4" (long).
+        """
         self.df = df.reset_index(drop=True)
         self.patch_size = patch_size
         self.n_slices = n_slices
         self.augment = augment
         self.hu_min = hu_min
         self.hu_max = hu_max
+        self.target_col = target_col
+        self.target_dtype = target_dtype
 
     def __len__(self) -> int:
         return len(self.df)
@@ -72,8 +79,11 @@ class NoduleDataset2_5D(Dataset):
         tensor = torch.from_numpy(patch_2_5d)
         if self.augment:
             tensor = self._augment(tensor)
-        label = torch.tensor(int(row["label"]), dtype=torch.long)
-        return tensor, label
+        if self.target_dtype == "float":
+            target = torch.tensor(float(row[self.target_col]), dtype=torch.float32)
+        else:
+            target = torch.tensor(int(row[self.target_col]), dtype=torch.long)
+        return tensor, target
 
 
 class NoduleDataset3D(Dataset):
@@ -86,12 +96,16 @@ class NoduleDataset3D(Dataset):
         augment: bool = False,
         hu_min: float = -1000.0,
         hu_max: float = 400.0,
+        target_col: str = "label",
+        target_dtype: str = "long",
     ) -> None:
         self.df = df.reset_index(drop=True)
         self.patch_size = patch_size
         self.augment = augment
         self.hu_min = hu_min
         self.hu_max = hu_max
+        self.target_col = target_col
+        self.target_dtype = target_dtype
 
     def __len__(self) -> int:
         return len(self.df)
@@ -119,5 +133,8 @@ class NoduleDataset3D(Dataset):
         volume = self._normalize(volume)
         patch = self._center_crop_3d(volume)  # (D, H, W)
         tensor = torch.from_numpy(patch).unsqueeze(0)  # (1, D, H, W)
-        label = torch.tensor(int(row["label"]), dtype=torch.long)
-        return tensor, label
+        if self.target_dtype == "float":
+            target = torch.tensor(float(row[self.target_col]), dtype=torch.float32)
+        else:
+            target = torch.tensor(int(row[self.target_col]), dtype=torch.long)
+        return tensor, target

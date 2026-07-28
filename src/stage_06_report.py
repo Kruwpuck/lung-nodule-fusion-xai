@@ -398,12 +398,276 @@ def run(cfg: dict) -> None:
     print(f"[DONE] {out_dir}")
 
 
+# ---------------------------------------------------------------------------
+# Task-aware helpers (ordinal / grade3 / grade4)
+# ---------------------------------------------------------------------------
+
+def _pooled_preds_task(preds_dir: str, model_name: str, task: str, n_folds: int = 5):
+    """Concatenate per-fold npz files for a non-binary task (key y_out, suffixed filename)."""
+    ys, outs = [], []
+    for fold in range(n_folds):
+        fp = os.path.join(preds_dir, f"{model_name}_{task}_fold{fold}.npz")
+        if not os.path.exists(fp):
+            continue
+        d = np.load(fp)
+        ys.append(d["y_true"]); outs.append(d["y_out"])
+    if not ys:
+        return None, None
+    return np.concatenate(ys), np.concatenate(outs)
+
+
+def _build_efficiency_table_task(summary: pd.DataFrame, out_dir: str, task: str, metric_col: str) -> None:
+    """Same as _build_efficiency_table but generic on metric column + task-suffixed filenames."""
+    agg = (
+        summary.groupby("model")
+        .agg(
+            params_M=("params_M", "first"),
+            gflops=("gflops", "first"),
+            latency_ms=("latency_ms", "first"),
+            **{metric_col: (metric_col, "mean")},
+            **{f"{metric_col}_ci_low": (metric_col, lambda x: x.mean() - 1.96 * x.std() / np.sqrt(len(x)))},
+            **{f"{metric_col}_ci_high": (metric_col, lambda x: x.mean() + 1.96 * x.std() / np.sqrt(len(x)))},
+        )
+        .reset_index()
+    )
+
+    table_csv = os.path.join(out_dir, "..", f"efficiency_table_{task}.csv")
+    agg.to_csv(table_csv, index=False)
+    logger.info("efficiency_table_%s.csv saved", task)
+
+    try:
+        from tabulate import tabulate
+        md = tabulate(agg.round(4).to_dict("records"), headers="keys", tablefmt="pipe")
+        with open(os.path.join(out_dir, "..", f"efficiency_table_{task}.md"), "w") as f:
+            f.write(md)
+        logger.info("efficiency_table_%s.md saved", task)
+    except ImportError:
+        logger.warning("tabulate not installed — skip .md table")
+
+
+def _plot_metric_boxplot(summary: pd.DataFrame, out_dir: str, metric_col: str, title: str, fname: str) -> None:
+    models = summary["model"].unique()
+    data = [summary[summary["model"] == m][metric_col].values for m in models]
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.boxplot(data, labels=models, vert=True)
+    ax.set_ylabel(metric_col); ax.set_title(title)
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, fname), dpi=120)
+    plt.close()
+    logger.info("%s saved", fname)
+
+
+def _plot_convergence_task(logs_dir: str, out_dir: str, task: str) -> None:
+    fig, ax = plt.subplots(figsize=(10, 5))
+    for csv_path in sorted(os.listdir(logs_dir)):
+        if f"_{task}_fold" not in csv_path or not csv_path.endswith(".csv"):
+            continue
+        df = pd.read_csv(os.path.join(logs_dir, csv_path))
+        if "val_score" not in df.columns:
+            continue
+        label = csv_path.replace(".csv", "")
+        ax.plot(df["epoch"], df["val_score"], alpha=0.6, label=label)
+    ax.set_xlabel("Epoch"); ax.set_ylabel("Val score")
+    ax.set_title(f"Convergence curves — task={task}")
+    ax.legend(fontsize=6, ncol=3)
+    plt.tight_layout()
+    plt.savefig(os.path.join(out_dir, "convergence.png"), dpi=120)
+    plt.close()
+    logger.info("convergence.png saved (%s)", task)
+
+
+def _plot_confusion_nxn(y_true: np.ndarray, y_pred: np.ndarray, labels_txt: list, title: str, out_path: str) -> None:
+    from sklearn.metrics import confusion_matrix
+    n = len(labels_txt)
+    cm = confusion_matrix(y_true, y_pred, labels=list(range(n)))
+    fig, ax = plt.subplots(figsize=(5 + n, 4 + n * 0.5))
+    im = ax.imshow(cm, cmap="Blues")
+    for r in range(n):
+        for c in range(n):
+            ax.text(c, r, str(int(cm[r, c])), ha="center", va="center", fontsize=10)
+    ax.set_xticks(range(n)); ax.set_yticks(range(n))
+    ax.set_xticklabels(labels_txt, rotation=30, ha="right"); ax.set_yticklabels(labels_txt)
+    ax.set_xlabel("Predicted"); ax.set_ylabel("True")
+    ax.set_title(title)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=120, bbox_inches="tight")
+    plt.close()
+
+
+def run_multiclass(cfg: dict, task: str) -> None:
+    """Reporting for grade3 (benign/indeterminate/malignant) or
+    grade4 (no-nodule/benign/indeterminate/malignant)."""
+    from src.utils.io import cached
+
+    results_dir = cfg["paths"]["results"]
+    out_dir = os.path.join(results_dir, f"figures_{task}")
+    sentinel = os.path.join(out_dir, "done.txt")
+    if cached(sentinel) and not cfg.get("force_rerun", False):
+        print(f"[SKIP] {sentinel}")
+        return
+
+    summary_csv = os.path.join(results_dir, f"summary_{task}.csv")
+    preds_dir = os.path.join(results_dir, "preds")
+    logs_dir = cfg["paths"]["logs"]
+    if not os.path.exists(summary_csv):
+        logger.error("%s not found — run stage_04 --task %s first", summary_csv, task)
+        return
+
+    os.makedirs(out_dir, exist_ok=True)
+    summary = pd.read_csv(summary_csv)
+    n_folds = cfg["data"].get("n_folds", 5)
+    models = summary["model"].unique()
+
+    labels_txt = (["benign", "indeterminate", "malignant"] if task == "grade3"
+                  else ["no-nodule", "benign", "indeterminate", "malignant"])
+
+    try:
+        _plot_metric_boxplot(summary, out_dir, "auc_macro",
+                              f"Macro-AUC distribution per model (task={task})", "auc_macro_boxplot.png")
+    except Exception as e:
+        logger.warning("auc_macro_boxplot failed: %s", e)
+
+    try:
+        _plot_metric_boxplot(summary, out_dir, "f1_macro",
+                              f"Macro-F1 distribution per model (task={task})", "f1_macro_boxplot.png")
+    except Exception as e:
+        logger.warning("f1_macro_boxplot failed: %s", e)
+
+    if os.path.exists(logs_dir):
+        try:
+            _plot_convergence_task(logs_dir, out_dir, task)
+        except Exception as e:
+            logger.warning("convergence plot failed: %s", e)
+
+    for model_name in models:
+        try:
+            y_true, y_out = _pooled_preds_task(preds_dir, model_name, task, n_folds)
+            if y_true is None:
+                continue
+            y_pred = np.argmax(y_out, axis=1)
+            _plot_confusion_nxn(
+                y_true.astype(int), y_pred, labels_txt,
+                f"{model_name} — pooled 5-fold confusion (task={task})",
+                os.path.join(out_dir, f"confusion_{model_name}.png"),
+            )
+        except Exception as e:
+            logger.warning("confusion matrix failed for %s: %s", model_name, e)
+
+    try:
+        _build_efficiency_table_task(summary, out_dir, task, "auc_macro")
+    except Exception as e:
+        logger.warning("efficiency_table failed: %s", e)
+
+    if task == "grade4" and "auc_nodule_only" in summary.columns:
+        # Anti-inflation gate: headline for arm D is benign-vs-malignant on the
+        # nodule-only subset (excludes no-nodule + indeterminate), not the raw
+        # 4-class macro-AUC above, which is inflated by trivially-separable negatives.
+        try:
+            _plot_metric_boxplot(summary, out_dir, "auc_nodule_only",
+                                  "Nodule-only benign-vs-malignant AUC per model (arm D headline)",
+                                  "auc_nodule_only_boxplot.png")
+        except Exception as e:
+            logger.warning("auc_nodule_only_boxplot failed: %s", e)
+        try:
+            _build_efficiency_table_task(summary, out_dir, "grade4_nodule_only", "auc_nodule_only")
+        except Exception as e:
+            logger.warning("efficiency_table (nodule_only) failed: %s", e)
+
+    with open(sentinel, "w") as f:
+        f.write("done")
+    print(f"[DONE] {out_dir}")
+
+
+def run_ordinal(cfg: dict) -> None:
+    """Reporting for arm B (ordinal malignancy grading, median_rating regression)."""
+    from src.utils.io import cached
+
+    task = "ordinal"
+    results_dir = cfg["paths"]["results"]
+    out_dir = os.path.join(results_dir, f"figures_{task}")
+    sentinel = os.path.join(out_dir, "done.txt")
+    if cached(sentinel) and not cfg.get("force_rerun", False):
+        print(f"[SKIP] {sentinel}")
+        return
+
+    summary_csv = os.path.join(results_dir, f"summary_{task}.csv")
+    preds_dir = os.path.join(results_dir, "preds")
+    logs_dir = cfg["paths"]["logs"]
+    if not os.path.exists(summary_csv):
+        logger.error("%s not found — run stage_04 --task ordinal first", summary_csv)
+        return
+
+    os.makedirs(out_dir, exist_ok=True)
+    summary = pd.read_csv(summary_csv)
+    n_folds = cfg["data"].get("n_folds", 5)
+    models = summary["model"].unique()
+
+    try:
+        _plot_metric_boxplot(summary, out_dir, "qwk",
+                              "Quadratic Weighted Kappa per model (arm B, ordinal)", "qwk_boxplot.png")
+    except Exception as e:
+        logger.warning("qwk_boxplot failed: %s", e)
+
+    try:
+        _plot_metric_boxplot(summary, out_dir, "mae",
+                              "MAE per model (arm B, ordinal)", "mae_boxplot.png")
+    except Exception as e:
+        logger.warning("mae_boxplot failed: %s", e)
+
+    if os.path.exists(logs_dir):
+        try:
+            _plot_convergence_task(logs_dir, out_dir, task)
+        except Exception as e:
+            logger.warning("convergence plot failed: %s", e)
+
+    for model_name in models:
+        try:
+            y_true, y_out = _pooled_preds_task(preds_dir, model_name, task, n_folds)
+            if y_true is None:
+                continue
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.hexbin(y_true, y_out, gridsize=25, cmap="Blues", mincnt=1)
+            ax.plot([1, 5], [1, 5], "r--", label="Perfect")
+            ax.set_xlabel("True median_rating"); ax.set_ylabel("Predicted rating")
+            ax.set_title(f"{model_name} — pred vs true (pooled 5-fold)")
+            ax.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(out_dir, f"pred_vs_true_{model_name}.png"), dpi=120)
+            plt.close()
+
+            y_true_r = np.clip(np.round(y_true), 1, 5).astype(int) - 1
+            y_pred_r = np.clip(np.round(y_out), 1, 5).astype(int) - 1
+            _plot_confusion_nxn(
+                y_true_r, y_pred_r, ["1", "2", "3", "4", "5"],
+                f"{model_name} — rounded rating confusion (pooled 5-fold)",
+                os.path.join(out_dir, f"confusion_{model_name}.png"),
+            )
+        except Exception as e:
+            logger.warning("pred-vs-true/confusion failed for %s: %s", model_name, e)
+
+    try:
+        _build_efficiency_table_task(summary, out_dir, task, "qwk")
+    except Exception as e:
+        logger.warning("efficiency_table failed: %s", e)
+
+    with open(sentinel, "w") as f:
+        f.write("done")
+    print(f"[DONE] {out_dir}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="configs/config.yaml")
+    p.add_argument("--task", default="binary", choices=["binary", "ordinal", "grade3", "grade4"])
     args = p.parse_args()
     cfg = yaml.safe_load(open(args.config))
-    run(cfg)
+    if args.task == "binary":
+        run(cfg)
+    elif args.task == "ordinal":
+        run_ordinal(cfg)
+    else:
+        run_multiclass(cfg, args.task)
 
 
 if __name__ == "__main__":
