@@ -8,6 +8,7 @@ Gratis, ter-versioning, bisa offline, dan riwayat perubahan jelas.
 - **Kelas dokumen:** IEEEtran **conference** (`\documentclass[conference]{IEEEtran}`)
 - **File utama:** `paper/main.tex`
 - **Output:** `paper/build/main.pdf`
+- **Pengguna Windows:** baca [`PANDUAN-KOLABORASI-WINDOWS.md`](PANDUAN-KOLABORASI-WINDOWS.md).
 
 ---
 
@@ -55,6 +56,26 @@ di repo. Tidak perlu download template lagi.
 
 Hasil PDF selalu di `paper/build/main.pdf`. Folder `build/` **tidak** ikut di-commit
 (sudah di-`.gitignore`) — tiap orang build sendiri.
+
+### Preview PDF (tanpa aplikasi tambahan)
+
+PDF hasil build bisa dibuka pakai **PDF viewer bawaan OS** — tidak perlu Overleaf,
+VS Code, atau aplikasi pihak ketiga apa pun:
+
+| OS | Buka PDF | Viewer bawaan |
+|----|----------|---------------|
+| Linux (Ubuntu) | `xdg-open build/main.pdf` | GNOME Document Viewer (Evince) |
+| Windows | `start build\main.pdf` | Microsoft Edge |
+| macOS | `open build/main.pdf` | Preview.app |
+
+**Preview yang auto-refresh saat mengetik** — cukup `latexmk` bawaan TeX Live,
+tetap tanpa pihak ketiga:
+```bash
+latexmk -pdf -pvc main.tex
+```
+`-pvc` = *preview continuously*: latexmk membuka PDF di viewer default dan
+**rebuild otomatis tiap kali `main.tex` disave**. Di Linux (Evince) PDF-nya bahkan
+ikut reload sendiri. Stop dengan `Ctrl+C`.
 
 ---
 
