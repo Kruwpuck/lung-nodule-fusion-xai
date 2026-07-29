@@ -8,7 +8,7 @@ Gratis, ter-versioning, bisa offline, dan riwayat perubahan jelas.
 - **Kelas dokumen:** IEEEtran **conference** (`\documentclass[conference]{IEEEtran}`)
 - **File utama:** `paper/main.tex`
 - **Output:** `paper/build/main.pdf`
-- **Pengguna Windows:** baca [`PANDUAN-KOLABORASI-WINDOWS.md`](PANDUAN-KOLABORASI-WINDOWS.md).
+- **Pengguna Windows:** lihat bagian **[Khusus Pengguna Windows](#-khusus-pengguna-windows)** di bawah.
 
 ---
 
@@ -190,3 +190,44 @@ Tiap orang pegang file section berbeda → nyaris tak pernah bentrok.
 - **Jangan edit `IEEEtran.cls` / `IEEEtran.bst`.**
 - Gambar taruh di `figures/`, panggil `\includegraphics{namafile}`.
 - Kalau ragu, build dulu — jangan push kalau masih error.
+
+---
+
+## 🪟 Khusus Pengguna Windows
+
+> **NOTICE — bagian ini KHUSUS Windows.** Pakai Linux/macOS? Abaikan.
+> Alur Git & `latexmk` **sama persis**; yang beda cuma cara install & command shell.
+
+### Install
+- **Git for Windows** — <https://git-scm.com/download/win> (default cukup). Dapat
+  **Git Bash** (terminal ala Linux) — disarankan dipakai untuk semua command di atas.
+- **MiKTeX** (compiler LaTeX) — <https://miktex.org/download> → buka *MiKTeX Console*
+  → *Update now* → Settings *"Install missing packages" = Yes*. Sudah termasuk
+  `latexmk` + Perl (tak perlu install Perl terpisah).
+  Alternatif: TeX Live for Windows. Pilih **salah satu**.
+- **VS Code** + extension **LaTeX Workshop** (opsional, buat auto-build & preview).
+
+### Rapikan line-ending (sekali)
+Windows pakai CRLF, Linux LF — biar tidak muncul "perubahan palsu" di Git:
+```bash
+git config --global core.autocrlf true
+```
+
+### Command yang beda
+| Aksi | Windows |
+|------|---------|
+| Build bersih (Git Bash) | `rm -rf build && latexmk -pdf main.tex` |
+| Build bersih (PowerShell) | `Remove-Item -Recurse -Force build; latexmk -pdf main.tex` |
+| Buka/preview PDF | `start build\main.pdf` (Microsoft Edge, bawaan Windows) |
+
+Sisanya identik: `git pull/commit/push`, `latexmk -pdf main.tex`, dev mode
+`latexmk -pdf -pvc main.tex`.
+
+### Masalah umum di Windows
+| Gejala | Solusi |
+|--------|--------|
+| `latexmk: command not found` | MiKTeX belum ke-PATH. Restart terminal, atau reinstall (centang "add to PATH"). |
+| Popup MiKTeX minta install paket saat build | Klik *Install* (sekali per paket). Set "Install missing packages = Yes" biar otomatis. |
+| Muncul banyak perubahan padahal tak edit | Line-ending. Jalankan `git config --global core.autocrlf true`. |
+| `Permission denied` saat push | Login GitHub via browser saat diminta, atau pakai Personal Access Token sebagai password. |
+| PDF tidak update di VS Code | `Ctrl+Alt+V` buka preview, atau klik 🔄 di tab PDF. |
