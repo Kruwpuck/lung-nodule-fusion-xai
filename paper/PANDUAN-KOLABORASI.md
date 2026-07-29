@@ -8,23 +8,43 @@ Gratis, ter-versioning, bisa offline, dan riwayat perubahan jelas.
 - **Kelas dokumen:** IEEEtran **conference** (`\documentclass[conference]{IEEEtran}`)
 - **File utama:** `paper/main.tex`
 - **Output:** `paper/build/main.pdf`
-- **Pengguna Windows:** lihat bagian **[Khusus Pengguna Windows](#-khusus-pengguna-windows)** di bawah.
 
 ---
 
 ## 1. Prasyarat (sekali install)
 
 ### Git
+
+**Linux:**
 ```bash
-sudo apt install git          # Linux
+sudo apt install git
 ```
 
-### TeX Live (compiler LaTeX)
+**Windows:** Install [Git for Windows](https://git-scm.com/download/win) (default cukup).
+Dapat **Git Bash** — pakai Git Bash untuk semua command di panduan ini.
+
+**macOS:** Git sudah tersedia, atau `brew install git`.
+
+---
+
+**Windows — rapikan line-ending (sekali, setelah install Git):**
+```bash
+git config --global core.autocrlf true
+```
+Cegah "perubahan palsu" karena beda format baris Windows (CRLF) vs Linux/macOS (LF).
+
+### LaTeX Compiler
+
+**Linux:**
 ```bash
 sudo apt install texlive-latex-extra texlive-bibtex-extra texlive-fonts-recommended latexmk
 ```
-> Windows: install [MiKTeX](https://miktex.org) + Strawberry Perl (untuk latexmk).
-> macOS: install [MacTeX](https://tug.org/mactex).
+
+**Windows:** Install [MiKTeX](https://miktex.org/download) → buka *MiKTeX Console*
+→ *Update now* → Settings *"Install missing packages" = Yes*.
+Sudah termasuk `latexmk` + Perl. Alternatif: TeX Live for Windows — pilih **salah satu**.
+
+**macOS:** Install [MacTeX](https://tug.org/mactex).
 
 ### Editor (opsional tapi enak)
 - **VS Code** + extension **LaTeX Workshop** → auto-build tiap save, preview PDF di samping.
@@ -47,35 +67,30 @@ di repo. Tidak perlu download template lagi.
 
 ## 3. Cara Build
 
-| Aksi | Command (dari dalam `paper/`) |
-|------|-------------------------------|
-| Build sekali | `latexmk -pdf main.tex` |
-| Auto-build tiap save | `latexmk -pdf -pvc main.tex` |
-| Bersihkan file sampah | `latexmk -c` |
-| Build bersih dari nol | `rm -rf build && latexmk -pdf main.tex` |
+| Aksi | Linux / macOS / Git Bash | PowerShell (Windows) |
+|------|--------------------------|----------------------|
+| Build sekali | `latexmk -pdf main.tex` | sama |
+| Auto-build tiap save | `latexmk -pdf -pvc main.tex` | sama |
+| Bersihkan file sampah | `latexmk -c` | sama |
+| Build bersih dari nol | `rm -rf build && latexmk -pdf main.tex` | `Remove-Item -Recurse -Force build; latexmk -pdf main.tex` |
 
 Hasil PDF selalu di `paper/build/main.pdf`. Folder `build/` **tidak** ikut di-commit
 (sudah di-`.gitignore`) — tiap orang build sendiri.
 
-### Preview PDF (tanpa aplikasi tambahan)
+### Preview PDF
 
-PDF hasil build bisa dibuka pakai **PDF viewer bawaan OS** — tidak perlu Overleaf,
-VS Code, atau aplikasi pihak ketiga apa pun:
-
-| OS | Buka PDF | Viewer bawaan |
-|----|----------|---------------|
+| OS | Command | Viewer bawaan |
+|----|---------|---------------|
 | Linux (Ubuntu) | `xdg-open build/main.pdf` | GNOME Document Viewer (Evince) |
 | Windows | `start build\main.pdf` | Microsoft Edge |
 | macOS | `open build/main.pdf` | Preview.app |
 
-**Preview yang auto-refresh saat mengetik** — cukup `latexmk` bawaan TeX Live,
-tetap tanpa pihak ketiga:
+**Auto-refresh saat mengetik:**
 ```bash
 latexmk -pdf -pvc main.tex
 ```
-`-pvc` = *preview continuously*: latexmk membuka PDF di viewer default dan
-**rebuild otomatis tiap kali `main.tex` disave**. Di Linux (Evince) PDF-nya bahkan
-ikut reload sendiri. Stop dengan `Ctrl+C`.
+`-pvc` rebuild otomatis tiap `main.tex` disave. Di Linux (Evince) PDF-nya reload sendiri.
+Stop dengan `Ctrl+C`.
 
 ---
 
@@ -135,9 +150,14 @@ Metode ini mengikuti \cite{armatoLungImage2011}.
 Beberapa sekaligus: \cite{keyA, keyB}.
 ```
 
-> **Penting:** file `main.tex` sekarang punya baris `\nocite{*}` supaya template
-> ter-compile walau belum ada sitasi. **Hapus `\nocite{*}`** begitu kamu mulai
-> pakai `\cite{...}` sungguhan, supaya daftar pustaka hanya berisi yang dikutip.
+> **Catatan:** `main.tex` sekarang pakai daftar referensi bawaan template (b1–b11)
+> supaya langsung ter-compile. Begitu mulai pakai referensi asli via Zotero, hapus
+> blok `\begin{thebibliography}...\end{thebibliography}` dan aktifkan dua baris ini:
+> ```latex
+> \bibliographystyle{IEEEtran}
+> \bibliography{refs}
+> ```
+> Petunjuk lengkap ada di komentar di bawah `\end{document}` di `main.tex`.
 
 ---
 
@@ -191,43 +211,12 @@ Tiap orang pegang file section berbeda → nyaris tak pernah bentrok.
 - Gambar taruh di `figures/`, panggil `\includegraphics{namafile}`.
 - Kalau ragu, build dulu — jangan push kalau masih error.
 
----
+### Masalah Umum
 
-## 🪟 Khusus Pengguna Windows
-
-> **NOTICE — bagian ini KHUSUS Windows.** Pakai Linux/macOS? Abaikan.
-> Alur Git & `latexmk` **sama persis**; yang beda cuma cara install & command shell.
-
-### Install
-- **Git for Windows** — <https://git-scm.com/download/win> (default cukup). Dapat
-  **Git Bash** (terminal ala Linux) — disarankan dipakai untuk semua command di atas.
-- **MiKTeX** (compiler LaTeX) — <https://miktex.org/download> → buka *MiKTeX Console*
-  → *Update now* → Settings *"Install missing packages" = Yes*. Sudah termasuk
-  `latexmk` + Perl (tak perlu install Perl terpisah).
-  Alternatif: TeX Live for Windows. Pilih **salah satu**.
-- **VS Code** + extension **LaTeX Workshop** (opsional, buat auto-build & preview).
-
-### Rapikan line-ending (sekali)
-Windows pakai CRLF, Linux LF — biar tidak muncul "perubahan palsu" di Git:
-```bash
-git config --global core.autocrlf true
-```
-
-### Command yang beda
-| Aksi | Windows |
-|------|---------|
-| Build bersih (Git Bash) | `rm -rf build && latexmk -pdf main.tex` |
-| Build bersih (PowerShell) | `Remove-Item -Recurse -Force build; latexmk -pdf main.tex` |
-| Buka/preview PDF | `start build\main.pdf` (Microsoft Edge, bawaan Windows) |
-
-Sisanya identik: `git pull/commit/push`, `latexmk -pdf main.tex`, dev mode
-`latexmk -pdf -pvc main.tex`.
-
-### Masalah umum di Windows
 | Gejala | Solusi |
 |--------|--------|
-| `latexmk: command not found` | MiKTeX belum ke-PATH. Restart terminal, atau reinstall (centang "add to PATH"). |
-| Popup MiKTeX minta install paket saat build | Klik *Install* (sekali per paket). Set "Install missing packages = Yes" biar otomatis. |
-| Muncul banyak perubahan padahal tak edit | Line-ending. Jalankan `git config --global core.autocrlf true`. |
+| `latexmk: command not found` (Windows) | MiKTeX belum ke-PATH. Restart terminal, atau reinstall (centang "add to PATH"). |
+| Popup MiKTeX minta install paket | Klik *Install* (sekali per paket). Set "Install missing packages = Yes" biar otomatis. |
+| Banyak perubahan padahal tak edit (Windows) | Line-ending. Jalankan `git config --global core.autocrlf true`. |
 | `Permission denied` saat push | Login GitHub via browser saat diminta, atau pakai Personal Access Token sebagai password. |
 | PDF tidak update di VS Code | `Ctrl+Alt+V` buka preview, atau klik 🔄 di tab PDF. |
