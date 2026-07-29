@@ -57,6 +57,11 @@ def maybe_resume(path: str, model, optimizer):
         ck = torch.load(path, weights_only=True, map_location="cpu")
     except (TypeError, pickle.UnpicklingError):
         ck = torch.load(path, map_location="cpu")
+    except RuntimeError as e:
+        # Corrupted checkpoint (e.g. truncated write from a past disk-full crash) --
+        # start this run from scratch instead of killing the whole sweep.
+        logger.warning("Checkpoint %s unreadable (%s) -- starting fresh", path, e)
+        return 0, 0.0
     model.load_state_dict(ck["model_state"])
     optimizer.load_state_dict(ck["optim_state"])
     logger.info("Resumed from epoch %d (best_auc=%.4f)", ck["epoch"], ck["best_auc"])
