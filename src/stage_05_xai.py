@@ -1,4 +1,9 @@
-"""Stage 05: Grad-CAM on all Track 2 backbones (arm A binary, fold 0). Resumable."""
+"""Stage 05: Grad-CAM per backbone (arm A binary, fold 0). Resumable.
+
+Runs over Track 1 backbones (fusion + xAI-per-arm is the Track 1 concern in the
+Rev1 report) plus the legacy 6-model set, so every trained checkpoint gets a
+Grad-CAM figure + metric row.
+"""
 import argparse
 import logging
 import os
@@ -35,7 +40,9 @@ def run(cfg: dict) -> None:
 
     os.makedirs(xai_dir, exist_ok=True)
 
-    backbones = cfg["models"]["lightweight"] + cfg["models"]["heavyweight"]
+    legacy = cfg["models"]["lightweight"] + cfg["models"]["heavyweight"]
+    track1 = cfg.get("tracks", {}).get("track1", {}).get("backbones", [])
+    backbones = list(dict.fromkeys(legacy + track1))  # dedup, preserve order
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     labels_path = os.path.join(cfg["paths"]["interim"], "labels.csv")
