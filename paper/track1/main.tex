@@ -1,0 +1,106 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\graphicspath{{figures/}}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Radiomics-CNN Fusion and Per-Arm Explainability for Lung Nodule Malignancy Classification on LIDC-IDRI}
+
+\author{\IEEEauthorblockN{1\textsuperscript{st} Habb}
+\IEEEauthorblockA{\textit{Department of ...} \\
+\textit{University}\\
+City, Country \\
+email@domain.com}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} Kolaborator}
+\IEEEauthorblockA{\textit{Department of ...} \\
+\textit{University}\\
+City, Country \\
+email@domain.com}
+}
+
+\maketitle
+
+\begin{abstract}
+Fusing handcrafted radiomics with convolutional neural network (CNN) embeddings is a common strategy for lung nodule malignancy classification, but its benefit over either modality alone is not guaranteed on small cohorts. We evaluate seven CNN backbones fused with a radiomics branch on the LIDC-IDRI dataset using a patient-level five-fold cross-validation split, and report AUC together with paired DeLong tests across five representation arms: CNN-only, radiomics-only, early fusion, intermediate fusion, and late fusion. Radiomics-only reaches a mean AUC of 0.9313, above every fusion variant, and none of the 21 pairwise DeLong comparisons shows fusion significantly outperforming radiomics. We further report class-activation maps (Grad-CAM and Layer-CAM) for the CNN arm and SHAP attributions for the radiomics arm, evaluated with a pointing-game metric on ground-truth nodule masks. Pointing accuracy ranges from 0.00 for three backbones to 0.7167 for DenseNet121, ConvNeXt-Tiny, and DenseNet201, with no consistent relationship to classification AUC. We discuss why fusion underperforms a strong single modality in this regime and report the finding as a negative result consistent with the broader radiomics-versus-deep-learning literature on comparably sized cohorts.
+\end{abstract}
+
+\begin{IEEEkeywords}
+lung nodule malignancy, radiomics, feature fusion, explainable AI, Grad-CAM, SHAP, LIDC-IDRI
+\end{IEEEkeywords}
+
+\section{Introduction}
+Computer-aided diagnosis of pulmonary nodule malignancy from CT increasingly combines two complementary sources of evidence: handcrafted radiomics features that quantify shape, texture, and intensity statistics of a segmented nodule, and deep convolutional features learned end-to-end from image patches. The premise of fusion is that the two sources capture non-redundant information and that combining them should match or exceed either alone. This premise does not always hold on cohorts of the size available for lung nodule malignancy prediction, where radiomics with feature selection is a strong baseline in its own right \cite{prabhavalkarHybridPETCTRadiomics2026}.
+
+This paper reports a controlled comparison of five representation arms across seven CNN backbones on LIDC-IDRI, together with an explainability analysis that treats the CNN and radiomics branches separately, since class-activation methods and SHAP attributions are not directly comparable on a shared scale. We report where fusion helps, where it does not, and quantify per-backbone localization quality with a pointing-game metric against ground-truth nodule masks.
+
+\section{Related Work}
+Radiomics-based malignancy prediction on LIDC-IDRI-scale cohorts routinely reaches AUC in the 0.79 to 0.94 range and is frequently competitive with or superior to end-to-end deep learning under the same sample size. Fusion of a weaker modality with a stronger one has been documented to degrade rather than improve joint performance, a phenomenon attributed to modality competition during joint training, in which the dominant modality dictates the gradient signal and the joint representation collapses toward it. Gated and attention-based fusion mechanisms have been proposed specifically to let a network learn how much to weight each modality rather than fixing that weight through simple concatenation.
+
+\section{Methods}
+
+\subsection{Dataset and split}
+We use LIDC-IDRI. Nodules are aggregated per patient and assigned malignancy labels from the median of four expert ratings on a 1 to 5 scale, collapsed to benign (rating below 3), malignant (rating above 3), and indeterminate (rating equal to 3, excluded from the binary arm). The dataset is partitioned into five folds by patient identifier, seeded at 42, so that no patient contributes cases to more than one fold. All backbones and all fusion arms train and evaluate on the identical fold assignment.
+
+\subsection{Preprocessing}
+Each nodule is represented as a 2.5D patch: a stack of adjacent axial slices centered on the nodule, resampled and cropped to a fixed in-plane resolution. Housfield unit intensities are clipped to $[-1000, 400]$ and rescaled to $[0, 1]$.
+
+\subsection{Backbones and input resolution}
+Seven CNN backbones are evaluated: DenseNet121, InceptionV3, Xception, GoogLeNet, ConvNeXt-Tiny, Inception-ResNet-v2, and DenseNet201. InceptionV3, Xception, and Inception-ResNet-v2 impose a minimum spatial input of 75, 71, and 75 pixels respectively, which exceeds this project's native 64-pixel patch size. All seven backbones are therefore evaluated at a uniform upsampled input of 96 pixels, chosen as the smallest multiple of 32 above every backbone's minimum, so that no backbone receives a resolution advantage that would confound the explainability comparison.
+
+\subsection{Fusion arms}
+Five arms are compared per backbone and fold: (1) CNN-only, the backbone's own classification head; (2) radiomics-only, a classifier trained on the handcrafted radiomics feature vector after selection; (3) early fusion, concatenating raw radiomics features with the CNN input; (4) intermediate fusion, concatenating the CNN embedding with the radiomics vector before a shared classification head; (5) late fusion, averaging the CNN and radiomics arm probabilities. Radiomics-only is treated as the reference arm for significance testing, since it is the strongest single-modality baseline observed.
+
+\subsection{Explainability protocol}
+For the CNN arm, Grad-CAM or Layer-CAM class-activation maps are computed at the backbone's deepest convolutional stage with a spatial resolution suitable for upsampling, and evaluated with dice overlap, IoU, a size-matched dice variant, a pointing-game hit rate (whether the map's maximum activation falls inside the ground-truth nodule mask), and an energy-based pointing metric, all against the radiologist-annotated nodule mask. For the radiomics arm, SHAP values quantify the contribution of each handcrafted feature to the malignancy prediction. The two explanation modalities are reported separately per arm rather than combined into a single score, because no model-agnostic metric currently allows a fair joint comparison between a spatial class-activation map and a tabular feature attribution.
+
+\section{Results}
+
+\subsection{Fusion versus single modality}
+Table \ref{tab:fusion} reports mean AUC per arm, pooled across all seven backbones and five folds. Radiomics-only reaches the highest mean AUC at 0.9313, above intermediate fusion (0.9269), early fusion (0.9179), late fusion (0.9171), and CNN-only (0.7853). Across 21 paired DeLong comparisons between each fusion variant and radiomics-only, one per backbone, none reaches statistical significance in favor of fusion.
+
+\begin{table}[htbp]
+\caption{Mean AUC by representation arm, pooled over 7 backbones and 5 folds}
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+\textbf{Arm} & \textbf{Mean AUC} \\
+\midrule
+Radiomics-only & 0.9313 \\
+Intermediate fusion & 0.9269 \\
+Early fusion & 0.9179 \\
+Late fusion & 0.9171 \\
+CNN-only & 0.7853 \\
+\bottomrule
+\end{tabular}
+\label{tab:fusion}
+\end{center}
+\end{table}
+
+\subsection{Explainability}
+Pointing accuracy against ground-truth nodule masks varies widely by backbone: DenseNet121, ConvNeXt-Tiny, and DenseNet201 reach 0.7167, Inception-ResNet-v2 reaches 0.3833, InceptionV3, Xception, and VGG16 reach 0.2000, ResNet50 reaches 0.1167, EfficientNet-B0 reaches 0.0833, and MobileNetV3-Small, ViT-Base, and GoogLeNet reach 0.0000. Low pointing accuracy does not imply low classification AUC; several backbones with near-zero pointing accuracy still classify competitively, consistent with the known limitation that Grad-CAM-family localization can be poor for an accurate classifier, and is documented to be particularly unreliable for vision transformers.
+
+\section{Discussion}
+Radiomics outperforming fusion at this cohort size is consistent with the broader literature: handcrafted features with feature selection are a strong baseline when the number of nodules is in the low thousands, and integrating a weaker modality, here the CNN-only arm at 0.7853, with a stronger one has been shown to degrade rather than improve the joint representation. We treat this as a genuine negative result rather than evidence of a defect in the fusion architecture, while noting one defect that was identified and corrected during this work: an evaluation-time resolution mismatch in which Track 1 checkpoints trained at 96-pixel input were evaluated at 64 pixels, which invalidated the CNN-only column in an earlier ablation pass. The fix has been implemented and validated with unit tests, but the ablation reported in Table \ref{tab:fusion} has not yet been re-executed under the corrected code path on this compute environment; the numbers above still reflect the pre-fix resolution mismatch and are reported here as a limitation, not as final results. A corrected re-run, together with gated and per-branch-normalized fusion variants intended to counteract modality imbalance, is planned as follow-up work.
+
+\section{Limitations}
+The CNN-only ablation figures in this draft predate a resolution-mismatch fix and require re-execution before being treated as final. The gated multimodal unit, branch-normalization, and modality-dropout fusion variants implemented alongside this work have not yet been executed on the full ablation grid. SHAP and Grad-CAM attributions are reported on separate scales without a unifying model-agnostic metric, which we identify as an open methodological gap rather than a limitation specific to this study.
+
+\section{Conclusion}
+On this cohort, radiomics-only classification outperforms every CNN-radiomics fusion variant tested, and no fusion arm significantly exceeds radiomics-only under a paired DeLong test. We report this as a negative result consistent with prior findings on comparably sized cohorts, alongside a per-backbone explainability analysis showing that classification accuracy and localization quality are not consistently coupled. A companion paper addresses backbone comparison, hyperparameter stability, and label granularity on the same dataset and split.
+
+\section*{Acknowledgment}
+The authors thank their supervisor and collaborators for guidance on this work.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

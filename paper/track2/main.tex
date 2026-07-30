@@ -1,0 +1,112 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\graphicspath{{figures/}}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Backbone Comparison, Hyperparameter Stability, and Label Granularity for Lung Nodule Malignancy Classification on LIDC-IDRI}
+
+\author{\IEEEauthorblockN{1\textsuperscript{st} Habb}
+\IEEEauthorblockA{\textit{Department of ...} \\
+\textit{University}\\
+City, Country \\
+email@domain.com}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} Kolaborator}
+\IEEEauthorblockA{\textit{Department of ...} \\
+\textit{University}\\
+City, Country \\
+email@domain.com}
+}
+
+\maketitle
+
+\begin{abstract}
+We compare four convolutional backbones, MobileNetV2, EfficientNet-B0, ResNet50, and VGG16, chosen to contrast lightweight and heavyweight architecture families, on lung nodule malignancy classification from LIDC-IDRI. Across a 4x3x3 grid of backbone, optimizer (SGD, Adam, AdamW), and weight decay, VGG16 reaches the highest mean AUC at 0.8966, ahead of ResNet50 (0.8553), MobileNetV2 (0.8262), and EfficientNet-B0 (0.8241). A factorial ANOVA attributes 45.3\% of AUC variance to optimizer choice against 0.02\% to weight decay, so the optimizer effect dominates. Coefficient of variation is lowest for VGG16 (0.0400) and highest for EfficientNet-B0 (0.0865), but a Brown-Forsythe test with Holm correction across all six backbone pairs finds only ResNet50 versus VGG16 significant ($p_{holm}=0.043$); VGG16 versus EfficientNet-B0 does not survive correction ($p_{holm}=0.084$), so a blanket claim that VGG16 is the most stable backbone is not supported by this test and is not made here. We further compare four label granularities, binary, ordinal, three-class, and four-class, collapsed to a common benign-versus-malignant decision on an identical 1391-nodule subset per fold. A Friedman test finds a significant ranking difference across granularities ($\chi^2=43.96$, $p=1.5\times10^{-9}$), but paired DeLong tests at the individual-model level find a significant binary-versus-four-class difference in only 3 of 6 legacy models, so the aggregate effect does not hold uniformly per model.
+\end{abstract}
+
+\begin{IEEEkeywords}
+lung nodule malignancy, backbone comparison, hyperparameter stability, label granularity, LIDC-IDRI
+\end{IEEEkeywords}
+
+\section{Introduction}
+Backbone choice, optimizer, and label granularity are three design decisions in lung nodule malignancy classification whose individual and relative contributions are rarely quantified together on the same dataset and split. This paper reports a controlled comparison of four backbones under a full optimizer and weight-decay sweep, a variance-based test of stability rather than a comparison of point estimates, and a cross-granularity comparison that collapses binary, ordinal, three-class, and four-class label schemes to a common benign-versus-malignant decision on an identical case subset, so that any difference is attributable to the training label scheme rather than to which cases were scored.
+
+\section{Methods}
+
+\subsection{Dataset and split}
+We use LIDC-IDRI with the same patient-level five-fold split, seeded at 42, and the same 2.5D patch preprocessing described in the companion Track 1 paper. Four label arms are trained on this split: binary (malignant versus benign, discarding indeterminate nodules), ordinal (1 to 5 malignancy rating), three-class (benign, malignant, indeterminate), and four-class (three-class plus a no-nodule negative class).
+
+\subsection{Backbones}
+Four backbones are compared: MobileNetV2 and EfficientNet-B0 (lightweight, mobile-oriented), and ResNet50 and VGG16 (heavyweight, classic deep convolutional), selected to contrast two architecture philosophies and two clearly distinct parameter-count regimes. All four train and evaluate at the dataset's native 64-pixel input, with no upsampling.
+
+\subsection{Hyperparameter sweep}
+Each backbone is trained under three optimizers, SGD with momentum 0.9, Adam, and AdamW, at three weight-decay values per optimizer set at the PyTorch default plus and minus one order of magnitude, across all five folds, for a full grid of 4 backbones times 3 optimizers times 3 weight decays times 5 folds.
+
+\subsection{Stability testing}
+Coefficient of variation (CV) of AUC across the sweep is reported descriptively. To test whether one backbone is more stable than another in variance, not merely in a point estimate, we apply a Brown-Forsythe test (median-based Levene variant, chosen for robustness to skew) on AUC variance for every backbone pair, with Holm correction across the resulting family of six comparisons. To decompose the source of AUC variance across factors, we fit a factorial ANOVA over backbone, optimizer, weight decay, and fold, and report eta-squared per factor.
+
+\subsection{Cross-granularity comparison}
+Each of the four label arms is collapsed to a common benign-versus-malignant probability by renormalization rather than by argmax, since renormalization preserves the continuous score needed for AUC while argmax collapse would discard ranking information. The binary arm uses its malignant-class probability directly. The ordinal arm is mapped through the cumulative probability of a rating above 3. The three-class arm is renormalized as $P(\text{malignant}) / (P(\text{benign}) + P(\text{malignant}))$. The four-class arm is first restricted to the nodule subset, discarding the no-nodule class, then renormalized identically to the three-class arm; this restriction guards against the AUC inflation that adding a large pool of easy true negatives can produce. All four arms are then scored on the identical 1391 binary-eligible nodules per fold, so the same denominator applies regardless of training label scheme. Paired DeLong tests compare every arm pair on this common subset, valid here specifically because the arms share cases. A Friedman test with Nemenyi post-hoc, treating per-fold collapsed-binary AUC as the unit, provides an omnibus ranking across arms that does not require the same-cases assumption.
+
+\subsection{Ordinal-native metrics}
+For the ordinal arm, we additionally report quadratic-weighted kappa (QWK), mean absolute error (MAE), and one-off (adjacent) accuracy on the full 1 to 5 scale, since prior LIDC ordinal-regression work reports accuracy on this task but rarely QWK or MAE despite the ordinal framing.
+
+\section{Results}
+
+\subsection{Backbone comparison}
+Table \ref{tab:backbone} reports mean AUC per backbone, pooled across the full optimizer and weight-decay sweep. VGG16 reaches the highest mean AUC, ahead of ResNet50, with MobileNetV2 and EfficientNet-B0 close together at the lower end.
+
+\begin{table}[htbp]
+\caption{Mean AUC by backbone, pooled over the 3x3 optimizer/weight-decay sweep and 5 folds (45 runs per backbone)}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Backbone} & \textbf{Mean AUC} & \textbf{CV} \\
+\midrule
+VGG16 & 0.8966 & 0.0400 \\
+ResNet50 & 0.8553 & 0.0792 \\
+MobileNetV2 & 0.8262 & 0.0615 \\
+EfficientNet-B0 & 0.8241 & 0.0865 \\
+\bottomrule
+\end{tabular}
+\label{tab:backbone}
+\end{center}
+\end{table}
+
+\subsection{Stability}
+Brown-Forsythe tests with Holm correction across all six backbone pairs find exactly one significant pair: ResNet50 versus VGG16 ($p_{holm}=0.0426$). The remaining five pairs, including VGG16 versus EfficientNet-B0 ($p_{holm}=0.0840$), do not survive correction. A claim that VGG16 is unconditionally the most stable backbone across this sweep is therefore not supported at the individual-pair level and is not made; only the ResNet50-versus-VGG16 variance difference is statistically defensible.
+
+The factorial ANOVA attributes eta-squared of 0.4533 to optimizer, 0.2060 to backbone, 0.0684 to fold, and 0.0002 to weight decay, with 0.1827 residual. Optimizer choice accounts for over 200 times more AUC variance than weight decay in this decomposition, a substantially larger ratio than a raw point-estimate comparison of AUC deltas would suggest.
+
+\subsection{Cross-granularity comparison}
+The Friedman omnibus test across the four label arms is significant ($\chi^2=43.96$, $p=1.5\times10^{-9}$), with mean ranks favoring the four-class arm (1.33) over binary (2.40), three-class (2.77), and ordinal (3.50, worst). Nemenyi post-hoc finds every arm pair significantly different except binary versus three-class ($p=0.69$). At the individual-model level, however, paired DeLong tests for binary versus four-class reach significance in only 3 of the 6 legacy models tested (MobileNetV3-Small, VGG16, ViT-Base), and are not significant for DenseNet121, EfficientNet-B0, or ResNet50 ($p=0.055$ to $0.17$). The claim that label granularity affects performance therefore holds in aggregate across models and folds, but does not hold uniformly at the level of an individual model.
+
+Ordinal-native metrics for the ordinal arm: QWK of 0.5451, MAE of 0.6433, one-off accuracy of 0.9155.
+
+\section{Discussion}
+The dominance of optimizer choice over weight decay in the variance decomposition is consistent with a learning-rate mismatch rather than an intrinsic property of SGD: SGD fine-tuning typically requires a learning rate roughly one to two orders of magnitude higher than Adam or AdamW, and this sweep used a single learning rate common to all three optimizers. An SGD-specific learning-rate sweep over $\{10^{-3}, 10^{-2}, 10^{-1}\}$ has been implemented to test this directly, but has not yet been executed on this compute environment; its result would determine whether the reported SGD deficit reflects an experimental limitation rather than an optimizer property, and is reported here as planned follow-up rather than as a completed result.
+
+The cross-granularity finding illustrates why an aggregate omnibus test and a per-model paired test can disagree: the Friedman ranking reflects a consistent trend across models and folds even when several individual models do not individually cross the significance threshold. Both results are reported together rather than resolving to a single headline claim, since collapsing them into one would overstate the model-level evidence.
+
+\section{Limitations}
+The SGD learning-rate sweep intended to test the optimizer-deficit hypothesis directly has not yet been executed; the current sweep uses one learning rate across all three optimizers, which this paper's own analysis suggests confounds the optimizer comparison. The stability claim is limited to the six pairwise Brown-Forsythe comparisons reported; only one pair reaches significance after correction, and no unconditional "most stable backbone" claim is made. The cross-granularity comparison covers the six legacy backbones with existing ordinal and four-class checkpoints; it does not yet extend to the four Track 2 backbones evaluated in the main sweep.
+
+\section{Conclusion}
+VGG16 achieves the highest mean AUC among the four backbones compared and the lowest AUC coefficient of variation, but a formal variance test supports only one pairwise stability claim, ResNet50 versus VGG16, not a general ranking of backbone stability. Optimizer choice is confirmed to dominate weight decay as a source of AUC variance by a wide margin. Label granularity affects benign-versus-malignant classification performance in aggregate across models, but this effect is not uniform at the level of an individual backbone. A companion paper addresses radiomics-CNN fusion and per-arm explainability on the same dataset and split.
+
+\section*{Acknowledgment}
+The authors thank their supervisor and collaborators for guidance on this work.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

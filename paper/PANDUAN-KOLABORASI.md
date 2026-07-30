@@ -6,8 +6,11 @@ Gratis, ter-versioning, bisa offline, dan riwayat perubahan jelas.
 
 - **Repo:** `https://github.com/Kruwpuck/lung-nodule-fusion-xai`
 - **Kelas dokumen:** IEEEtran **conference** (`\documentclass[conference]{IEEEtran}`)
-- **File utama:** `paper/main.tex`
-- **Output:** `paper/build/main.pdf`
+- **Dua manuskrip terpisah**, satu folder per track:
+  - **Track 1** (fusi radiomics-CNN + XAI): `paper/track1/main.tex` → `paper/track1/build/main.pdf`
+  - **Track 2** (komparasi backbone + stabilitas + granularitas label): `paper/track2/main.tex` → `paper/track2/build/main.pdf`
+- **Dibagi lintas kedua track** (jangan duplikasi, satu sumber kebenaran): `paper/refs.bib`, `paper/IEEEtran.cls`, `paper/IEEEtran.bst`, `paper/IEEEabrv.bib`
+- **Konvensi kepemilikan:** tiap orang kerja di satu folder track. Kalau edit lintas track dalam commit yang sama, jelaskan di pesan commit supaya `git add -A` tidak menimpa pekerjaan orang lain tanpa disadari.
 
 ---
 
@@ -56,12 +59,14 @@ Sudah termasuk `latexmk` + Perl. Alternatif: TeX Live for Windows — pilih **sa
 
 ```bash
 git clone https://github.com/Kruwpuck/lung-nodule-fusion-xai.git
-cd lung-nodule-fusion-xai/paper
-latexmk -pdf main.tex        # build pertama → build/main.pdf
+cd lung-nodule-fusion-xai/paper/track1   # atau paper/track2, sesuai track yang kamu kerjakan
+latexmk -pdf main.tex                     # build pertama → build/main.pdf
 ```
 
 Semua file yang dibutuhkan (`IEEEtran.cls`, `IEEEtran.bst`, `refs.bib`) sudah ada
-di repo. Tidak perlu download template lagi.
+di `paper/` (satu tingkat di atas folder track) dan otomatis terbaca lewat
+`.latexmkrc` tiap track. Tidak perlu download template lagi, dan tidak perlu
+menyalin `refs.bib` ke masing-masing folder track.
 
 ---
 
@@ -74,10 +79,13 @@ di repo. Tidak perlu download template lagi.
 | Bersihkan file sampah | `latexmk -c` | sama |
 | Build bersih dari nol | `rm -rf build && latexmk -pdf main.tex` | `Remove-Item -Recurse -Force build; latexmk -pdf main.tex` |
 
-Hasil PDF selalu di `paper/build/main.pdf`. Folder `build/` **tidak** ikut di-commit
-(sudah di-`.gitignore`) — tiap orang build sendiri.
+Hasil PDF selalu di `paper/track1/build/main.pdf` atau `paper/track2/build/main.pdf`
+sesuai folder tempat kamu menjalankan `latexmk`. Folder `build/` **tidak** ikut
+di-commit (sudah di-`.gitignore`) — tiap orang build sendiri.
 
 ### Preview PDF
+
+Jalankan dari dalam `paper/track1/` atau `paper/track2/`:
 
 | OS | Command | Viewer bawaan |
 |----|---------|---------------|
@@ -97,14 +105,21 @@ Stop dengan `Ctrl+C`.
 ## 4. Alur Edit Harian (WAJIB diikuti biar tidak bentrok)
 
 ```
-1. git pull                 ← SELALU tarik update terbaru dulu
-2. edit main.tex            ← tulis bagianmu
-3. latexmk -pdf main.tex    ← pastikan TIDAK ada error
-4. git add -A
-5. git commit -m "pesan jelas, mis: tulis subsection Methodology"
-6. git pull                 ← tarik lagi kalau-kalau ada yang push barusan
-7. git push                 ← kirim
+1. git pull                            ← SELALU tarik update terbaru dulu
+2. cd paper/track1  (atau track2)      ← masuk ke folder track yang kamu kerjakan
+3. edit main.tex                       ← tulis bagianmu
+4. latexmk -pdf main.tex               ← pastikan TIDAK ada error
+5. git add track1/main.tex             ← add per-file, JANGAN git add -A dari paper/
+6. git commit -m "pesan jelas, mis: tulis subsection Methodology (track1)"
+7. git pull                            ← tarik lagi kalau-kalau ada yang push barusan
+8. git push                            ← kirim
 ```
+
+**Penting:** karena sekarang ada dua manuskrip di satu repo, jangan pakai
+`git add -A` dari dalam `paper/` — itu bisa ikut nyangkut perubahan track lain
+yang belum selesai kamu tinjau. Tunjuk file secara eksplisit
+(`git add track1/main.tex` atau `git add track2/main.tex`), kecuali kamu memang
+sengaja mau commit gabungan dan sudah cek `git status` dulu.
 
 Kalau langkah 7 ditolak (`rejected`), berarti ada yang push duluan:
 ```bash
@@ -144,20 +159,21 @@ Tambah entri BibTeX baru, pastikan **citekey unik**:
 }
 ```
 
-### Mengutip di `main.tex`
+### Mengutip di `track1/main.tex` atau `track2/main.tex`
 ```latex
 Metode ini mengikuti \cite{armatoLungImage2011}.
 Beberapa sekaligus: \cite{keyA, keyB}.
 ```
 
-> **Catatan:** `main.tex` sekarang pakai daftar referensi bawaan template (b1–b11)
-> supaya langsung ter-compile. Begitu mulai pakai referensi asli via Zotero, hapus
-> blok `\begin{thebibliography}...\end{thebibliography}` dan aktifkan dua baris ini:
-> ```latex
-> \bibliographystyle{IEEEtran}
-> \bibliography{refs}
-> ```
-> Petunjuk lengkap ada di komentar di bawah `\end{document}` di `main.tex`.
+> **Jangan pernah mengarang citekey.** Kalau referensi yang kamu butuhkan belum
+> ada di `refs.bib`, tulis kalimatnya dulu tanpa `\cite{}`, lalu catat referensi
+> yang dibutuhkan di `docs/laporan/REFERENSI_DIBUTUHKAN.md` supaya bisa
+> ditambahkan lewat Zotero. Berkas itu sudah memuat daftar referensi yang
+> diketahui masih kurang untuk kedua manuskrip, lengkap dengan DOI.
+>
+> Kedua `main.tex` **sudah** pakai `\bibliographystyle{IEEEtran}` +
+> `\bibliography{refs}` yang aktif (bukan `thebibliography` bawaan template
+> lagi), jadi cukup tambah entri ke `refs.bib` lalu `\cite{key}` langsung jalan.
 
 ---
 
@@ -179,8 +195,10 @@ git commit
 git push
 ```
 
-**Cara paling ampuh menghindari konflik:** bagi tugas per-*section*. Kalau paper
-makin besar, pecah jadi beberapa file dan `\input{}` di `main.tex`:
+**Cara paling ampuh menghindari konflik:** dua manuskrip sudah otomatis
+memisahkan sebagian besar pekerjaan (Track 1 vs Track 2 di folder berbeda).
+Di dalam satu track, bagi tugas per-*section*; kalau paper makin besar, pecah
+jadi beberapa file dan `\input{}` di `main.tex`:
 ```latex
 \input{sections/methodology.tex}
 ```
@@ -192,24 +210,27 @@ Tiap orang pegang file section berbeda → nyaris tak pernah bentrok.
 
 | File | Fungsi | Boleh diedit? |
 |------|--------|---------------|
-| `main.tex` | Isi paper | ✅ ya |
-| `refs.bib` | Daftar referensi | ✅ ya (atau via Zotero) |
-| `figures/` | Gambar (.png/.pdf) | ✅ tambah gambar di sini |
-| `IEEEtran.cls` | Kelas dokumen IEEE | ❌ jangan |
-| `IEEEtran.bst` | Style bibliografi IEEE | ❌ jangan |
-| `.latexmkrc` | Config build | ❌ jarang perlu |
-| `build/` | Output (PDF, dll) | ❌ tidak di-commit |
+| `track1/main.tex` | Isi paper Track 1 (fusi + XAI) | ✅ ya |
+| `track2/main.tex` | Isi paper Track 2 (komparasi + stabilitas) | ✅ ya |
+| `refs.bib` | Daftar referensi, **dibagi kedua track** | ✅ ya (atau via Zotero) |
+| `track1/figures/`, `track2/figures/` | Gambar per track (.png/.pdf) | ✅ tambah gambar di sini |
+| `IEEEtran.cls` | Kelas dokumen IEEE, **dibagi kedua track** | ❌ jangan |
+| `IEEEtran.bst` | Style bibliografi IEEE, **dibagi kedua track** | ❌ jangan |
+| `track1/.latexmkrc`, `track2/.latexmkrc` | Config build per track | ❌ jarang perlu |
+| `track1/build/`, `track2/build/` | Output (PDF, dll) | ❌ tidak di-commit |
 
 ---
 
 ## 8. Aturan Singkat
 
 - **Selalu `git pull` sebelum mulai dan sebelum push.**
-- **Commit kecil & sering**, pesan yang jelas.
+- **Commit kecil & sering**, pesan yang jelas, sebutkan track-nya.
 - **Jangan commit `build/`** (sudah otomatis di-abaikan).
 - **Jangan edit `IEEEtran.cls` / `IEEEtran.bst`.**
-- Gambar taruh di `figures/`, panggil `\includegraphics{namafile}`.
+- **Jangan `git add -A` dari `paper/`** — tunjuk file per track secara eksplisit.
+- Gambar taruh di `track{1,2}/figures/`, panggil `\includegraphics{namafile}`.
 - Kalau ragu, build dulu — jangan push kalau masih error.
+- Jangan mengarang citekey; kalau kurang, catat di `docs/laporan/REFERENSI_DIBUTUHKAN.md`.
 
 ### Masalah Umum
 
