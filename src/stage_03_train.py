@@ -28,6 +28,37 @@ _TASK_CFG = {
 }
 
 
+def _resolve_hparams(cfg: dict, weight_decay: float | None, lr: float | None):
+    """Resolve (weight_decay, lr, is_lr_override) against cfg defaults.
+
+    `weight_decay`/`lr` of None fall back to `cfg["train"]`. `is_lr_override`
+    is True only when `lr` differs from the cfg default -- used to decide
+    whether a run needs its own checkpoint dir / run_id suffix (Rev1 task 7).
+    """
+    cfg_weight_decay = cfg["train"].get("weight_decay", 1e-4)
+    if weight_decay is None:
+        weight_decay = cfg_weight_decay
+    cfg_lr = cfg["train"].get("lr", 1e-4)
+    if lr is None:
+        lr = cfg_lr
+    is_lr_override = abs(lr - cfg_lr) > 1e-12
+    return weight_decay, lr, is_lr_override
+
+
+def build_run_id(model_name: str, task: str, fold: int, optimizer_name: str,
+                  weight_decay: float, lr: float, cfg_lr: float) -> str:
+    """The run_id every (model, task, fold, optimizer, weight_decay[, lr]) combo
+    is logged and resumed under. lr is only appended when it differs from the
+    cfg default, so the 215 pre-Rev1-task-7 run_ids are produced unchanged and
+    stay resumable, while new SGD-LR-sweep runs (Rev1 task 7) get their own
+    isolated id instead of aliasing an existing completed run.
+    """
+    run_id = f"{model_name}_{task}_f{fold}_{optimizer_name}_wd{weight_decay:g}"
+    if abs(lr - cfg_lr) > 1e-12:
+        run_id = f"{run_id}_lr{lr:g}"
+    return run_id
+
+
 def _build_optimizer(name: str, params, lr: float, weight_decay: float, momentum: float = 0.9):
     import torch
     if name == "sgd":
@@ -103,6 +134,7 @@ def run(
     task: str = "binary",
     optimizer_name: str = "adamw",
     weight_decay: float | None = None,
+    lr: float | None = None,
 ) -> None:
     from src.utils.seed import fix_seed
     from src.models.registry import build_model
@@ -116,20 +148,25 @@ def run(
 
     tcfg = _TASK_CFG[task]
     cfg_weight_decay = cfg["train"].get("weight_decay", 1e-4)
-    if weight_decay is None:
-        weight_decay = cfg_weight_decay
-    lr = cfg["train"].get("lr", 1e-4)
+    cfg_lr = cfg["train"].get("lr", 1e-4)
+    weight_decay, lr, is_lr_override = _resolve_hparams(cfg, weight_decay, lr)
     momentum = cfg.get("track2_sweep", {}).get("momentum", 0.9)
 
-    is_default_combo = (optimizer_name == "adamw" and abs(weight_decay - cfg_weight_decay) < 1e-12)
+    is_default_combo = (
+        optimizer_name == "adamw"
+        and abs(weight_decay - cfg_weight_decay) < 1e-12
+        and not is_lr_override
+    )
     ckpt_subdir = model_name if task == "binary" else f"{model_name}_{task}"
     if not is_default_combo:
         ckpt_subdir = f"{ckpt_subdir}_{optimizer_name}_wd{weight_decay:g}"
+        if is_lr_override:
+            ckpt_subdir = f"{ckpt_subdir}_lr{lr:g}"
     ckpt_dir = os.path.join(cfg["paths"]["checkpoints"], ckpt_subdir)
     last_pt = os.path.join(ckpt_dir, f"fold{fold}_last.pt")
     best_pt = os.path.join(ckpt_dir, f"fold{fold}_best.pt")
 
-    run_id = f"{model_name}_{task}_f{fold}_{optimizer_name}_wd{weight_decay:g}"
+    run_id = build_run_id(model_name, task, fold, optimizer_name, weight_decay, lr, cfg_lr)
     epoch_log_path = os.path.join(cfg["paths"]["logs"], "epochs", f"{run_id}.csv")
     runs_csv_path = os.path.join(cfg["paths"]["logs"], "runs.csv")
     track = resolve_track(cfg, model_name) or "legacy"
@@ -301,9 +338,10 @@ def main() -> None:
     p.add_argument("--task", default="binary", choices=["binary", "ordinal", "grade3", "grade4"])
     p.add_argument("--optimizer", default="adamw", choices=["sgd", "adam", "adamw"])
     p.add_argument("--weight-decay", type=float, default=None)
+    p.add_argument("--lr", type=float, default=None)
     args = p.parse_args()
     cfg = yaml.safe_load(open(args.config))
-    run(cfg, args.model, args.fold, args.task, args.optimizer, args.weight_decay)
+    run(cfg, args.model, args.fold, args.task, args.optimizer, args.weight_decay, args.lr)
 
 
 if __name__ == "__main__":

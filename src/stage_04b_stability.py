@@ -113,6 +113,43 @@ def _plot_heatmap(cells, out_png: str) -> None:
     plt.close(fig)
 
 
+def _variance_and_anova(df, results_dir: str) -> None:
+    """Task 6: replace CV-only stability claims with real tests.
+
+    - Brown-Forsythe (primary, median-centered) + Levene pairwise across
+      backbones on AUC, Holm-corrected across the pairwise family.
+    - Factorial ANOVA over backbone x optimizer x weight_decay x fold,
+      reporting eta-squared per factor so "optimizer >> weight_decay" is a
+      variance-explained claim, not a raw-delta claim.
+    """
+    from src.evaluation.statistical_tests import factorial_anova, pairwise_variance_tests
+
+    bf = pairwise_variance_tests(df, "model", "best_score", test="brown-forsythe")
+    lv = pairwise_variance_tests(df, "model", "best_score", test="levene")
+    bf.to_csv(os.path.join(results_dir, "track2_variance_brown_forsythe.csv"), index=False)
+    lv.to_csv(os.path.join(results_dir, "track2_variance_levene.csv"), index=False)
+
+    anova = factorial_anova(df, ["model", "optimizer", "weight_decay", "fold"], "best_score")
+    anova.to_csv(os.path.join(results_dir, "track2_anova_eta_sq.csv"), index=False)
+
+    logger.info("wrote track2_variance_brown_forsythe.csv, track2_variance_levene.csv, "
+                "track2_anova_eta_sq.csv to %s", results_dir)
+
+    if not bf.empty:
+        n_sig = int(bf["significant_holm_05"].sum())
+        print(f"[STABILITY] Brown-Forsythe pairwise (Holm-corrected): "
+              f"{n_sig}/{len(bf)} pairs significant at p<0.05")
+        if n_sig == 0:
+            print("[STABILITY] No pairwise variance difference survives Holm correction "
+                  "-> drop any 'most stable model' claim; only descriptive CV is supported.")
+
+    if not anova.empty:
+        eta = anova.set_index("term")["eta_sq"]
+        print("[STABILITY] ANOVA eta-squared per term:")
+        for term, val in eta.items():
+            print(f"    {term}: {val:.4f}")
+
+
 def run(cfg: dict, task: str = "binary") -> None:
     from src.utils.log_io import load_runs
 
@@ -150,6 +187,7 @@ def run(cfg: dict, task: str = "binary") -> None:
 
     _plot_by_optimizer(df, os.path.join(fig_dir, "track2_auc_by_optimizer.png"))
     _plot_heatmap(cells, os.path.join(fig_dir, "track2_auc_heatmap.png"))
+    _variance_and_anova(df, results_dir)
 
     best = cells.loc[cells["auc_mean"].idxmax()]
     print(f"[DONE] {len(df)} runs -> {len(cells)} cells")

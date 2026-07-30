@@ -46,6 +46,17 @@ def train_fusion_epoch(
     """One training epoch. Returns mean loss."""
     model.train()
     total_loss = 0.0
+    aux_weight = getattr(model, "aux_loss_weight", 0.0)
+
+    def _loss(img, rad, labels):
+        # Rev1 task 5c: auxiliary per-branch losses, config-driven via
+        # model.aux_loss_weight (0.0 -> identical to pre-5c behavior).
+        logits = model(img, rad)
+        loss = criterion(logits, labels)
+        if aux_weight > 0:
+            aux_img_logits, aux_rad_logits = model.aux_logits()
+            loss = loss + aux_weight * (criterion(aux_img_logits, labels) + criterion(aux_rad_logits, labels))
+        return loss
 
     for img, rad, labels in loader:
         img = img.to(device)
@@ -55,14 +66,12 @@ def train_fusion_epoch(
 
         if scaler is not None:
             with torch.amp.autocast(device.type):
-                logits = model(img, rad)
-                loss = criterion(logits, labels)
+                loss = _loss(img, rad, labels)
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
         else:
-            logits = model(img, rad)
-            loss = criterion(logits, labels)
+            loss = _loss(img, rad, labels)
             loss.backward()
             optimizer.step()
 

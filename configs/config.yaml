@@ -48,10 +48,26 @@ track2_sweep:
     adam:  [1.0e-5, 1.0e-4, 1.0e-3]
     adamw: [1.0e-3, 1.0e-2, 1.0e-1]
   momentum: 0.9                # untuk SGD+momentum
+  # Rev1 task 7: SGD run at lr=1e-4 (same as Adam) showed up to 0.1457 AUC gap
+  # vs Adam. Literature says SGD typically needs ~10-100x Adam's lr, so test
+  # whether the gap is a tuning artifact. Run at cfg's default weight_decay;
+  # isolated from the wd-sweep combos above via the `_lr{lr:g}` run_id suffix.
+  sgd_lr_sweep: [1.0e-3, 1.0e-2, 1.0e-1]
 
 track1_fusion:
   enabled: true
   backbone: "mobilenetv3_small"
+  # Rev1 task 5a: additional FusionNet arms to train alongside the default
+  # "concat" arm (unchanged legacy behavior). Add "branch_norm" to also run
+  # the per-branch L2-normalized / down-projected CNN embedding arm.
+  fusion_arms: ["concat"]
+  branch_norm_proj_dim: 32
+  # Rev1 task 5c: modality dropout + auxiliary per-branch losses. Regularizers,
+  # not a fusion topology, so they compose with any arm above rather than
+  # adding a 4th arm name. Both default to 0.0 (no-op) so the default config
+  # path reproduces today's numbers unchanged.
+  modality_dropout_rate: 0.0
+  aux_loss_weight: 0.0
 
 radiomics:
   params_yaml: "configs/radiomics_params.yaml"

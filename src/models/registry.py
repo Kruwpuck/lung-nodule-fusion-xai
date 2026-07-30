@@ -39,3 +39,19 @@ def build_model(name: str, cfg: dict, task: str = "binary"):
         backbone, n_input_channels=n_slices, n_classes=n_classes, pretrained=True,
         input_size=input_size,
     )
+
+
+def build_fusion_model(name: str, cfg: dict, n_radiomic: int, task: str = "binary", **fusion_kwargs):
+    """Same track-aware input_size resolution as build_model, for FusionNet."""
+    from src.models.fusion_net import FusionNet
+    from src.utils.tracks import track_input_size
+    backbone = _NAME_MAP.get(name, name)
+    n_slices = cfg.get("data", {}).get("n_slices", 3)
+    if task not in _TASK_N_CLASSES:
+        raise ValueError(f"Unknown task: {task!r}. Expected one of {list(_TASK_N_CLASSES)}")
+    n_classes = _TASK_N_CLASSES[task]
+    input_size = track_input_size(cfg, name)
+    return FusionNet(
+        n_radiomic=n_radiomic, backbone_name=backbone, n_input_channels=n_slices,
+        n_classes=n_classes, pretrained=True, input_size=input_size, **fusion_kwargs,
+    )

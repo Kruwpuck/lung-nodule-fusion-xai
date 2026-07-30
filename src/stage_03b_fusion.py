@@ -80,7 +80,7 @@ def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: in
     """Re-run the existing arm A checkpoint on df_fold's own patches (fusion-eligible subset)."""
     import torch
     from torch.utils.data import DataLoader
-    from src.models.backbones import BackboneClassifier
+    from src.models.registry import build_model
     from src.training.dataset import NoduleDataset2_5D
 
     n_slices = cfg["data"].get("n_slices", 3)
@@ -88,7 +88,7 @@ def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: in
     batch_size = cfg["train"].get("batch_size", 16)
 
     ckpt = os.path.join(cfg["paths"]["checkpoints"], model_name, f"fold{fold}_best.pt")
-    model = BackboneClassifier(backbone_internal, n_input_channels=n_slices, n_classes=2, pretrained=True).to(device)
+    model = build_model(model_name, cfg).to(device)
     state = torch.load(ckpt, weights_only=True, map_location="cpu")
     model.load_state_dict(state["model_state"] if isinstance(state, dict) and "model_state" in state else state)
     model.eval()
@@ -103,13 +103,51 @@ def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: in
     return np.concatenate(probs)
 
 
+def _fusion_arms_list(cfg: dict) -> list[str]:
+    """Which FusionNet fusion_arm variants to train, in config order.
+
+    Default (no `track1_fusion.fusion_arms` key) is `["concat"]` — today's only
+    arm — so the default config path reproduces existing numbers unchanged.
+    Add "branch_norm" (Rev1 task 5a) to also run the per-branch normalized /
+    down-projected arm, and/or "gmu" (Rev1 task 5b) for the Gated Multimodal
+    Unit arm — both route through the same `build_fusion_model(..., fusion_arm=...)`
+    / checkpoint-subdir / ablation-row / delong_test mechanism.
+    """
+    return cfg.get("track1_fusion", {}).get("fusion_arms", ["concat"])
+
+
+def _regularizer_suffix(cfg: dict) -> str:
+    """Rev1 task 5c: modality dropout and auxiliary per-branch losses are
+    regularizers, not a fourth fusion_arm, so they compose with whichever arm
+    is configured rather than adding a new arm name. When either is turned on
+    (non-default), the row/checkpoint name gets a suffix so the regularized
+    run gets its own row and checkpoint subdir instead of aliasing the plain
+    arm's — reusing exactly the naming mechanism 5a/5b already established.
+    """
+    tcfg = cfg.get("track1_fusion", {})
+    suffix = ""
+    if tcfg.get("modality_dropout_rate", 0.0) > 0:
+        suffix += "_moddrop"
+    if tcfg.get("aux_loss_weight", 0.0) > 0:
+        suffix += "_auxloss"
+    return suffix
+
+
+def _arm_row_name(fusion_arm: str, cfg: dict | None = None) -> str:
+    """ablation_summary.csv arm label (and checkpoint subdir) for a given
+    FusionNet fusion_arm, plus any active 5c regularizer suffix."""
+    base = "fusion_intermediate" if fusion_arm == "concat" else f"fusion_intermediate_{fusion_arm}"
+    return base + _regularizer_suffix(cfg or {})
+
+
 def _train_fusion_fold(model_name: str, backbone_internal: str, cfg: dict, fold: int,
                         train_df: pd.DataFrame, val_df: pd.DataFrame,
-                        X_train_sel: np.ndarray, X_val_sel: np.ndarray, device) -> np.ndarray:
+                        X_train_sel: np.ndarray, X_val_sel: np.ndarray, device,
+                        fusion_arm: str = "concat") -> np.ndarray:
     import torch
     import torch.nn as nn
     from torch.utils.data import DataLoader
-    from src.models.fusion_net import FusionNet
+    from src.models.registry import build_fusion_model
     from src.fusion.intermediate_fusion import RadiomicDataset, train_fusion_epoch, eval_fusion
     from src.training.dataset import NoduleDataset2_5D
     from src.training.trainer import EarlyStopping
@@ -129,17 +167,24 @@ def _train_fusion_fold(model_name: str, backbone_internal: str, cfg: dict, fold:
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
 
-    model = FusionNet(
-        n_radiomic=X_train_sel.shape[1], backbone_name=backbone_internal,
-        n_input_channels=n_slices, n_classes=2, pretrained=True,
-    ).to(device)
+    proj_dim = cfg.get("track1_fusion", {}).get("branch_norm_proj_dim", 32)
+    modality_dropout = cfg.get("track1_fusion", {}).get("modality_dropout_rate", 0.0)
+    aux_loss_weight = cfg.get("track1_fusion", {}).get("aux_loss_weight", 0.0)
+    model = build_fusion_model(model_name, cfg, n_radiomic=X_train_sel.shape[1],
+                                fusion_arm=fusion_arm, proj_dim=proj_dim,
+                                modality_dropout=modality_dropout,
+                                aux_loss_weight=aux_loss_weight).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     early_stopper = EarlyStopping(patience=patience, mode="max")
     amp_scaler = torch.amp.GradScaler() if device.type == "cuda" else None
 
-    ckpt_dir = os.path.join(cfg["paths"]["checkpoints"], f"{model_name}_fusion_intermediate")
+    # non-default arms (and/or active 5c regularizers) get their own checkpoint
+    # subdir — additive, never overwrites the existing concat-arm checkpoints
+    # under `{model_name}_fusion_intermediate`.
+    ckpt_subdir = _arm_row_name(fusion_arm, cfg)
+    ckpt_dir = os.path.join(cfg["paths"]["checkpoints"], f"{model_name}_{ckpt_subdir}")
     os.makedirs(ckpt_dir, exist_ok=True)
     best_pt = os.path.join(ckpt_dir, f"fold{fold}_best.pt")
 
@@ -159,6 +204,22 @@ def _train_fusion_fold(model_name: str, backbone_internal: str, cfg: dict, fold:
 
     model.load_state_dict(torch.load(best_pt, weights_only=True, map_location=device))
     _, y_prob = eval_fusion(model, val_loader, device)
+
+    # Rev1 task 5c: modality dropout rate / aux loss weight are config-driven
+    # and recorded in runs.csv regardless of arm, so they stay traceable even
+    # though both default to 0.0 (no-op) on the default config path.
+    from src.utils.logger import append_row
+    run_id = f"{model_name}_fusion_{fusion_arm}_f{fold}"
+    if modality_dropout > 0:
+        run_id += f"_moddrop{modality_dropout:g}"
+    if aux_loss_weight > 0:
+        run_id += f"_aux{aux_loss_weight:g}"
+    append_row(os.path.join(cfg["paths"]["logs"], "runs.csv"), {
+        "run_id": run_id, "track": "track1_fusion", "model": model_name, "task": "binary",
+        "fold": fold, "fusion_arm": fusion_arm,
+        "modality_dropout_rate": modality_dropout, "aux_loss_weight": aux_loss_weight,
+        "best_score": round(best_auc, 6), "status": "completed",
+    })
     return y_prob
 
 
@@ -169,7 +230,6 @@ def run(cfg: dict) -> None:
     from src.fusion.late_fusion import average_fusion, stacking_fusion
     from src.evaluation.metrics import compute_metrics
     from src.evaluation.statistical_tests import delong_test
-    from src.models.backbones import BackboneClassifier
     from src.training.dataset import NoduleDataset2_5D
     from torch.utils.data import DataLoader
 
@@ -231,12 +291,16 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
     from src.fusion.late_fusion import average_fusion, stacking_fusion
     from src.evaluation.metrics import compute_metrics
     from src.evaluation.statistical_tests import delong_test
-    from src.models.backbones import BackboneClassifier
+    from src.models.registry import build_model
     from src.training.dataset import NoduleDataset2_5D
     from torch.utils.data import DataLoader
 
+    fusion_arms = _fusion_arms_list(cfg)
+
     rows = []
-    pooled = {"cnn": [], "radiomics": [], "fusion_intermediate": [], "fusion_early": [], "fusion_late": [], "y_true": []}
+    pooled = {"cnn": [], "radiomics": [], "fusion_early": [], "fusion_late": [], "y_true": []}
+    for arm in fusion_arms:
+        pooled[_arm_row_name(arm, cfg)] = []
 
     for fold in range(n_folds):
         train_df = merged[merged["fold"] != fold].reset_index(drop=True)
@@ -257,9 +321,14 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
         rad_prob = clf.predict_proba(X_val_sel)[:, 1]
         m_rad = compute_metrics(y_val, rad_prob)
 
-        # --- Arm 3a: intermediate fusion (default, end-to-end) ---
-        fusion_prob = _train_fusion_fold(model_name, backbone_internal, cfg, fold,
-                                          train_df, val_df, X_train_sel, X_val_sel, device)
+        # --- Arm 3a: intermediate fusion (default arm = "concat", end-to-end) ---
+        # plus any additional config-selected FusionNet arms (e.g. "branch_norm", Rev1 5a)
+        fusion_probs = {}
+        for arm in fusion_arms:
+            fusion_probs[arm] = _train_fusion_fold(model_name, backbone_internal, cfg, fold,
+                                                     train_df, val_df, X_train_sel, X_val_sel, device,
+                                                     fusion_arm=arm)
+        fusion_prob = fusion_probs["concat"] if "concat" in fusion_probs else next(iter(fusion_probs.values()))
         m_fus = compute_metrics(y_val, fusion_prob)
 
         # --- Arm 3b: late fusion (cheap, reuses cnn_prob + rad_prob — no retrain) ---
@@ -271,7 +340,7 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
         patch_xy = cfg["data"].get("patch_xy", 64)
         batch_size = cfg["train"].get("batch_size", 16)
         ckpt = os.path.join(cfg["paths"]["checkpoints"], model_name, f"fold{fold}_best.pt")
-        cnn_model = BackboneClassifier(backbone_internal, n_input_channels=n_slices, n_classes=2, pretrained=True).to(device)
+        cnn_model = build_model(model_name, cfg).to(device)
         state = torch.load(ckpt, weights_only=True, map_location="cpu")
         cnn_model.load_state_dict(state["model_state"] if isinstance(state, dict) and "model_state" in state else state)
         train_loader = DataLoader(NoduleDataset2_5D(train_df, patch_size=patch_xy, n_slices=n_slices, augment=False),
@@ -287,16 +356,19 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
         m_early = compute_metrics(y_val, early_prob)
 
         for arm_name, m in [("cnn_only", m_cnn), ("radiomics_only", m_rad),
-                             ("fusion_intermediate", m_fus), ("fusion_late", m_late),
-                             ("fusion_early", m_early)]:
+                             ("fusion_late", m_late), ("fusion_early", m_early)]:
             rows.append({"backbone": model_name, "arm": arm_name, "fold": fold, "n_val": len(val_df), **m})
+        for arm in fusion_arms:
+            m = compute_metrics(y_val, fusion_probs[arm])
+            rows.append({"backbone": model_name, "arm": _arm_row_name(arm, cfg), "fold": fold, "n_val": len(val_df), **m})
 
         pooled["y_true"].append(y_val)
         pooled["cnn"].append(cnn_prob)
         pooled["radiomics"].append(rad_prob)
-        pooled["fusion_intermediate"].append(fusion_prob)
         pooled["fusion_late"].append(late_prob)
         pooled["fusion_early"].append(early_prob)
+        for arm in fusion_arms:
+            pooled[_arm_row_name(arm, cfg)].append(fusion_probs[arm])
 
     # --- pooled DeLong across arms + decision rule ---
     import numpy as np
@@ -307,7 +379,8 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
     aucs = {k: roc_auc_score(y_true_all, p) for k, p in arm_probs.items()}
 
     best_single = max(("cnn", "radiomics"), key=lambda k: aucs[k])
-    for fusion_arm in ("fusion_intermediate", "fusion_early", "fusion_late"):
+    fusion_arm_row_names = [_arm_row_name(a, cfg) for a in fusion_arms] + ["fusion_early", "fusion_late"]
+    for fusion_arm in fusion_arm_row_names:
         _, p_val, _ = delong_test(y_true_all, arm_probs[fusion_arm], arm_probs[best_single])
         delong_rows.append({
             "backbone": model_name,

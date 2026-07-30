@@ -1,6 +1,8 @@
 """DeLong test for paired AUC comparison and ablation table generation."""
 from __future__ import annotations
 
+from itertools import combinations
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -105,3 +107,142 @@ def build_ablation_table(
         })
 
     return pd.DataFrame(rows).sort_values("auc", ascending=False).reset_index(drop=True)
+
+
+def holm_correction(pvalues: list[float]) -> list[float]:
+    """Holm-Bonferroni step-down correction.
+
+    Standard textbook algorithm: sort ascending, multiply p_i by (n - rank),
+    then enforce monotonicity by a running cumulative max, capped at 1.
+    Returns adjusted p-values in the original input order.
+    """
+    p = np.asarray(pvalues, dtype=float)
+    n = len(p)
+    order = np.argsort(p)
+    adjusted_sorted = np.empty(n)
+    running_max = 0.0
+    for rank, idx in enumerate(order):
+        val = min((n - rank) * p[idx], 1.0)
+        running_max = max(running_max, val)
+        adjusted_sorted[rank] = running_max
+    out = np.empty(n)
+    out[order] = adjusted_sorted
+    return out.tolist()
+
+
+def brown_forsythe_test(*groups: np.ndarray) -> tuple[float, float]:
+    """Brown-Forsythe test for equality of variances (Levene centered on the
+    median). Primary variance test here because it tolerates skewed,
+    non-normal AUC distributions better than Bartlett or mean-centered Levene.
+
+    Returns (statistic, p_value).
+    """
+    stat, p = stats.levene(*groups, center="median")
+    return float(stat), float(p)
+
+
+def levene_test(*groups: np.ndarray) -> tuple[float, float]:
+    """Classic Levene test for equality of variances (mean-centered)."""
+    stat, p = stats.levene(*groups, center="mean")
+    return float(stat), float(p)
+
+
+def pairwise_variance_tests(
+    df: pd.DataFrame,
+    group_col: str,
+    value_col: str,
+    test: str = "brown-forsythe",
+) -> pd.DataFrame:
+    """All pairwise variance-equality tests across levels of group_col, with
+    Holm correction over the pairwise family.
+
+    test: "brown-forsythe" (median-centered, primary) or "levene" (mean-centered).
+    """
+    if test == "brown-forsythe":
+        test_fn = brown_forsythe_test
+    elif test == "levene":
+        test_fn = levene_test
+    else:
+        raise ValueError(f"unknown test: {test}")
+
+    levels = sorted(df[group_col].dropna().unique())
+    samples = {lvl: df.loc[df[group_col] == lvl, value_col].dropna().to_numpy(dtype=float)
+               for lvl in levels}
+
+    rows = []
+    for a, b in combinations(levels, 2):
+        stat, p = test_fn(samples[a], samples[b])
+        rows.append({"group_a": a, "group_b": b, "n_a": len(samples[a]), "n_b": len(samples[b]),
+                     "statistic": stat, "p_value": p})
+
+    result = pd.DataFrame(rows)
+    if not result.empty:
+        result["p_holm"] = holm_correction(result["p_value"].tolist())
+        result["significant_holm_05"] = result["p_holm"] < 0.05
+    result.attrs["test"] = test
+    return result
+
+
+def _ols_rss(y: np.ndarray, design: np.ndarray) -> float:
+    """Residual sum of squares of y regressed on `design` (incl. intercept col)."""
+    coef, _, _, _ = np.linalg.lstsq(design, y, rcond=None)
+    resid = y - design @ coef
+    return float(resid @ resid)
+
+
+def _dummy_block(series: pd.Series) -> np.ndarray:
+    """One-hot columns for a categorical factor, one level dropped (reference
+    level) so the block is full rank alongside an intercept column."""
+    dummies = pd.get_dummies(series.astype(str), drop_first=True)
+    return dummies.to_numpy(dtype=float)
+
+
+def factorial_anova(
+    df: pd.DataFrame,
+    factors: list[str],
+    value_col: str,
+) -> pd.DataFrame:
+    """Main-effects factorial ANOVA (Type II sums of squares) over the given
+    categorical factors, reporting eta-squared (SS_factor / SS_total) per
+    factor plus the residual.
+
+    No interaction terms: the Rev1 ask is eta-squared *per factor*, and Type
+    II SS for a main-effects-only model is exactly "RSS of the model without
+    this factor, minus RSS of the full model" — valid for unbalanced designs
+    too, so a missing/failed run in the sweep doesn't break it. Implemented
+    directly on dummy-coded design matrices (numpy least squares) rather than
+    statsmodels, which needs a C/C++ toolchain this box doesn't have.
+    """
+    clean = df[factors + [value_col]].dropna().copy()
+    n = len(clean)
+    y = clean[value_col].to_numpy(dtype=float)
+    grand_mean = y.mean()
+    ss_total = float(((y - grand_mean) ** 2).sum())
+
+    intercept = np.ones((n, 1))
+    blocks = {f: _dummy_block(clean[f]) for f in factors}
+    full_design = np.hstack([intercept] + [blocks[f] for f in factors])
+    rss_full = _ols_rss(y, full_design)
+    df_full = n - full_design.shape[1]
+
+    rows = []
+    for f in factors:
+        reduced_design = np.hstack([intercept] + [blocks[g] for g in factors if g != f])
+        rss_reduced = _ols_rss(y, reduced_design)
+        ss_f = max(rss_reduced - rss_full, 0.0)
+        df_f = blocks[f].shape[1]
+        ms_f = ss_f / df_f if df_f else float("nan")
+        ms_resid = rss_full / df_full if df_full > 0 else float("nan")
+        f_stat = ms_f / ms_resid if ms_resid else float("nan")
+        p_value = float(stats.f.sf(f_stat, df_f, df_full)) if df_full > 0 else float("nan")
+        rows.append({
+            "term": f, "sum_sq": ss_f, "df": df_f, "F": f_stat, "p_value": p_value,
+            "eta_sq": ss_f / ss_total if ss_total else float("nan"),
+        })
+
+    rows.append({
+        "term": "Residual", "sum_sq": rss_full, "df": df_full, "F": float("nan"),
+        "p_value": float("nan"), "eta_sq": rss_full / ss_total if ss_total else float("nan"),
+    })
+
+    return pd.DataFrame(rows)

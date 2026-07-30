@@ -23,22 +23,39 @@ class CSVLogger:
 def append_row(path: str, row: dict) -> None:
     """Append one row to a run-level CSV, creating header from `row` keys if new.
 
-    If the file already exists with a different header, only keys present in
-    both the existing header and `row` are written (extra keys in `row` are
-    dropped) to avoid corrupting the file as the schema grows over time.
+    If the file already exists and `row` introduces keys not in the existing
+    header (e.g. a new experiment records fields older runs never had), the
+    header — and every existing row — is extended with those columns
+    (backfilled empty) so the new data is never silently dropped. This keeps
+    `runs.csv` additive: old rows and their columns are untouched, new columns
+    just start out blank for them.
     """
     import csv as _csv
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     new = not os.path.exists(path)
     if new:
-        fieldnames = list(row.keys())
-    else:
-        with open(path, "r", newline="") as f:
-            existing_header = next(_csv.reader(f))
-        fieldnames = existing_header
-        row = {k: row.get(k) for k in fieldnames}
-    with open(path, "a", newline="") as f:
-        writer = _csv.DictWriter(f, fieldnames=fieldnames)
-        if new:
+        with open(path, "a", newline="") as f:
+            writer = _csv.DictWriter(f, fieldnames=list(row.keys()))
             writer.writeheader()
-        writer.writerow(row)
+            writer.writerow(row)
+        return
+
+    with open(path, "r", newline="") as f:
+        reader = _csv.DictReader(f)
+        existing_header = reader.fieldnames or []
+        existing_rows = list(reader)
+
+    extra_keys = [k for k in row.keys() if k not in existing_header]
+    if extra_keys:
+        fieldnames = existing_header + extra_keys
+        with open(path, "w", newline="") as f:
+            writer = _csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in existing_rows:
+                writer.writerow(r)
+            writer.writerow({k: row.get(k, "") for k in fieldnames})
+        return
+
+    with open(path, "a", newline="") as f:
+        writer = _csv.DictWriter(f, fieldnames=existing_header)
+        writer.writerow({k: row.get(k) for k in existing_header})
