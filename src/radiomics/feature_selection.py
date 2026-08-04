@@ -63,6 +63,7 @@ def mrmr_select(
     y: np.ndarray,
     feature_names: list[str],
     n_select: int = 50,
+    random_state: int = 42,
 ) -> tuple[list[str], str]:
     """Max-relevance min-redundancy filter, with a mutual-information fallback.
 
@@ -74,6 +75,14 @@ def mrmr_select(
     missing, this function silently computes something else, and a warning in a
     log file is not enough to stop the wrong method being named in a write-up.
     Callers are expected to persist the returned value alongside their metrics.
+
+    ``random_state`` is passed to ``mutual_info_classif``, whose k-nearest-
+    neighbour estimator adds small random noise to break ties. Left unseeded,
+    two runs of an otherwise identical pipeline select slightly different
+    feature sets and report slightly different AUCs -- the measured spread was
+    up to 0.0036 AUC on radiomics_only, an arm no code change had touched.
+    Seeding makes the selection step reproducible. mRMR is deterministic, so
+    this affects the fallback path only.
     """
     try:
         import pymrmr
@@ -87,8 +96,10 @@ def mrmr_select(
             "pymrmr not installed; feature selection is %s, NOT mRMR. "
             "Report this method name, not mRMR.", FS_MI_FALLBACK,
         )
+        from functools import partial
         from sklearn.feature_selection import mutual_info_classif, SelectKBest
-        selector = SelectKBest(mutual_info_classif, k=min(n_select, X.shape[1]))
+        scorer = partial(mutual_info_classif, random_state=random_state)
+        selector = SelectKBest(scorer, k=min(n_select, X.shape[1]))
         selector.fit(X, y)
         selected = [feature_names[i] for i in selector.get_support(indices=True)]
         logger.info("%s selected %d features", FS_MI_FALLBACK, len(selected))
@@ -157,7 +168,8 @@ def full_feature_selection_pipeline(
     y_train = train_df["label"].values
 
     # mRMR, or the mutual-information fallback when pymrmr is unavailable
-    mrmr_cols, fs_method = mrmr_select(X_train, y_train, icc_cols, n_select=mrmr_n)
+    mrmr_cols, fs_method = mrmr_select(X_train, y_train, icc_cols, n_select=mrmr_n,
+                                        random_state=seed)
     X_mrmr = train_df[mrmr_cols].values
 
     # LASSO
