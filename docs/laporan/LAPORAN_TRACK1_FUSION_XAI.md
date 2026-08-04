@@ -74,13 +74,15 @@ Lihat §3.1 dan §3.2. Detail lengkap distribusi kelas dan fold ada di `artifact
 
 AUC rata-rata per arm, dipool lintas 7 backbone dan 5 fold, dari `artifacts/results/fusion/ablation_summary.csv` setelah perbaikan bug resolusi **dan** perbaikan kebocoran seleksi *epoch* lewat nested CV (175 baris: 7 backbone x 5 arm x 5 fold, dijalankan 4 Agustus 2026):
 
-| Arm | AUC (nested CV) | Sebelum nested CV | Baseline pra-perbaikan resolusi |
+| Arm | AUC (final) | Sebelum nested CV | Baseline pra-perbaikan resolusi |
 |---|---|---|---|
-| fusion_late | 0.9333 | 0.9332 | 0.9171 |
-| radiomics_only | 0.9318 | 0.9314 | 0.9313 |
-| fusion_early | 0.9125 | 0.9126 | 0.9179 |
-| fusion_intermediate | 0.9084 | 0.9294 | 0.9269 |
-| cnn_only | 0.8927 | 0.8927 | 0.7853 |
+| fusion_late | 0.9349 | 0.9332 | 0.9171 |
+| radiomics_only | 0.9324 | 0.9314 | 0.9313 |
+| fusion_early | 0.9119 | 0.9126 | 0.9179 |
+| fusion_intermediate | 0.9098 | 0.9294 | 0.9269 |
+| cnn_only | 0.9018 | 0.8927 | 0.7853 |
+
+Kolom final sudah memuat baris DenseNet121 hasil ablasi ulang setelah kelima *checkpoint*-nya dilatih ulang (§8.6). Ablasi ulang itu dibatasi pada DenseNet121 saja, ditulis lebih dulu ke direktori terpisah lalu digabungkan, sehingga 150 baris milik enam *backbone* lain tidak tersentuh.
 
 Baseline pra-perbaikan diarsipkan di `artifacts/results/_baseline_pre_rev2/`. Kolom `cnn_only` konsisten dengan AUC standalone per backbone di `summary_binary.csv` (selisih 0.0019-0.0070, lihat §8.4 untuk sumber selisih itu), mengonfirmasi bug resolusi sudah tertutup.
 
