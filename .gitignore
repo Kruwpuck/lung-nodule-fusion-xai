@@ -43,6 +43,7 @@ desktop.ini
 # Stray root-level run logs
 _*.log
 *.log
+*.log.err
 
 # LaTeX build
 paper/build/
@@ -61,6 +62,28 @@ paper/*.pdf
 # LaTeX template zips + duplicate Zotero export (keep refs.bib only)
 *.zip
 paper/My Library.bib
+
+# Ad-hoc probe/patch scripts and their base64 transports (session scratch)
+/ablate.py
+/gate.py
+/probe.py
+/patch_pad.py
+*.b64
+*.bundle
+*.pid
+/retrain_dn121*.bat
+/run_all_log.txt
+/smoketest_run/
+_audit_*.py
+_sanity_*.py
+_probe_*.py
+_gate_check_remote.py
+_final_verify_remote.py
+
+# Escalation loop: raw stream + archived transcripts are large.
+# ledger.md, STATE.json and handoff/ stay tracked on purpose.
+runs/*/events.jsonl
+runs/*/transcripts/
 
 # Secrets
 *.key
