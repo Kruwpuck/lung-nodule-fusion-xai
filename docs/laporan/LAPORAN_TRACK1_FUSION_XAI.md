@@ -205,13 +205,42 @@ Angka lantai derau 0.0036 itu **diukur sebelum penetapan seed ini**. Ia tetap be
 
 AUC standalone DenseNet121 0.8333 jauh di bawah enam *backbone* lain yang berkerumun di 0.89 sampai 0.91, dengan dua *fold* nyaris kolaps, yaitu sensitivitas 0.0864 pada *fold* 1 dan 0.1196 pada *fold* 4. Membacanya sebagai instabilitas pelatihan akan keliru.
 
-`artifacts/checkpoints/densenet121/` berisi *checkpoint* dari dua angkatan berbeda: `fold0`, `fold1`, dan `fold4` bertanggal 14 Juli, sedangkan `fold2` dan `fold3` bertanggal 28 Juli. `input_size: 96` baru masuk pada *commit* `0b54376` tanggal 28 Juli pukul 09:15:32, sementara sesi pelatihan 28 Juli berjalan pukul 09:31 sampai 10:00. Sesi itu melanjutkan setiap *fold* DenseNet121 dari *epoch* 49 dengan `epochs: 50`, jadi hanya satu *epoch* tersisa. Pada *fold* 2 dan 3 *epoch* terakhir memperbaiki AUC sehingga `best.pt` tertimpa bobot rezim 96 piksel; pada *fold* 0, 1, dan 4 tidak, sehingga `best.pt` tetap berisi bobot rezim 64 piksel yang kini dievaluasi pada 96 piksel.
+Bukti yang menentukan bukan tanggal berkas melainkan metadata di dalam *checkpoint* itu sendiri. Setiap `fold*_best.pt` menyimpan `best_auc`, yaitu AUC validasi yang dicapai saat bobot itu dipilih. Membandingkannya dengan AUC hasil evaluasi ulang di `summary_binary.csv` memberi hasil berikut untuk seluruh 35 *checkpoint* Track 1:
 
-Pemisahannya bersih. Tiga *fold* berbobot lama rata-rata 0.8031, dua *fold* berbobot baru rata-rata 0.8785, dan angka kedua itu sejajar dengan enam *backbone* lain. Kedua *fold* kolaps berada di himpunan lama. DenseNet121 satu-satunya *backbone* dengan *checkpoint* campuran; enam lainnya seragam 28 Juli atau lebih baru.
+| Backbone dan fold | `best_auc` tersimpan | AUC evaluasi | Selisih |
+|---|---|---|---|
+| densenet121 fold 0 | 0.8982 | 0.8018 | **0.0965** |
+| densenet121 fold 1 | 0.9059 | 0.8272 | **0.0787** |
+| densenet121 fold 4 | 0.8883 | 0.7804 | **0.1079** |
+| 32 *checkpoint* lainnya | - | - | 0.0000 |
+
+Tiga puluh dua *checkpoint* mencocokkan `best_auc` dengan AUC evaluasi sampai nol persis, yang berarti rezim saat pelatihan dan rezim saat evaluasi sama. Hanya ketiga *fold* DenseNet121 itu yang menyimpang, dan menyimpang besar. Bukti ini berdiri sendiri tanpa bergantung pada *timestamp*, yang penting karena klien sinkronisasi berkas pada mesin ini diketahui menyentuh berkas tanpa mengubah isinya.
+
+Penjelasannya, `input_size: 96` masuk pada *commit* `0b54376` tanggal 28 Juli pukul 09:15:32. *Commit* yang sama adalah yang menambahkan enam *backbone* Track 1 lainnya, sehingga keenamnya tidak pernah ada sebelum rezim 96 piksel dan tidak mungkin mewarisi bobot rezim lama. DenseNet121 satu-satunya yang berasal dari himpunan enam model legacy dan sudah dilatih sejak 14 Juli. Ketika sesi 28 Juli mencoba melanjutkannya, `maybe_resume` menemukan `epoch` 49 dengan `epochs: 50` sehingga `start_epoch >= epochs` terpenuhi dan `src/stage_03_train.py:211` mencetak `[SKIP]` tanpa melatih satu *epoch* pun. Bobot rezim 64 piksel karena itu tidak pernah tergantikan, dan kini dievaluasi pada 96 piksel.
+
+Pemisahannya bersih. Tiga *fold* berbobot lama rata-rata 0.8031, dua *fold* berbobot baru rata-rata 0.8785, dan angka kedua itu sejajar dengan enam *backbone* lain. Kedua *fold* kolaps berada di himpunan lama.
 
 Perlu dipisahkan dari insiden §8.3 yang berbeda: korupsi *checkpoint* OneDrive dan pemulihan dari *epoch* 31 pada `run_all_log.txt` mengenai `inceptionv3`, `xception`, `convnext_tiny`, dan `inception_resnet_v2`, sama sekali tidak menyentuh DenseNet121. Dua masalah yang berdiri sendiri, dan keduanya sama-sama artefak infrastruktur, bukan sifat model.
 
-Pelajaran yang menyambung ke §8.1 sampai §8.4: *checkpoint* tidak menyimpan konfigurasi yang melahirkannya. Tidak ada mekanisme yang mencegah bobot rezim 64 piksel dievaluasi pada 96 piksel, persis seperti tidak ada mekanisme yang mencegah `mutual_info_classif` dilaporkan sebagai mRMR sebelum kolom `fs_method` ditambahkan. Perbaikan struktural yang setara adalah menyimpan `input_size` di dalam *checkpoint* lalu memeriksanya saat pemuatan.
+Tindak lanjut yang diambil: keenam *checkpoint* DenseNet121 *fold* 0, 1, dan 4 dipindahkan ke `artifacts/checkpoints/_archive_densenet121_pre_input_size/`, bukan dihapus, karena berkas itu adalah bukti bagi bagian ini. Ketiga *fold* kemudian dilatih ulang dari nol, bukan dilanjutkan, sebab melanjutkan dari bobot rezim 64 piksel hanya akan mengulang persoalan yang sama.
+
+Pelajaran yang menyambung ke §8.1 sampai §8.5: *checkpoint* tidak menyimpan konfigurasi yang melahirkannya. Tidak ada mekanisme yang mencegah bobot rezim 64 piksel dievaluasi pada 96 piksel, persis seperti tidak ada mekanisme yang mencegah `mutual_info_classif` dilaporkan sebagai mRMR sebelum kolom `fs_method` ditambahkan. Perbaikan struktural yang setara adalah menyimpan `input_size` di dalam *checkpoint* lalu memeriksanya saat pemuatan. Perlu dicatat juga bahwa `best_auc` yang sudah tersimpan di dalam *checkpoint* ternyata cukup untuk mendeteksi seluruh persoalan ini dalam satu pemindaian; datanya sudah ada sejak awal, hanya tidak pernah dibandingkan dengan AUC yang dilaporkan.
+
+### 8.7 Pola yang berulang: buktinya selalu sudah ada
+
+Lima temuan pada §8.1 sampai §8.6 berbagi satu bentuk yang sama, dan bentuk itu lebih layak dicatat daripada tiap kejadiannya sendiri-sendiri.
+
+| Bagian | Bukti yang sudah tercetak atau tersimpan | Berapa lama tidak terbaca |
+|---|---|---|
+| §8.1 | `logger.warning` menyebut `pymrmr` tidak terpasang | sepanjang proyek |
+| §8.3 | proses hilang dari daftar proses setelah sesi ditutup | sampai diperiksa dari sesi baru |
+| §8.4 | `n_val` 1366 lawan 1391 tercetak di setiap baris log *fold* | sejak ablasi pertama |
+| §8.5 | `LASSO selected 29/50` lawan `25/50` untuk arm yang tidak bergantung *backbone* | sejak ablasi pertama |
+| §8.6 | `best_auc` tersimpan di dalam setiap *checkpoint* | sejak 14 Juli |
+
+Tidak satu pun dari kelimanya membutuhkan eksperimen baru untuk ditemukan. Semuanya tertulis di log atau tersimpan di berkas hasil, sebagian bahkan tercetak berulang kali pada setiap *run*. Yang hilang bukan datanya, melainkan pembandingnya: nol mekanisme yang membandingkan `n_val` antar tahap, nol yang membandingkan jumlah fitur terpilih antar *backbone* pada *fold* yang sama, nol yang membandingkan `best_auc` tersimpan dengan AUC yang dilaporkan.
+
+Gejala `LASSO selected 29/50` lawan `25/50` adalah contoh paling telanjang. Arm radiomik secara definisi tidak bergantung pada *backbone*, sehingga dua angka berbeda pada *fold* yang sama adalah kemustahilan yang tercetak apa adanya di layar, berulang kali, tanpa ada yang membacanya. Konsekuensi praktis yang diambil: pemeriksaan konsistensi yang murah lebih berharga daripada log yang lengkap, karena log yang lengkap justru menenggelamkan anomali di antara ribuan baris yang normal.
 
 ---
 
