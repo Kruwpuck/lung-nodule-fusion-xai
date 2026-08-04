@@ -95,9 +95,56 @@ def test_fix_seed_runs():
     fix_seed(0)
 
 
-def test_registry_name_map_count():
+def test_full_feature_selection_pipeline_runs():
+    """Smoke test for the one selection entry point no test ever exercised.
+
+    This function called lasso_select(seed=...) against a signature declaring
+    random_state, so it raised TypeError on every invocation. Nothing in src/
+    calls it (the fusion stage calls mrmr_select and lasso_select directly), and
+    no test did either, so a guaranteed crash survived in a public function that
+    notebooks/radiomics_extraction.ipynb does call.
+    """
+    import numpy as np
+    import pandas as pd
+    from src.radiomics.feature_selection import full_feature_selection_pipeline
+
+    rng = np.random.default_rng(0)
+    n = 60
+    df = pd.DataFrame({f"original_feat_{i}": rng.normal(size=n) for i in range(6)})
+    df["label"] = (df["original_feat_0"] + rng.normal(scale=0.3, size=n) > 0).astype(int)
+    train_mask = np.arange(n) < 45
+
+    out = full_feature_selection_pipeline(df, train_mask, mrmr_n=4, seed=0)
+
+    assert out["fs_method"] in ("mrmr", "mutual_info_classif")
+    assert set(out) >= {"selected_features", "scaler", "lasso", "fs_method"}
+
+
+def test_registry_covers_every_configured_backbone():
+    """Every backbone named in configs/config.yaml must resolve through _NAME_MAP.
+
+    Replaces an older `len(_NAME_MAP) == 8` assertion. That count was frozen
+    before the Track 1 and Track 2 backbone sets were added, so it failed on a
+    correct registry (14 entries) while never checking the thing that actually
+    matters: whether a backbone the config asks for can be built at all. A
+    magic number goes stale on every intended addition; this checks the
+    invariant instead.
+    """
+    import yaml
     from src.models.registry import _NAME_MAP
-    assert len(_NAME_MAP) == 8
+
+    cfg = yaml.safe_load(open("configs/config.yaml"))
+    configured = set()
+    for track in cfg.get("tracks", {}).values():
+        configured.update(track.get("backbones", []))
+    for group in cfg.get("models", {}).values():
+        configured.update(group)
+    fusion_backbone = cfg.get("track1_fusion", {}).get("backbone")
+    if fusion_backbone:
+        configured.add(fusion_backbone)
+
+    missing = sorted(configured - set(_NAME_MAP))
+    assert not missing, f"config names backbones absent from _NAME_MAP: {missing}"
 
 
 def test_registry_all_names_resolve():
