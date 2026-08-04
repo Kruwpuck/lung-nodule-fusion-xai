@@ -1,4 +1,9 @@
-"""Serial feature selection: ICC filtering -> mRMR -> LASSO with nested CV."""
+"""Serial feature selection: ICC filtering -> relevance filter -> LASSO with nested CV.
+
+The relevance filter is mRMR when `pymrmr` is installed and mutual information
+(`mutual_info_classif`) otherwise. Which one ran is returned by mrmr_select and
+must be persisted with the results; see FS_MRMR / FS_MI_FALLBACK below.
+"""
 from __future__ import annotations
 
 import logging
@@ -44,15 +49,31 @@ def icc_filter(
     return stable_cols
 
 
+#: Identifiers for the filter step that actually ran. These strings are written
+#: into result CSVs (column ``fs_method``) so every reported number carries the
+#: name of the method that produced it. Never write "mRMR" in a report without
+#: checking this value: `pymrmr` needs a C++ toolchain and is absent on most
+#: Windows setups, in which case FS_MI_FALLBACK is what really ran.
+FS_MRMR = "mrmr"
+FS_MI_FALLBACK = "mutual_info_classif"
+
+
 def mrmr_select(
     X: np.ndarray,
     y: np.ndarray,
     feature_names: list[str],
     n_select: int = 50,
-) -> list[str]:
-    """mRMR (max-relevance min-redundancy) feature selection.
+) -> tuple[list[str], str]:
+    """Max-relevance min-redundancy filter, with a mutual-information fallback.
 
-    Falls back to mutual-info top-k if pymrmr unavailable.
+    Returns ``(selected_feature_names, method)`` where ``method`` is one of
+    :data:`FS_MRMR` or :data:`FS_MI_FALLBACK`.
+
+    The method is returned rather than only logged because `pymrmr` is an
+    optional dependency that fails to build without a C++ toolchain. When it is
+    missing, this function silently computes something else, and a warning in a
+    log file is not enough to stop the wrong method being named in a write-up.
+    Callers are expected to persist the returned value alongside their metrics.
     """
     try:
         import pymrmr
@@ -60,15 +81,18 @@ def mrmr_select(
         df_in["target"] = y.astype(int)
         selected = pymrmr.mRMR(df_in, "MIQ", n_select)
         logger.info("mRMR selected %d features", len(selected))
-        return selected
+        return selected, FS_MRMR
     except ImportError:
-        logger.warning("pymrmr not installed; using mutual_info_classif fallback")
+        logger.warning(
+            "pymrmr not installed; feature selection is %s, NOT mRMR. "
+            "Report this method name, not mRMR.", FS_MI_FALLBACK,
+        )
         from sklearn.feature_selection import mutual_info_classif, SelectKBest
         selector = SelectKBest(mutual_info_classif, k=min(n_select, X.shape[1]))
         selector.fit(X, y)
         selected = [feature_names[i] for i in selector.get_support(indices=True)]
-        logger.info("MI-fallback selected %d features", len(selected))
-        return selected
+        logger.info("%s selected %d features", FS_MI_FALLBACK, len(selected))
+        return selected, FS_MI_FALLBACK
 
 
 def lasso_select(
@@ -104,17 +128,19 @@ def full_feature_selection_pipeline(
     perturbed_df: Optional[pd.DataFrame] = None,
     seed: int = 42,
 ) -> dict:
-    """Run ICC -> mRMR -> LASSO pipeline on training fold only.
+    """Run ICC -> relevance filter -> LASSO pipeline on training fold only.
 
     Args:
         features_df: full feature DataFrame
         train_mask: boolean mask for training rows
         icc_threshold: ICC cutoff for stability filter
-        mrmr_n: max features to keep after mRMR
+        mrmr_n: max features to keep after the relevance filter
         perturbed_df: optional second extraction for ICC; skips ICC if None
         seed: random seed
 
-    Returns dict with keys: selected_features, scaler, lasso, icc_features, mrmr_features
+    Returns dict with keys: selected_features, scaler, lasso, icc_features,
+    mrmr_features, fs_method. ``fs_method`` names the filter that actually ran
+    and must be reported alongside any metric derived from these features.
     """
     feat_cols = get_feature_columns(features_df)
 
@@ -130,12 +156,12 @@ def full_feature_selection_pipeline(
     X_train = train_df[icc_cols].values
     y_train = train_df["label"].values
 
-    # mRMR
-    mrmr_cols = mrmr_select(X_train, y_train, icc_cols, n_select=mrmr_n)
+    # mRMR, or the mutual-information fallback when pymrmr is unavailable
+    mrmr_cols, fs_method = mrmr_select(X_train, y_train, icc_cols, n_select=mrmr_n)
     X_mrmr = train_df[mrmr_cols].values
 
     # LASSO
-    selected, scaler, lasso = lasso_select(X_mrmr, y_train, mrmr_cols, seed=seed)
+    selected, scaler, lasso = lasso_select(X_mrmr, y_train, mrmr_cols, random_state=seed)
 
     return {
         "selected_features": selected,
@@ -143,4 +169,5 @@ def full_feature_selection_pipeline(
         "lasso": lasso,
         "icc_features": icc_cols,
         "mrmr_features": mrmr_cols,
+        "fs_method": fs_method,
     }

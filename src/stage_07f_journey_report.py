@@ -285,7 +285,8 @@ def run(cfg: dict, repo_root: str) -> None:
     a("- Prinsip controlled comparison: fixed sample set (6 nodul S1-S6) dipakai konsisten lintas semua backbone/metode")
     a("- Temuan: densenet121/resnet50/vgg16 nempel nodul di Grad-CAM, mobilenetv3/efficientnet meleset, vit_base nyaris flat\n")
     a("### Fase 8 — Track 1 Fusion (selesai)")
-    a("- Feature selection (mRMR fallback mutual_info + LASSO per fold) -> ablation 5 arm "
+    a("- Feature selection (mutual_info_classif + LASSO per fold; mRMR tidak pernah jalan, "
+      "`pymrmr` tidak terpasang) -> ablation 5 arm "
       "(cnn_only/radiomics_only/fusion_early/intermediate/late) -> SHAP + Grad-CAM sidebyside")
     a("- Hasil: lihat Bab 6.3. Fusion TIDAK mengalahkan radiomics-only (dilaporkan transparan)")
     a("- Fig 11 (diagram arsitektur fusion) sudah dibuat sebagai draft (fusion_architecture.png); "
@@ -336,8 +337,10 @@ def run(cfg: dict, repo_root: str) -> None:
     a("\n### 5.3 Radiomics")
     a("- PyRadiomics, binWidth 25, resample [1,1,1]")
     a("- Feature classes: firstorder, shape, glcm, glrlm, glszm, gldm, ngtdm")
-    a("- Selection per fold (train split only, anti-leakage): mRMR (fallback `mutual_info_classif`, "
-      "`pymrmr` tidak terpasang) -> LASSO (`LassoCV`)\n")
+    a("- Selection per fold (train split only, anti-leakage): `mutual_info_classif` -> "
+      "LASSO (`LassoCV`). Bukan mRMR: `pymrmr` tidak terpasang, jadi cabang mRMR "
+      "tidak pernah dieksekusi. Metode yang benar-benar jalan tercatat per baris "
+      "di kolom `fs_method` pada ablation_summary.csv\n")
     a("### 5.4 Fusion & statistik")
     a("- FusionNet: emb_dim=256, rad_dim=128, fusion_dim=128, dropout=0.3")
     a("- XGBoost (radiomics branch): default config, lihat `configs/config.yaml` key `xgboost`")

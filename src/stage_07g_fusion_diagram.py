@@ -84,7 +84,7 @@ def run(cfg: dict) -> None:
     ct = _box(ax, 12, 72, 20, 11,
               f"Input 2.5D\n{N_SLICES}x{PATCH_XY}x{PATCH_XY}", C_INPUT, fs=8.5)
     rad = _box(ax, 12, 26, 20, 11,
-               "Radiomics vector\nPyRadiomics -> mRMR-50 -> LASSO", C_INPUT, fs=7.5)
+               "Radiomics vector\nPyRadiomics -> MI-50 -> LASSO", C_INPUT, fs=7.5)
 
     # --- extractor (tengah) ---
     cnn = _box(ax, 38, 72, 22, 12,

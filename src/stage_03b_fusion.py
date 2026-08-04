@@ -3,9 +3,13 @@
 Compares 3 arms on the exact same fold split + nodule subset:
   1. CNN-only    — re-inference with the existing arm A checkpoint
                    (src.models.registry backbone, cfg["track1_fusion"]["backbone"])
-  2. Radiomics-only — XGBoost on per-fold-selected radiomic features (mRMR -> LASSO,
+  2. Radiomics-only — XGBoost on per-fold-selected radiomic features (filter -> LASSO,
                    fit on the training fold only; no ICC filter, no perturbed-mask
-                   extraction available)
+                   extraction available). The filter step is mRMR only when
+                   `pymrmr` is installed, otherwise mutual information
+                   (`mutual_info_classif`). Whichever ran is recorded per row in
+                   the `fs_method` column of ablation_summary.csv — report that
+                   value, never assume mRMR.
   3. Fusion      — intermediate (joint) fusion: CNN embedding + radiomic vector -> dense
 
 All 3 arms share the identical nodule subset per fold: labels.csv joined with
@@ -56,23 +60,29 @@ def _load_merged(cfg: dict) -> tuple[pd.DataFrame, list[str]]:
 
 
 def _select_fold_features(train_df: pd.DataFrame, val_df: pd.DataFrame, feat_cols: list[str],
-                           mrmr_n: int = 50) -> tuple[np.ndarray, np.ndarray, list[str]]:
+                           mrmr_n: int = 50) -> tuple[np.ndarray, np.ndarray, list[str], str]:
+    """Per-fold filter then LASSO, fit on the training fold only.
+
+    Also returns the name of the filter that actually ran (``fs_method``), which
+    is written into every result row so no metric can be attributed to the wrong
+    selection method. See src/radiomics/feature_selection.py for why.
+    """
     from src.radiomics.feature_selection import mrmr_select, lasso_select
 
     X_train_raw = train_df[feat_cols].values
     y_train = train_df["label"].values
 
-    mrmr_cols = mrmr_select(X_train_raw, y_train, feat_cols, n_select=mrmr_n)
-    X_mrmr_train = train_df[mrmr_cols].values
-    selected, scaler, lasso = lasso_select(X_mrmr_train, y_train, mrmr_cols)
+    filt_cols, fs_method = mrmr_select(X_train_raw, y_train, feat_cols, n_select=mrmr_n)
+    X_filt_train = train_df[filt_cols].values
+    selected, scaler, lasso = lasso_select(X_filt_train, y_train, filt_cols)
     if not selected:
-        logger.warning("LASSO zeroed out all features — falling back to top-10 mRMR features")
-        selected = mrmr_cols[:10]
+        logger.warning("LASSO zeroed out all features — falling back to top-10 %s features", fs_method)
+        selected = filt_cols[:10]
 
-    idx = [mrmr_cols.index(c) for c in selected]
-    X_train_sel = scaler.transform(train_df[mrmr_cols].values)[:, idx]
-    X_val_sel = scaler.transform(val_df[mrmr_cols].values)[:, idx]
-    return X_train_sel, X_val_sel, selected
+    idx = [filt_cols.index(c) for c in selected]
+    X_train_sel = scaler.transform(train_df[filt_cols].values)[:, idx]
+    X_val_sel = scaler.transform(val_df[filt_cols].values)[:, idx]
+    return X_train_sel, X_val_sel, selected, fs_method
 
 
 def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: int,
@@ -307,9 +317,9 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
         val_df = merged[merged["fold"] == fold].reset_index(drop=True)
         y_val = val_df["label"].values
 
-        X_train_sel, X_val_sel, selected = _select_fold_features(train_df, val_df, feat_cols)
-        logger.info("[fold %d] n_train=%d n_val=%d n_radiomic_selected=%d",
-                    fold, len(train_df), len(val_df), len(selected))
+        X_train_sel, X_val_sel, selected, fs_method = _select_fold_features(train_df, val_df, feat_cols)
+        logger.info("[fold %d] n_train=%d n_val=%d n_radiomic_selected=%d fs_method=%s",
+                    fold, len(train_df), len(val_df), len(selected), fs_method)
 
         # --- Arm 1: CNN-only ---
         cnn_prob = _cnn_only_preds(model_name, backbone_internal, cfg, fold, val_df, device)
@@ -355,12 +365,16 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
         early_prob = clf_early.predict_proba(X_early_val)[:, 1]
         m_early = compute_metrics(y_val, early_prob)
 
+        # fs_method rides along on every row so the reported numbers can never be
+        # separated from the selection method that produced them.
         for arm_name, m in [("cnn_only", m_cnn), ("radiomics_only", m_rad),
                              ("fusion_late", m_late), ("fusion_early", m_early)]:
-            rows.append({"backbone": model_name, "arm": arm_name, "fold": fold, "n_val": len(val_df), **m})
+            rows.append({"backbone": model_name, "arm": arm_name, "fold": fold,
+                         "n_val": len(val_df), "fs_method": fs_method, **m})
         for arm in fusion_arms:
             m = compute_metrics(y_val, fusion_probs[arm])
-            rows.append({"backbone": model_name, "arm": _arm_row_name(arm, cfg), "fold": fold, "n_val": len(val_df), **m})
+            rows.append({"backbone": model_name, "arm": _arm_row_name(arm, cfg), "fold": fold,
+                         "n_val": len(val_df), "fs_method": fs_method, **m})
 
         pooled["y_true"].append(y_val)
         pooled["cnn"].append(cnn_prob)
