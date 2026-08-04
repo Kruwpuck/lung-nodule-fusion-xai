@@ -190,7 +190,12 @@ def _train_fusion_fold(model_name: str, backbone_internal: str, cfg: dict, fold:
     train_ds = RadiomicDataset(img_train_ds, X_inner_train)
     inner_val_ds = RadiomicDataset(img_inner_val_ds, X_inner_val)
     outer_val_ds = RadiomicDataset(img_outer_val_ds, X_val_sel)
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0)
+    # drop_last: the 85/15 inner split can leave a size-1 final batch for some
+    # fold/backbone combinations, which BatchNorm rejects in training mode
+    # ("Expected more than 1 value per channel"). The outer train_df (no
+    # inner split) never hit this because its size happened not to align;
+    # the inner-train size does for some folds, so this must not be dropped.
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=True)
     inner_val_loader = DataLoader(inner_val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
     outer_val_loader = DataLoader(outer_val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
 
