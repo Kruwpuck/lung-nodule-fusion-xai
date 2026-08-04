@@ -82,8 +82,15 @@ if (-not (Test-Path $LedgerPath)) { throw "ledger tidak ada di $LedgerPath" }
 if (-not (Test-Path (Join-Path $HandoffDir "GOAL.md"))) { throw "handoff/GOAL.md tidak ada" }
 if (-not (Test-Path $Transcripts)) { New-Item -ItemType Directory -Path $Transcripts | Out-Null }
 
-$claude = Get-Command claude -ErrorAction SilentlyContinue
-if ($null -eq $claude) { throw "claude CLI tidak ada di PATH" }
+# PATH shell interaktif bisa basi kalau sesinya dibuka sebelum claude dipasang,
+# jadi jangan hanya mengandalkan Get-Command.
+$ClaudeExe = (Get-Command claude -ErrorAction SilentlyContinue).Source
+if (-not $ClaudeExe) {
+    $fallback = Join-Path $env:USERPROFILE ".local\bin\claude.exe"
+    if (Test-Path $fallback) { $ClaudeExe = $fallback }
+}
+if (-not $ClaudeExe) { throw "claude CLI tidak ketemu di PATH maupun di ~\.local\bin" }
+Write-Host "claude : $ClaudeExe"
 
 # Kode yang kotor membuat "commit hijau terakhir" jadi patokan yang tidak
 # berarti, dan membuat agent bisa ikut meng-commit perubahan orang lain.
@@ -164,7 +171,7 @@ while ($true) {
     $stampBefore = $st.diperbarui
     $prompt = Get-Content (Join-Path $Root $promptFile) -Raw
 
-    claude -p $prompt `
+    & $ClaudeExe -p $prompt `
         --model $model `
         --effort $effort `
         --allowedTools $tools `
