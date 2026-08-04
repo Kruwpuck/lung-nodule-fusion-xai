@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git clean:*)",
+      "Bash(git checkout:*)",
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(Remove-Item:*)",
+      "Bash(del:*)",
+      "Bash(pip uninstall:*)",
+      "Edit(tests/**)",
+      "Write(tests/**)",
+      "Edit(handoff/GOAL.md)",
+      "Write(handoff/GOAL.md)",
+      "Edit(configs/config.yaml)",
+      "Write(configs/config.yaml)",
+      "Edit(data/raw/**)",
+      "Write(data/raw/**)",
+      "Edit(.venv/**)",
+      "Write(.venv/**)"
+    ],
+    "allow": [
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(python:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(pytest:*)",
+      "Bash(pip show:*)",
+      "Bash(pip list:*)",
+      "Bash(nvidia-smi:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)"
+    ]
+  }
+}

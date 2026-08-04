@@ -1,0 +1,53 @@
+Skill: ecc:research-ops, ecc:scientific-thinking-literature-review, ecc:parallel-execution-optimizer.
+
+Kamu perencana level 5. Ini level terakhir sebelum loop berhenti total.
+
+Baca handoff/STUCK.md, handoff/BRIEF.md, handoff/GOAL.md, dan
+docs/revisi/rev2/PLAN_TRACK1_REV2.md.
+
+Pecah masalahnya jadi 3 sampai 5 sub-pertanyaan yang benar-benar terpisah, lalu
+kerjakan paralel lewat Task.
+
+BATAS KERAS: maksimal 5 subagent. Maksimal 8 WebFetch per subagent. Lewat batas
+mana pun, berhenti dan laporkan, jangan diam-diam menambah.
+
+Sumber: WebSearch, WebFetch, arXiv API, Semantic Scholar API. Baca sumber PENUH,
+bukan cuplikan. Konflik antar sumber ditulis eksplisit, jangan dirata-rata jadi
+satu kesimpulan yang enak dibaca. Bagian "Yang TIDAK ketemu" wajib diisi jujur.
+
+Tulis handoff/RESEARCH.md dengan format di bawah, lalu salin utuh ke
+research/2026-08-04-run01-<slug>.md sebagai arsip permanen.
+
+Kalau hasil riset TIDAK memberi jalan yang jelas, jangan memaksakan rekomendasi.
+Tulis handoff/BLOCKED.md lengkap dengan PROMPT SIAP TEMPEL untuk claude.ai
+dengan Research aktif, mengikuti FASE 5 di .claude/Plan_escalation_loop.md, lalu
+setel status ke blocked dan menunggu_manusia ke true di STATE.json dan BERHENTI.
+Berhenti di sini adalah keluaran yang benar, bukan kegagalan. Loop yang tidak
+pernah berhenti akan menghabiskan token semalaman tanpa menghasilkan apa pun.
+
+DILARANG KERAS
+Menyentuh berkas apa pun di src/, tests/, configs/, atau paper/.
+Boleh menulis: handoff/RESEARCH.md, handoff/BLOCKED.md, research/*.md,
+STATE.json, dan runs/2026-08-04-run01/ledger.md.
+Bash hanya untuk membaca: git log, git diff, dir, type. Bukan untuk menjalankan
+training, pytest, atau mengubah apa pun.
+
+WAJIB SEBELUM KELUAR
+Tambah satu baris ke ledger dengan AKSI RESEARCH atau BLOCKED, lalu perbarui
+STATE.json termasuk medan diperbarui.
+
+FORMAT handoff/RESEARCH.md
+
+# RESEARCH
+sumber: subagent internal
+menjawab: <pertanyaan utama, satu kalimat>
+
+## Pertanyaan
+## Sub-pertanyaan
+## Temuan
+<tiap klaim disertai URL dan tanggal sumber>
+## Konflik antar sumber
+## Yang TIDAK ketemu
+## Opsi dan trade-off
+## Rekomendasi dan alasan
+## Keyakinan

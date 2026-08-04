@@ -1,0 +1,72 @@
+# Rev2 Langkah 3, kondisi B: arm fusi rebalanced DENGAN regularizer.
+#
+# Identik dengan configs/config_l3_plain.yaml kecuali dua kunci regularizer dan
+# paths.results. Lihat komentar di config_l3_plain.yaml untuk alasan pemisahan
+# paths.results.
+#
+# modality_dropout_rate dan aux_loss_weight dibaca sekali per proses di
+# src/stage_03b_fusion.py lalu diteruskan ke setiap arm, jadi menyalakannya
+# mengubah ketiga arm sekaligus. Itu sebabnya kondisi A dan B harus dua proses
+# terpisah kalau kontribusi GMU mau dipisahkan dari kontribusi regularizer.
+#
+# _regularizer_suffix() di src/stage_03b_fusion.py:129 menambahkan sufiks
+# _moddrop_auxloss ke nama arm dan subdirektori checkpoint saat kedua nilai di
+# atas nol, jadi baris ablation dan checkpoint kondisi B tidak akan pernah
+# menyamar sebagai kondisi A.
+
+seed: 42
+force_rerun: true
+
+paths:
+  raw: "./data/raw/LIDC-IDRI"
+  interim: "./artifacts/patches"
+  features: "./artifacts/features/radiomics.parquet"
+  splits: "./artifacts/splits/folds.json"
+  checkpoints: "./artifacts/checkpoints"
+  logs: "./artifacts/logs"
+  results: "./artifacts/results/l3_reg"
+
+data:
+  n_slices: 3
+  patch_xy: 64
+  n_folds: 5
+  include_indeterminate: true
+  skip_existing: true
+  freeze_from: "data/processed/labels_binary_v1.csv"
+
+train:
+  epochs: 50
+  batch_size: 16
+  lr: 0.0001
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+  checkpoint_every: 5
+  mixed_precision: true
+
+models:
+  lightweight: ["mobilenetv3_small", "efficientnet_b0", "densenet121"]
+  heavyweight: ["resnet50", "vgg16", "vit_base"]
+
+tracks:
+  track2:
+    backbones: ["mobilenetv2", "efficientnet_b0", "resnet50", "vgg16"]
+    input_size: null
+  track1:
+    backbones: ["convnext_tiny", "densenet201", "densenet121"]
+    input_size: 96
+
+track2_sweep:
+  enabled: false
+
+track1_fusion:
+  enabled: true
+  backbone: "mobilenetv3_small"
+  fusion_arms: ["concat", "branch_norm", "gmu"]
+  branch_norm_proj_dim: 32
+  # Kondisi B: nilai dari PLAN_TRACK1_REV2.md bagian 5.
+  modality_dropout_rate: 0.2
+  aux_loss_weight: 0.3
+
+radiomics:
+  params_yaml: "configs/radiomics_params.yaml"
+  incremental: true

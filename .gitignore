@@ -84,6 +84,7 @@ _final_verify_remote.py
 # ledger.md, STATE.json and handoff/ stay tracked on purpose.
 runs/*/events.jsonl
 runs/*/transcripts/
+*.bak
 
 # Secrets
 *.key

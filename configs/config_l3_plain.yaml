@@ -1,0 +1,76 @@
+# Rev2 Langkah 3, kondisi A: arm fusi rebalanced TANPA regularizer.
+#
+# Turunan dari configs/config.yaml. Tiga hal yang berbeda, dan hanya tiga:
+#   1. tracks.track1.backbones dipangkas ke 3 backbone terpilih rev2.
+#   2. track1_fusion.fusion_arms menyalakan branch_norm (Rev1 5a) dan gmu (Rev1 5b).
+#   3. paths.results diarahkan ke ./artifacts/results/l3_plain.
+#
+# Poin 3 wajib. src/stage_03b_fusion.py:271 menulis ablation_summary.csv ke
+# cfg.paths.results/fusion/ apa adanya, jadi menjalankan kondisi A dan kondisi B
+# terhadap paths.results yang sama akan membuat run kedua menimpa run pertama.
+# PLAN_TRACK1_REV2.md bagian 5 "Pilihan A" tidak menyebut hal ini.
+#
+# paths.checkpoints sengaja TIDAK dipisah. _arm_row_name() menambahkan sufiks
+# _moddrop_auxloss pada kondisi B, jadi subdirektori checkpoint kedua kondisi
+# sudah tidak beririsan, dan berbagi direktori berarti checkpoint backbone
+# dasar yang sudah ada tetap terpakai.
+
+seed: 42
+force_rerun: true
+
+paths:
+  raw: "./data/raw/LIDC-IDRI"
+  interim: "./artifacts/patches"
+  features: "./artifacts/features/radiomics.parquet"
+  splits: "./artifacts/splits/folds.json"
+  checkpoints: "./artifacts/checkpoints"
+  logs: "./artifacts/logs"
+  results: "./artifacts/results/l3_plain"
+
+data:
+  n_slices: 3
+  patch_xy: 64
+  n_folds: 5
+  include_indeterminate: true
+  skip_existing: true
+  freeze_from: "data/processed/labels_binary_v1.csv"
+
+train:
+  epochs: 50
+  batch_size: 16
+  lr: 0.0001
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+  checkpoint_every: 5
+  mixed_precision: true
+
+models:
+  lightweight: ["mobilenetv3_small", "efficientnet_b0", "densenet121"]
+  heavyweight: ["resnet50", "vgg16", "vit_base"]
+
+tracks:
+  track2:
+    backbones: ["mobilenetv2", "efficientnet_b0", "resnet50", "vgg16"]
+    input_size: null
+  track1:
+    # Rev2 bagian 0: eksperimen baru dibatasi ke 3 backbone.
+    backbones: ["convnext_tiny", "densenet201", "densenet121"]
+    input_size: 96
+
+track2_sweep:
+  enabled: false
+
+track1_fusion:
+  enabled: true
+  backbone: "mobilenetv3_small"
+  fusion_arms: ["concat", "branch_norm", "gmu"]
+  branch_norm_proj_dim: 32
+  # Kondisi A: regularizer mati. Ini yang membuat kontribusi GMU bisa dipisahkan
+  # dari kontribusi modality dropout, yang tidak mungkin kalau keduanya menyala
+  # di semua arm sekaligus.
+  modality_dropout_rate: 0.0
+  aux_loss_weight: 0.0
+
+radiomics:
+  params_yaml: "configs/radiomics_params.yaml"
+  incremental: true
