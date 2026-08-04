@@ -253,10 +253,21 @@ Lima temuan pada §8.1 sampai §8.6 berbagi satu bentuk yang sama, dan bentuk it
 | §8.4 | `n_val` 1366 lawan 1391 tercetak di setiap baris log *fold* | sejak ablasi pertama |
 | §8.5 | `LASSO selected 29/50` lawan `25/50` untuk arm yang tidak bergantung *backbone* | sejak ablasi pertama |
 | §8.6 | `best_auc` tersimpan di dalam setiap *checkpoint* | sejak 14 Juli |
+| §8.8 | `[SKIP]` tercetak untuk kelima *fold* DenseNet121 | sejak 28 Juli |
 
 Tidak satu pun dari kelimanya membutuhkan eksperimen baru untuk ditemukan. Semuanya tertulis di log atau tersimpan di berkas hasil, sebagian bahkan tercetak berulang kali pada setiap *run*. Yang hilang bukan datanya, melainkan pembandingnya: nol mekanisme yang membandingkan `n_val` antar tahap, nol yang membandingkan jumlah fitur terpilih antar *backbone* pada *fold* yang sama, nol yang membandingkan `best_auc` tersimpan dengan AUC yang dilaporkan.
 
 Gejala `LASSO selected 29/50` lawan `25/50` adalah contoh paling telanjang. Arm radiomik secara definisi tidak bergantung pada *backbone*, sehingga dua angka berbeda pada *fold* yang sama adalah kemustahilan yang tercetak apa adanya di layar, berulang kali, tanpa ada yang membacanya. Konsekuensi praktis yang diambil: pemeriksaan konsistensi yang murah lebih berharga daripada log yang lengkap, karena log yang lengkap justru menenggelamkan anomali di antara ribuan baris yang normal.
+
+### 8.8 Jebakan yang akan berulang: mengubah input_size tanpa memaksa pelatihan ulang
+
+Cacat pada §8.6 bukan kecelakaan sekali jadi melainkan konsekuensi langsung dari cara `maybe_resume` berinteraksi dengan perubahan konfigurasi, dan siapa pun yang memakai *pipeline* ini akan menabraknya lagi dengan cara yang sama.
+
+Urutannya: `input_size` dinaikkan ke 96, *pipeline* dijalankan ulang untuk seluruh *backbone*, dan `src/stage_03_train.py:209` memanggil `maybe_resume(last_pt, ...)`. Untuk *backbone* yang sudah selesai dilatih pada rezim lama, fungsi itu mengembalikan `start_epoch` sama dengan jumlah *epoch* penuh, sehingga syarat `start_epoch >= epochs` pada baris 211 terpenuhi dan seluruh pelatihan dilewati. Yang tercetak hanyalah `[SKIP]`, sebuah pesan yang terlihat persis seperti keberhasilan *caching* yang diinginkan, padahal artinya bobot rezim lama dipertahankan untuk dievaluasi pada rezim baru.
+
+Tiga sifat membuatnya sulit terlihat. Pertama, `[SKIP]` adalah pesan normal yang muncul ratusan kali pada *run* yang sehat, jadi tidak ada yang mencurigakannya. Kedua, `maybe_resume` hanya membandingkan nomor *epoch*, tidak pernah membandingkan konfigurasi, karena `save_ckpt` memang tidak menyimpan `input_size` maupun `patch_xy` di dalam *checkpoint*. Ketiga, akibatnya tidak berupa galat melainkan angka yang lebih rendah namun masuk akal, yang mudah salah dibaca sebagai kelemahan arsitektur atau instabilitas pelatihan.
+
+Aturan praktis yang berlaku untuk *pipeline* ini: **mengubah `input_size`, `patch_xy`, atau `n_slices` mewajibkan pemindahan *checkpoint* lama ke arsip, bukan sekadar menjalankan ulang.** Menaikkan `epochs` saja tidak cukup, sebab pelatihan akan dilanjutkan dari bobot rezim lama alih-alih dimulai dari nol. Perbaikan struktural yang menutup jebakan ini adalah menyimpan ketiga nilai itu di dalam *checkpoint* lalu menolak melanjutkan ketika salah satunya tidak cocok, sejalan dengan prinsip yang sama pada §8.1: konfigurasi yang menghasilkan sebuah angka harus melekat pada angka itu.
 
 ---
 
