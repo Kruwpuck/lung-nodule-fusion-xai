@@ -75,6 +75,22 @@ function Save-HandoffSnapshot([int]$Iterasi) {
     }
 }
 
+# Training satu tahap makan berjam-jam, sedangkan satu iterasi agent selesai dalam
+# hitungan menit. Tanpa menunggu, driver akan memutar 15 iterasi yang isinya cuma
+# "masih jalan, keluar", menghabiskan token dan mencapai MAX_ITER jauh sebelum
+# eksperimennya selesai. Jadi setelah tiap iterasi, tunggu sampai proses tahap
+# yang sedang berjalan benar-benar keluar.
+function Wait-Stage([int]$PollSeconds = 600) {
+    while ($true) {
+        $running = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -match 'src\.stage_03(b_fusion|d_merge_l3)' })
+        if ($running.Count -eq 0) { return }
+        Write-Host ("  tahap masih berjalan (PID {0}), tunggu {1} menit" -f
+            ($running.ProcessId -join ","), [int]($PollSeconds / 60)) -ForegroundColor DarkGray
+        Start-Sleep -Seconds $PollSeconds
+    }
+}
+
 # --- pemeriksaan awal -------------------------------------------------------
 
 if (-not (Test-Path $StatePath))  { throw "STATE.json tidak ada di $Root" }
@@ -177,7 +193,9 @@ while ($true) {
         --allowedTools $tools `
         --permission-mode acceptEdits `
         --output-format stream-json `
-        --verbose | Tee-Object -FilePath $EventsPath -Append
+        --verbose | Out-File -FilePath $EventsPath -Append -Encoding utf8
+
+    Wait-Stage
 
     $after = Get-LoopState
 
