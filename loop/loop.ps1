@@ -22,8 +22,10 @@ utuh oleh Set-LoopState, tidak pernah sebagian.
 #>
 
 param(
-    [string]$RunId   = "2026-08-04-run01",
-    [int]$MaxIter    = 15,
+    [string]$RunId       = "2026-08-04-run01",
+    [int]$MaxIter        = 15,
+    [int]$LimitWaitMin   = 20,
+    [int]$MaxLimitWaits  = 24,
     [switch]$DryRun
 )
 
@@ -128,6 +130,8 @@ Write-Host "maxiter: $MaxIter"
 
 # --- loop utama -------------------------------------------------------------
 
+$limitWaits = 0
+
 while ($true) {
     $st    = Get-LoopState
     $lvl   = [int]$st.level
@@ -187,13 +191,42 @@ while ($true) {
     $stampBefore = $st.diperbarui
     $prompt = Get-Content (Join-Path $Root $promptFile) -Raw
 
+    $iterOut = Join-Path $Transcripts "$iter-events.jsonl"
+
     & $ClaudeExe -p $prompt `
         --model $model `
         --effort $effort `
         --allowedTools $tools `
         --permission-mode acceptEdits `
         --output-format stream-json `
-        --verbose | Out-File -FilePath $EventsPath -Append -Encoding utf8
+        --verbose | Out-File -FilePath $iterOut -Encoding utf8
+
+    Get-Content $iterOut -ErrorAction SilentlyContinue | Add-Content -Path $EventsPath -Encoding utf8
+
+    # Batas pemakaian API bukan kegagalan riset. Agent keluar dalam hitungan detik
+    # tanpa menyentuh STATE.json, dan tanpa cabang ini driver membacanya sebagai
+    # proses mati lalu menaikkan level lima kali berturut-turut sampai level 6.
+    # Itu persis yang terjadi pada 2026-08-04T17:50Z. Jadi: tunggu, ulang level
+    # yang sama, jangan naikkan iterasi.
+    $limited = $false
+    if (Test-Path $iterOut) {
+        $limited = [bool](Select-String -Path $iterOut -Quiet `
+            -Pattern '"error":"rate_limit"|session limit|usage limit')
+    }
+    if ($limited) {
+        $limitWaits++
+        if ($limitWaits -gt $MaxLimitWaits) {
+            Add-LedgerLine $lvl $aksi "batas pemakaian API tidak pulih setelah $MaxLimitWaits kali tunggu" "-"
+            Set-LoopState @{ status = "blocked"; menunggu_manusia = $true }
+            Write-Host "Batas pemakaian tidak pulih. status = blocked." -ForegroundColor Yellow
+            break
+        }
+        Add-LedgerLine $lvl $aksi "batas pemakaian API tercapai (tunggu ke-$limitWaits); level dan iterasi tidak diubah" "-"
+        Write-Host "Batas pemakaian API. Tunggu $LimitWaitMin menit lalu ulang level $lvl." -ForegroundColor Yellow
+        Start-Sleep -Seconds ($LimitWaitMin * 60)
+        continue
+    }
+    $limitWaits = 0
 
     Wait-Stage
 

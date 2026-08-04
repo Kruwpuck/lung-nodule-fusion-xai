@@ -25,6 +25,16 @@ sebelumnya, JANGAN memulainya lagi. Periksa proses masih hidup, laporkan
 kemajuannya di ledger, lalu keluar. Dua proses training serentak akan kehabisan
 memori GPU.
 
+Satu langkah dianggap SELESAI kalau berkas keluarannya sudah ada dan penuh:
+    artifacts/results/l3_plain/fusion/ablation_summary.csv  (105 baris + header)
+    artifacts/results/l3_reg/fusion/ablation_summary.csv    (105 baris + header)
+Periksa dengan wc -l sebelum menjalankan apa pun. Kalau sudah penuh, JANGAN
+jalankan ulang langkah itu; lanjut ke langkah berikutnya. Menjalankan ulang
+membuang berjam-jam GPU tanpa menambah informasi.
+
+Status per 2026-08-05: langkah 1/3 (l3_plain) SUDAH SELESAI, 105 baris. Langkah
+berikutnya adalah 2/3, config_l3_reg.yaml.
+
 Keenam gate diperiksa satu perintah:
     python -m src.stage_03d_merge_l3 --check
 Perintah itu keluar dengan kode 0 hanya kalau keenamnya lulus. Tempel keluarannya
