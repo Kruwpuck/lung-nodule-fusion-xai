@@ -72,21 +72,23 @@ Lihat §3.1 dan §3.2. Detail lengkap distribusi kelas dan fold ada di `artifact
 
 ### 6.1 Ablasi fusi
 
-AUC rata-rata per arm, dipool lintas 7 backbone dan 5 fold, dari `artifacts/results/fusion/ablation_summary.csv` (175 baris: 7 backbone x 5 arm x 5 fold):
+AUC rata-rata per arm, dipool lintas 7 backbone dan 5 fold, dari `artifacts/results/fusion/ablation_summary.csv` setelah perbaikan bug resolusi (175 baris: 7 backbone x 5 arm x 5 fold, ditarik 4 Agustus 2026):
 
-| Arm | AUC rata-rata |
-|---|---|
-| radiomics_only | 0.9313 |
-| fusion_intermediate | 0.9269 |
-| fusion_early | 0.9179 |
-| fusion_late | 0.9171 |
-| cnn_only | 0.7853 |
+| Arm | AUC rata-rata | Baseline pra-perbaikan |
+|---|---|---|
+| fusion_late | 0.9332 | 0.9171 |
+| radiomics_only | 0.9314 | 0.9313 |
+| fusion_intermediate | 0.9294 | 0.9269 |
+| fusion_early | 0.9126 | 0.9179 |
+| cnn_only | 0.8927 | 0.7853 |
 
-Dari 21 uji DeLong berpasangan (`fusion/delong_fusion.csv`, satu per backbone per varian fusi terhadap radiomics-only), **tidak satu pun** mencapai signifikansi yang mendukung fusi.
+Baseline pra-perbaikan diarsipkan di `artifacts/results/_baseline_pre_rev2/`. Kolom `cnn_only` kini konsisten dengan AUC standalone per backbone di `summary_binary.csv` (selisih 0.0019-0.0070, lihat §8.4 untuk sumber selisih itu), mengonfirmasi bug resolusi sudah tertutup.
 
-#### Batasan pada kolom cnn_only
+Dari 21 uji DeLong berpasangan (`fusion/delong_fusion.csv`), fusion_late unggul angka di 5 dari 7 backbone tapi **tidak satu pun** dari 21 pasangan mencapai signifikansi yang mendukung fusi (p terkecil di sisi menang: 0.4387). fusion_early signifikan lebih buruk daripada radiomics_only di ketujuh backbone.
 
-Angka `cnn_only` di atas berasal dari `ablation_summary.csv` yang ditarik dari mesin remote pada 30 Juli 2026. Cross-check `densenet201`: `cnn_only` mean AUC 0.6432, jauh di bawah AUC standalone-nya 0.8988 di `summary_binary.csv`. Ini persis gejala bug resolusi input yang sudah diidentifikasi (checkpoint dilatih di 96px, dievaluasi di 64px) dan **sudah diperbaiki di kode** (`docs/revisi/rev1/TASKBOARD.md` tugas 1, `done-code`), tapi ablasi ini **belum di-*re-run*** dengan kode yang sudah diperbaiki. Artinya seluruh kolom `cnn_only` di atas masih data pra-perbaikan dan harus dibaca sebagai batasan, bukan hasil final. Kolom arm fusi lain (early/intermediate/late) tetap konsisten secara internal karena melatih dan mengevaluasi pada resolusi yang sama, jadi kesimpulan "radiomics mengungguli fusi" tidak berubah.
+#### Batasan: seleksi epoch bocor, belum tertutup di angka ini
+
+Angka `fusion_intermediate` (dan turunannya `fusion_early`/`fusion_late` lewat *embedding* dan probabilitas CNN yang sama) di atas masih memakai protokol lama: *epoch* terbaik dipilih berdasarkan AUC pada *fold* validasi luar, lalu *fold* yang sama dilaporkan sebagai skor akhir (`src/stage_03b_fusion.py:207-215` sebelum perbaikan nested CV). `radiomics_only` satu-satunya arm yang bersih dari kebocoran ini karena `train_early_fusion_xgboost` tidak memakai `eval_set`. Artinya keunggulan tipis fusion_late di atas radiomics_only diukur dengan timbangan berat sebelah dan belum bisa ditafsirkan sampai nested CV (§8.4) dijalankan ulang; lihat §9 untuk rencana lanjutan.
 
 ### 6.2 XAI
 
@@ -156,6 +158,16 @@ Peluncuran ulang ablasi fusi pada mesin remote mati setelah kira-kira dua menit.
 Ini insiden infrastruktur keempat pada proyek ini setelah disk penuh, *checkpoint* korup, dan pemanggilan interpreter yang salah. Keempatnya berbagi satu pola: kegagalan yang diam dan nyaris dilaporkan sebagai keberhasilan. Konsekuensi prosedural yang diambil: **status proses yang berjalan terlepas tidak boleh diasumsikan, melainkan wajib diverifikasi dengan memeriksa PID dari sesi baru sebelum dilaporkan.** Melaporkan "sedang berjalan" berdasarkan keberhasilan peluncuran saja sama dengan melaporkan sesuatu yang belum diperiksa.
 
 Prinsip yang sama berlaku untuk uji: mengganti sebuah uji belum selesai sebelum uji penggantinya dibuktikan menangkap kegagalan yang seharusnya ia tangkap. Untuk `test_registry_covers_every_configured_backbone` pembuktian itu dilakukan lewat uji negatif, yaitu menghapus `densenet201` dari registry lalu memastikan uji tersebut gagal dan menyebut nama itu.
+
+### 8.4 Koreksi: dua penyebab offset +0.0037 pada kolom cnn_only, dan kebocoran seleksi epoch di stage_03b_fusion
+
+Kenaikan `cnn_only` setelah perbaikan resolusi (§6.1) tidak seragam kebetulan. Hipotesis awal menduga kebocoran *early stopping* menjelaskannya. Hipotesis itu **tertolak**: `_cnn_only_preds` (`src/stage_03b_fusion.py:88-113`) hanya memuat ulang *checkpoint* `checkpoints/{model}/fold{f}_best.pt` yang sama persis dengan yang dipakai evaluasi standalone Bab 6.1, lalu melakukan inferensi murni tanpa latihan baru. Tidak ada proses latihan kedua yang bisa membocorkan sesuatu yang berbeda dari standalone.
+
+Penyebab sebenarnya lebih sederhana dan terlacak sampai desimal keempat: **penyempitan kohort yang tidak dinyatakan.** `_load_merged` (`src/stage_03b_fusion.py:38-59`) membuang nodul dengan kunci `(patient_id, nodule_idx)` ganda sebelum `merge` dengan `radiomics.parquet`, menyisakan 1366 dari 1391 nodul standalone Bab 6.1. Diverifikasi dengan menghitung ulang AUC standalone dari `preds/*.npz` arsip pada subset 1366 nodul yang sama: ketujuh backbone cocok dengan selisih yang diamati sampai 3-4 desimal (0.0019 sampai 0.0070). Artinya angka Bab 6.1 (penyebut 1391) dan angka fusi selama ini **dibandingkan pada kohort berbeda tanpa dinyatakan** — bukan sekadar catatan reproducibility, melainkan koreksi terhadap perbandingan yang sudah tertulis di laporan ini.
+
+Audit yang sama menemukan kebocoran nyata, tapi di tempat lain dari yang diduga semula: bukan pada offset kohort, melainkan **asimetris antar-arm** di dalam `stage_03b_fusion` sendiri. `radiomics_only` memanggil `clf.fit(X, y)` tanpa `eval_set` (`src/fusion/early_fusion.py`) sehingga bersih dari seleksi berbasis validasi. Sebaliknya `fusion_intermediate` (dan turunannya `fusion_early`/`fusion_late` lewat *embedding* dan probabilitas CNN yang sama) memilih *epoch* terbaik berdasarkan AUC pada *fold* validasi luar, lalu melaporkan skor pada *fold* yang sama (`trainer.py`-style leak, lokal di `_train_fusion_fold` sebelum perbaikan di bawah). Karena pembanding satu-satunya yang bersih adalah `radiomics_only`, setiap kemenangan tipis arm fusi di atasnya diukur dengan timbangan berat sebelah, bukan derau kohort yang menelan selisihnya.
+
+**Perbaikan diterapkan**: `_train_fusion_fold` sekarang mencarik *inner split* per pasien (85/15, `GroupShuffleSplit` disemai per *fold*) dari *fold* pelatihan luar. *Epoch* terbaik dipilih dari AUC *inner-validation* itu; *fold* validasi luar (`outer_val_loader`) hanya dievaluasi sekali, setelah pelatihan selesai, dan tidak pernah memengaruhi bobot mana yang disimpan. Cakupan perbaikan ini sengaja dibatasi pada `stage_03b_fusion.py` saja — 215 *run* Track 2 di `src/training/trainer.py` tidak disentuh, karena keduanya jalur kode terpisah dan Track 2 di luar cakupan revisi ini.
 
 ---
 

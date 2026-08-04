@@ -170,12 +170,29 @@ def _train_fusion_fold(model_name: str, backbone_internal: str, cfg: dict, fold:
     lr = cfg["train"].get("lr", 1e-4)
     weight_decay = cfg["train"].get("weight_decay", 1e-4)
 
-    img_train_ds = NoduleDataset2_5D(train_df, patch_size=patch_xy, n_slices=n_slices, augment=True)
-    img_val_ds = NoduleDataset2_5D(val_df, patch_size=patch_xy, n_slices=n_slices, augment=False)
-    train_ds = RadiomicDataset(img_train_ds, X_train_sel)
-    val_ds = RadiomicDataset(img_val_ds, X_val_sel)
+    # Nested CV: carve a patient-level inner validation split from the outer
+    # training fold for early stopping / best-epoch selection. The outer
+    # val_df is scored exactly once, after training, and never influences
+    # which epoch's weights get kept. The previous protocol selected the best
+    # epoch on val_df and then reported that same val_df, a selection-bias
+    # leak (see docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md §8.4).
+    from sklearn.model_selection import GroupShuffleSplit
+    gss = GroupShuffleSplit(n_splits=1, test_size=0.15, random_state=fold)
+    inner_train_idx, inner_val_idx = next(gss.split(train_df, groups=train_df["patient_id"]))
+    inner_train_df = train_df.iloc[inner_train_idx].reset_index(drop=True)
+    inner_val_df = train_df.iloc[inner_val_idx].reset_index(drop=True)
+    X_inner_train = X_train_sel[inner_train_idx]
+    X_inner_val = X_train_sel[inner_val_idx]
+
+    img_train_ds = NoduleDataset2_5D(inner_train_df, patch_size=patch_xy, n_slices=n_slices, augment=True)
+    img_inner_val_ds = NoduleDataset2_5D(inner_val_df, patch_size=patch_xy, n_slices=n_slices, augment=False)
+    img_outer_val_ds = NoduleDataset2_5D(val_df, patch_size=patch_xy, n_slices=n_slices, augment=False)
+    train_ds = RadiomicDataset(img_train_ds, X_inner_train)
+    inner_val_ds = RadiomicDataset(img_inner_val_ds, X_inner_val)
+    outer_val_ds = RadiomicDataset(img_outer_val_ds, X_val_sel)
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+    inner_val_loader = DataLoader(inner_val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+    outer_val_loader = DataLoader(outer_val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
 
     proj_dim = cfg.get("track1_fusion", {}).get("branch_norm_proj_dim", 32)
     modality_dropout = cfg.get("track1_fusion", {}).get("modality_dropout_rate", 0.0)
@@ -202,18 +219,18 @@ def _train_fusion_fold(model_name: str, backbone_internal: str, cfg: dict, fold:
     best_auc = 0.0
     for epoch in range(epochs):
         train_fusion_epoch(model, train_loader, optimizer, criterion, device, amp_scaler)
-        y_true, y_prob = eval_fusion(model, val_loader, device)
+        y_true, y_prob = eval_fusion(model, inner_val_loader, device)
         auc = roc_auc_score(y_true, y_prob)
         scheduler.step()
         if auc > best_auc:
             best_auc = auc
             torch.save(model.state_dict(), best_pt)
         if early_stopper.step(auc):
-            logger.info("[fusion fold %d] early stop at epoch %d (best AUC %.4f)", fold, epoch, best_auc)
+            logger.info("[fusion fold %d] early stop at epoch %d (best inner-val AUC %.4f)", fold, epoch, best_auc)
             break
 
     model.load_state_dict(torch.load(best_pt, weights_only=True, map_location=device))
-    _, y_prob = eval_fusion(model, val_loader, device)
+    _, y_prob = eval_fusion(model, outer_val_loader, device)
 
     # Rev1 task 5c: modality dropout rate / aux loss weight are config-driven
     # and recorded in runs.csv regardless of arm, so they stay traceable even
