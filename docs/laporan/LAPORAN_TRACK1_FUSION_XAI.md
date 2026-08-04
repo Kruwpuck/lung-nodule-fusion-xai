@@ -224,21 +224,23 @@ Perlu dipisahkan dari insiden §8.3 yang berbeda: korupsi *checkpoint* OneDrive 
 
 Tindak lanjut yang diambil: keenam *checkpoint* DenseNet121 *fold* 0, 1, dan 4 dipindahkan ke `artifacts/checkpoints/_archive_densenet121_pre_input_size/`, bukan dihapus, karena berkas itu adalah bukti bagi bagian ini. Ketiga *fold* kemudian dilatih ulang dari nol, bukan dilanjutkan, sebab melanjutkan dari bobot rezim 64 piksel hanya akan mengulang persoalan yang sama. Log pelatihan mengonfirmasi tidak ada baris `Resumed from epoch` maupun `[SKIP]`, dan ketiganya berhenti dini pada *epoch* 36, 18, dan 23.
 
-Hasilnya mengonfirmasi diagnosis:
+Hasilnya mengonfirmasi diagnosis. Pelatihan ulang dilakukan dalam dua tahap: *fold* 0, 1, dan 4 lebih dulu karena ketiganya yang bercacat, kemudian *fold* 2 dan 3 menyusul demi keseragaman protokol.
 
 | Fold | AUC lama | AUC baru | Sensitivitas lama | Sensitivitas baru |
 |---|---|---|---|---|
 | 0 | 0.8018 | **0.9181** | 0.2812 | **0.7708** |
 | 1 | 0.8272 | **0.9124** | 0.0864 | **0.6914** |
-| 2 (tak disentuh) | 0.8659 | 0.8659 | 0.7312 | 0.7312 |
-| 3 (tak disentuh) | 0.8911 | 0.8911 | 0.6739 | 0.6739 |
+| 2 | 0.8659 | 0.8632 | 0.7312 | 0.6989 |
+| 3 | 0.8911 | 0.8841 | 0.6739 | 0.6957 |
 | 4 | 0.7804 | **0.8921** | 0.1196 | **0.7283** |
 
-Rata-rata DenseNet121 naik dari 0.8333 menjadi **0.8959**, sejajar dengan enam *backbone* lain yang berkisar 0.8911 sampai 0.9055, dan tidak lagi menjadi *outlier*. Sensitivitas kedua *fold* yang semula nyaris kolaps keluar jauh dari rentang 0.08 sampai 0.12 menuju 0.69 dan 0.73. *Fold* 2 dan 3 yang tidak disentuh bergerak nol persis, yang berfungsi sebagai kontrol bahwa perubahan hanya berasal dari pelatihan ulang. Gap `best_auc` terhadap AUC evaluasi kini 0.0000 pada kelima *fold*.
+Rata-rata DenseNet121 naik dari 0.8333 menjadi **0.8940**, sejajar dengan enam *backbone* lain yang berkisar 0.8911 sampai 0.9055, dan tidak lagi menjadi *outlier*. Sensitivitas kedua *fold* yang semula nyaris kolaps keluar jauh dari rentang 0.08 sampai 0.12 menuju 0.69 dan 0.73. Gap `best_auc` terhadap AUC evaluasi kini 0.0000 pada kelima *fold*.
+
+Pada tahap pertama, ketika *fold* 2 dan 3 sengaja belum disentuh, keduanya bergerak nol persis. Itu berfungsi sebagai kontrol yang memastikan perubahan pada ketiga *fold* lain benar-benar berasal dari pelatihan ulang, bukan dari perubahan lain di *pipeline*.
 
 Kesimpulannya tegas: dua *fold* yang tampak kolaps bukan instabilitas pelatihan melainkan artefak infrastruktur, dan mendiagnosisnya lewat *fine-tuning* memang akan salah sasaran.
 
-Satu catatan yang tersisa dan belum diselesaikan. Ketiga *fold* yang dilatih ulang kini berasal dari pelatihan penuh dari nol pada rezim 96 piksel, sedangkan *fold* 2 dan 3 berasal dari jalur yang berbeda dan tidak sepenuhnya terlacak, meskipun keduanya konsisten secara internal dengan gap 0.0000. Protokol pelatihan karena itu tidak seragam di dalam satu skema *cross-validation*, dan ketiga *fold* baru justru mencatat AUC lebih tinggi (0.8921 sampai 0.9181) daripada kedua *fold* lama (0.8659 dan 0.8911). Selisih itu masih berada dalam rentang variasi antar-*fold* yang wajar untuk *backbone* lain, jadi bukan bukti cacat, tetapi keseragaman protokol tetap layak ditegakkan dengan melatih ulang *fold* 2 dan 3 juga.
+Tahap kedua dijalankan karena setelah tahap pertama justru *fold* 2 dan 3 yang menjadi ganjil: ketiga *fold* lain sudah dilatih penuh dari nol pada rezim 96 piksel, sedangkan asal-usul kedua *fold* itu tidak terlacak meskipun konsisten secara internal. Protokol yang tidak seragam di dalam satu skema *cross-validation* adalah titik lemah metodologis, terlebih untuk naskah yang mengklaim *fold* dibekukan dan konfigurasi identik. Setelah dilatih ulang, keduanya **turun tipis**, yaitu 0.0027 dan 0.0069. Penurunan itu diperlakukan sebagai angka yang lebih jujur, bukan regresi, sebab angka lama berasal dari jalur yang tidak dapat ditelusuri. Kelima *fold* kini berbagi protokol yang sama persis.
 
 Pelajaran yang menyambung ke §8.1 sampai §8.5: *checkpoint* tidak menyimpan konfigurasi yang melahirkannya. Tidak ada mekanisme yang mencegah bobot rezim 64 piksel dievaluasi pada 96 piksel, persis seperti tidak ada mekanisme yang mencegah `mutual_info_classif` dilaporkan sebagai mRMR sebelum kolom `fs_method` ditambahkan. Perbaikan struktural yang setara adalah menyimpan `input_size` di dalam *checkpoint* lalu memeriksanya saat pemuatan. Perlu dicatat juga bahwa `best_auc` yang sudah tersimpan di dalam *checkpoint* ternyata cukup untuk mendeteksi seluruh persoalan ini dalam satu pemindaian; datanya sudah ada sejak awal, hanya tidak pernah dibandingkan dengan AUC yang dilaporkan.
 
