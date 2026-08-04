@@ -15,6 +15,29 @@ menyelesaikan seluruh GOAL dalam satu proses. Driver akan memanggilmu lagi.
 Interpreter Python selalu .venv\Scripts\python.exe, dan modul selalu dipanggil
 sebagai python -m src.nama_modul, tidak pernah sebagai path berkas langsung.
 
+URUTAN KERJA, tiga langkah, berurutan, satu per iterasi kalau perlu:
+1. python -m src.stage_03b_fusion --config configs/config_l3_plain.yaml
+2. python -m src.stage_03b_fusion --config configs/config_l3_reg.yaml
+3. python -m src.stage_03d_merge_l3
+
+Training makan waktu berjam-jam. Kalau satu langkah masih berjalan dari iterasi
+sebelumnya, JANGAN memulainya lagi. Periksa proses masih hidup, laporkan
+kemajuannya di ledger, lalu keluar. Dua proses training serentak akan kehabisan
+memori GPU.
+
+Keenam gate diperiksa satu perintah:
+    python -m src.stage_03d_merge_l3 --check
+Perintah itu keluar dengan kode 0 hanya kalau keenamnya lulus. Tempel keluarannya
+apa adanya ke ledger. Jangan meringkas jadi "sudah lolos".
+
+Gate G-2 adalah kontrol negatif. Kalau ia GAGAL, itu bukan hasil eksperimen yang
+buruk, itu tanda ada yang berubah di pipeline yang seharusnya tidak. Berhenti dan
+tulis STUCK.md, jangan lanjut ke langkah berikutnya.
+
+Nol dari uji DeLong mendukung fusi adalah hasil SAH dan run selesai. Jangan mencari
+konfigurasi lain untuk membalikkannya, jangan memperluas ruang pencarian, jangan
+menambah backbone atau arm.
+
 ATURAN KERJA
 - Solusi paling malas yang jalan. Jangan menambah dependensi tanpa alasan
   tertulis di ledger.
