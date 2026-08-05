@@ -86,8 +86,15 @@ def _select_fold_features(train_df: pd.DataFrame, val_df: pd.DataFrame, feat_col
 
 
 def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: int,
-                     df_fold: pd.DataFrame, device) -> np.ndarray:
-    """Re-run the existing arm A checkpoint on df_fold's own patches (fusion-eligible subset)."""
+                     df_fold: pd.DataFrame, device, ckpt_kind: str = "best") -> np.ndarray:
+    """Re-run the existing arm A checkpoint on df_fold's own patches (fusion-eligible subset).
+
+    `ckpt_kind` defaults to "best" -- the checkpoint stage_03_train selected by AUC
+    on this very fold, i.e. exactly what every already-published number here used.
+    Pass "last" for the un-selected end-of-training checkpoint; that variant carries
+    no outer-fold selection advantage and exists only for the run02 T-0 sensitivity
+    check (src/stage_08a_run02_probs.py). Nothing else should pass it.
+    """
     import torch
     from torch.utils.data import DataLoader
     from src.models.registry import build_model
@@ -97,7 +104,7 @@ def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: in
     patch_xy = cfg["data"].get("patch_xy", 64)
     batch_size = cfg["train"].get("batch_size", 16)
 
-    ckpt = os.path.join(cfg["paths"]["checkpoints"], model_name, f"fold{fold}_best.pt")
+    ckpt = os.path.join(cfg["paths"]["checkpoints"], model_name, f"fold{fold}_{ckpt_kind}.pt")
     model = build_model(model_name, cfg).to(device)
     state = torch.load(ckpt, weights_only=True, map_location="cpu")
     model.load_state_dict(state["model_state"] if isinstance(state, dict) and "model_state" in state else state)

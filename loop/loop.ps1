@@ -23,6 +23,8 @@ utuh oleh Set-LoopState, tidak pernah sebagian.
 
 param(
     [string]$RunId       = "2026-08-04-run01",
+    [string]$GoalFile    = "GOAL.md",
+    [string]$ExecPrompt  = "loop\prompt_exec.txt",
     [int]$MaxIter        = 15,
     [int]$LimitWaitMin   = 20,
     [int]$MaxLimitWaits  = 24,
@@ -85,7 +87,7 @@ function Save-HandoffSnapshot([int]$Iterasi) {
 function Wait-Stage([int]$PollSeconds = 600) {
     while ($true) {
         $running = @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
-            Where-Object { $_.CommandLine -match 'src\.stage_03(b_fusion|d_merge_l3)' })
+            Where-Object { $_.CommandLine -match 'src\.stage_0(3b_fusion|3d_merge_l3|8a_run02_probs|8b_run02_xai)' })
         if ($running.Count -eq 0) { return }
         Write-Host ("  tahap masih berjalan (PID {0}), tunggu {1} menit" -f
             ($running.ProcessId -join ","), [int]($PollSeconds / 60)) -ForegroundColor DarkGray
@@ -97,7 +99,7 @@ function Wait-Stage([int]$PollSeconds = 600) {
 
 if (-not (Test-Path $StatePath))  { throw "STATE.json tidak ada di $Root" }
 if (-not (Test-Path $LedgerPath)) { throw "ledger tidak ada di $LedgerPath" }
-if (-not (Test-Path (Join-Path $HandoffDir "GOAL.md"))) { throw "handoff/GOAL.md tidak ada" }
+if (-not (Test-Path (Join-Path $HandoffDir $GoalFile))) { throw "handoff/$GoalFile tidak ada" }
 if (-not (Test-Path $Transcripts)) { New-Item -ItemType Directory -Path $Transcripts | Out-Null }
 
 # PATH shell interaktif bisa basi kalau sesinya dibuka sebelum claude dipasang,
@@ -160,7 +162,7 @@ while ($true) {
     if ($lvl -le 3) {
         $model  = "sonnet"
         $effort = "low"
-        $promptFile = "loop\prompt_exec.txt"
+        $promptFile = $ExecPrompt
         $tools  = "Read,Write,Edit,Bash,WebSearch,Skill"
         $aksi   = "EXEC"
     }

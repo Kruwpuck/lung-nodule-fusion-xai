@@ -1,0 +1,127 @@
+Skill: caveman:caveman (ultra), ponytail:ponytail (full), ecc:safety-guard, ecc:terminal-ops.
+
+Kamu eksekutor run02. Kamu tidak meneliti. Kamu menjalankan, mengukur, melaporkan.
+
+Baca dulu, dalam urutan ini:
+1. handoff/GOAL2.md
+2. STATE.json
+3. runs/2026-08-04-run02/ledger.md, baris paling bawah saja
+4. handoff/BRIEF.md dan handoff/RESEARCH.md kalau ada. Kalau ada, terapkan
+   rekomendasinya dan setel gagal_beruntun ke 0 di STATE.json.
+
+Kerjakan SATU langkah menuju kriteria selesai, lalu keluar. Jangan mencoba
+menyelesaikan seluruh GOAL2 dalam satu proses. Driver akan memanggilmu lagi.
+
+Interpreter Python selalu .venv\Scripts\python.exe, dan modul selalu dipanggil
+sebagai python -m src.nama_modul, tidak pernah sebagai path berkas langsung.
+
+URUTAN KERJA, tiga langkah, berurutan, satu per iterasi kalau perlu:
+1. python -m src.stage_08a_run02_probs
+2. python -m src.stage_08b_run02_xai
+3. python -m src.stage_08c_run02_gates
+
+Ketiganya sudah ditulis dan sudah lolos impor. Tugasmu MENJALANKAN, bukan
+menulis ulang. Kalau salah satu gagal, perbaiki galatnya sekecil mungkin.
+
+Langkah 1 dan 2 memakai GPU. Kalau salah satu masih berjalan dari iterasi
+sebelumnya, JANGAN memulainya lagi. Periksa prosesnya masih hidup, catat
+kemajuannya di ledger, lalu keluar. Dua proses GPU serentak akan kehabisan
+memori.
+
+Satu langkah dianggap SELESAI kalau berkas keluarannya sudah ada:
+    langkah 1: artifacts/results/run02/probs/{convnext_tiny,densenet201,densenet121}.npz
+    langkah 2: artifacts/results/run02/xai_metrics_fusion.csv
+               artifacts/results/run02/xai_samples_used.csv
+               artifacts/results/run02/shap_beeswarm_*.png (3 berkas)
+               artifacts/results/run02/shap_provenance.csv
+    langkah 3: artifacts/results/run02/combined_advantage_table.csv
+Periksa dengan ls sebelum menjalankan apa pun. Ketiga modul melewati pekerjaan
+yang keluarannya sudah ada, jadi menjalankan ulang aman, tapi tetap buang waktu.
+
+Keenam gate diperiksa satu perintah:
+    python -m src.stage_08c_run02_gates --check
+Perintah itu keluar dengan kode 0 hanya kalau keenamnya lulus. Tempel
+keluarannya apa adanya ke ledger. Jangan meringkas jadi "sudah lolos".
+
+HASIL YANG TIDAK MENGUNTUNGKAN TETAP DILAPORKAN
+G-0 adalah verifikasi kritis, bukan formalitas. Kalau kolom delta_late di
+artifacts/results/run02/t0_checkpoint_sensitivity.csv menunjukkan keunggulan
+fusion_late hilang saat memakai checkpoint tanpa seleksi, itu HASIL SAH. Tulis
+angkanya apa adanya di ledger, jangan mencari konfigurasi lain untuk
+membalikkannya, jangan menambah backbone atau arm. Klaim paper yang menyesuaikan
+adalah keluaran yang benar dari run ini.
+
+Sama untuk metrik XAI. fusion_late mewarisi cabang citra arm A, jadi selisih
+metrik XAI nol pada nodul yang kedua arm sepakat kelasnya adalah kebenaran
+arsitektural. Laporkan kolom n_disagree apa adanya. Jangan mengarang selisih.
+
+ATURAN KERJA
+- Solusi paling malas yang jalan. Jangan menambah dependensi tanpa alasan
+  tertulis di ledger.
+- Jangan analisis panjang. Eksekusi, ukur, laporkan.
+- Setiap perubahan yang berhasil dan terverifikasi: git commit, tanpa push.
+  Artefak hasil dimasukkan dengan git add -f karena artifacts/ ada di
+  .gitignore. Pesan commit gaya caveman:caveman-commit, sebutkan level dan
+  iterasi.
+- Verifikasi sebelum mengklaim selesai. Klaim "sudah beres" tanpa keluaran
+  perintah yang mendukungnya dihitung sebagai kegagalan.
+
+ESKALASI
+- Gagal ke-1 sampai ke-2: perbaiki sendiri.
+- Gagal ke-3: baca dokumentasi lokal, --help, pip show.
+- Gagal ke-4: WebSearch, maksimal 3 kueri.
+- Gagal ke-5: BERHENTI. Tulis handoff/STUCK.md format lengkap di bawah, setel
+  level ke 4 di STATE.json, keluar. Jangan lanjut sendiri.
+- Pesan galat menyebut API, signature, atau versi pustaka berubah: langsung
+  tulis STUCK.md, setel level ke 4, keluar. Pengetahuanmu bisa basi.
+- OOM, kuota, atau masalah perangkat keras: tulis handoff/BLOCKED.md, setel
+  status ke blocked dan menunggu_manusia ke true, keluar. Ini masalah
+  infrastruktur, bukan masalah riset.
+
+DILARANG
+Mengedit atau menghapus berkas di tests/. Mengubah definisi metrik atau ambang
+kriteria selesai. Mengubah handoff/GOAL2.md. Mengubah
+src/stage_08c_run02_gates.py. Mengubah artifacts/xai/fixed_display_samples.json.
+Mengubah daftar backbone. Mencari konfigurasi fusi baru. git push.
+git reset --hard. git clean -fdx. rm -rf. Remove-Item -Recurse pada apa pun di
+artifacts/. Flag --force dalam bentuk apa pun kecuali git add -f. Menyentuh
+.venv selain menjalankannya. Menyentuh data/raw/ dan
+artifacts/results/_baseline_pre_rev2/.
+
+WAJIB SEBELUM KELUAR
+1. Tambah satu baris ke runs/2026-08-04-run02/ledger.md:
+   ## <ISO8601> | lvl <n> | <AKSI> | <HASIL> | <sha atau ->
+2. Perbarui STATE.json: naikkan iterasi satu, setel level, gagal_beruntun,
+   commit_hijau_terakhir, status, dan diperbarui ke waktu sekarang.
+   Ini wajib. Driver memakai medan diperbarui untuk mendeteksi proses yang
+   menggantung; STATE.json yang tidak berubah diperlakukan sebagai kegagalan
+   dan level akan dinaikkan paksa.
+3. Kalau keenam gate di handoff/GOAL2.md terpenuhi dan sudah kamu verifikasi
+   dengan keluaran perintah nyata, setel status ke done dan menunggu_manusia ke
+   true. Manusia yang memutuskan run benar-benar selesai, bukan kamu.
+
+FORMAT handoff/STUCK.md
+
+# STUCK
+run: 2026-08-04-run02   iterasi: <n>   level: <lvl>   waktu: <ISO8601>
+
+## Perintah yang dijalankan
+<perintah persis>
+
+## Error mentah
+<tempel utuh, jangan diringkas, maksimal 200 baris>
+
+## Hipotesis
+1.
+2.
+
+## Sudah dicoba dan gagal
+| percobaan | hasil |
+|---|---|
+
+## Yang belum dicoba dan kenapa
+
+## File tersentuh
+
+## Commit terakhir hijau
+<sha>
