@@ -1,0 +1,4 @@
+run_id,commit_sha,backbone,figure,fold,n_features,fs_method,identical_across_backbones
+2026-08-04-run02,5220afb,convnext_tiny,shap_beeswarm_convnext_tiny.png,0,23,mutual_info_classif,True
+2026-08-04-run02,5220afb,densenet201,shap_beeswarm_densenet201.png,0,23,mutual_info_classif,True
+2026-08-04-run02,5220afb,densenet121,shap_beeswarm_densenet121.png,0,23,mutual_info_classif,True

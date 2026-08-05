@@ -1,0 +1,13 @@
+run_id,commit_sha,backbone,ckpt_kind,comparison,arm_a,auc_a,arm_b,auc_b,delong_p,significant,a_better
+2026-08-04-run02,5220afb,convnext_tiny,best,fusion_late_vs_cnn_only,fusion_late,0.9300233230987247,cnn_only,0.8906717446071486,1.0087486401744172e-12,True,True
+2026-08-04-run02,5220afb,convnext_tiny,best,fusion_late_vs_radiomics_only,fusion_late,0.9300233230987247,radiomics_only,0.9336201976066762,0.4555115805281573,False,False
+2026-08-04-run02,5220afb,convnext_tiny,last,fusion_late_vs_cnn_only,fusion_late,0.9268446898126279,cnn_only,0.8806191938277436,3.9031000653722e-12,True,True
+2026-08-04-run02,5220afb,convnext_tiny,last,fusion_late_vs_radiomics_only,fusion_late,0.9268446898126279,radiomics_only,0.9336201976066762,0.024566654196096493,True,False
+2026-08-04-run02,5220afb,densenet201,best,fusion_late_vs_cnn_only,fusion_late,0.936287100456621,cnn_only,0.8958653164855928,1.3618417504801528e-10,True,True
+2026-08-04-run02,5220afb,densenet201,best,fusion_late_vs_radiomics_only,fusion_late,0.936287100456621,radiomics_only,0.9336201976066762,0.49014104717029383,False,True
+2026-08-04-run02,5220afb,densenet201,last,fusion_late_vs_cnn_only,fusion_late,0.9360263147535821,cnn_only,0.8887810482601165,7.366329768387914e-12,True,True
+2026-08-04-run02,5220afb,densenet201,last,fusion_late_vs_radiomics_only,fusion_late,0.9360263147535821,radiomics_only,0.9336201976066762,0.5122019966495253,False,True
+2026-08-04-run02,5220afb,densenet121,best,fusion_late_vs_cnn_only,fusion_late,0.9319177098094787,cnn_only,0.8965271217131161,2.969069434755056e-11,True,True
+2026-08-04-run02,5220afb,densenet121,best,fusion_late_vs_radiomics_only,fusion_late,0.9319177098094787,radiomics_only,0.9336201976066762,0.6793126208246574,False,False
+2026-08-04-run02,5220afb,densenet121,last,fusion_late_vs_cnn_only,fusion_late,0.9240769170209415,cnn_only,0.8724782514564635,3.774758283725532e-15,True,True
+2026-08-04-run02,5220afb,densenet121,last,fusion_late_vs_radiomics_only,fusion_late,0.9240769170209415,radiomics_only,0.9336201976066762,0.014365764219213206,True,False
