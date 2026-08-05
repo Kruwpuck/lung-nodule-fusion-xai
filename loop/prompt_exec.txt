@@ -32,8 +32,9 @@ Periksa dengan wc -l sebelum menjalankan apa pun. Kalau sudah penuh, JANGAN
 jalankan ulang langkah itu; lanjut ke langkah berikutnya. Menjalankan ulang
 membuang berjam-jam GPU tanpa menambah informasi.
 
-Status per 2026-08-05: langkah 1/3 (l3_plain) SUDAH SELESAI, 105 baris. Langkah
-berikutnya adalah 2/3, config_l3_reg.yaml.
+Status per 2026-08-05T07:00Z: langkah 1/3 (l3_plain) dan langkah 2/3 (l3_reg)
+KEDUANYA SUDAH SELESAI, masing-masing 105 baris + header. Langkah berikutnya
+adalah 3/3, python -m src.stage_03d_merge_l3, lalu pemeriksaan enam gate.
 
 Keenam gate diperiksa satu perintah:
     python -m src.stage_03d_merge_l3 --check
