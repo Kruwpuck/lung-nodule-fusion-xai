@@ -1,0 +1,16 @@
+backbone,fusion_arm,fusion_auc,best_single_arm,best_single_auc,delong_p,fusion_significantly_better
+convnext_tiny,fusion_intermediate_moddrop_auxloss,0.9150970319634703,radiomics,0.9336201976066762,0.0031155411203831473,False
+convnext_tiny,fusion_intermediate_branch_norm_moddrop_auxloss,0.8757552944418201,radiomics,0.9336201976066762,1.5630585714632161e-10,False
+convnext_tiny,fusion_intermediate_gmu_moddrop_auxloss,0.9122382301999685,radiomics,0.9336201976066762,0.0005623418862392704,False
+convnext_tiny,fusion_early,0.9041932372854669,radiomics,0.9336201976066762,0.0002403394584036267,False
+convnext_tiny,fusion_late,0.9300233230987247,radiomics,0.9336201976066762,0.4555115805281573,False
+densenet201,fusion_intermediate_moddrop_auxloss,0.903725791213982,radiomics,0.9336201976066762,3.151283731028798e-05,False
+densenet201,fusion_intermediate_branch_norm_moddrop_auxloss,0.9066510195244845,radiomics,0.9336201976066762,1.136322085493191e-05,False
+densenet201,fusion_intermediate_gmu_moddrop_auxloss,0.896768225476303,radiomics,0.9336201976066762,1.5073185788416765e-07,False
+densenet201,fusion_early,0.9067592701936704,radiomics,0.9336201976066762,0.00035440368389316745,False
+densenet201,fusion_late,0.936287100456621,radiomics,0.9336201976066762,0.49014104717029383,False
+densenet121,fusion_intermediate_moddrop_auxloss,0.9107054991339946,radiomics,0.9336201976066762,0.0003794119998861145,False
+densenet121,fusion_intermediate_branch_norm_moddrop_auxloss,0.9065747520075578,radiomics,0.9336201976066762,3.848427704622459e-05,False
+densenet121,fusion_intermediate_gmu_moddrop_auxloss,0.9053421705243269,radiomics,0.9336201976066762,1.0940621905097814e-05,False
+densenet121,fusion_early,0.9129959848842703,radiomics,0.9336201976066762,0.0020535552486247166,False
+densenet121,fusion_late,0.9319177098094787,radiomics,0.9336201976066762,0.6793126208246574,False
