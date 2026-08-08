@@ -1,11 +1,13 @@
-"""Stage 07g: fusion architecture diagram (Fig 11) -- DRAFT.
+"""Stage 07g: fusion architecture diagram (Fig 11).
 
 Static box+arrow schematic of the 5 ablation arms (cnn_only, radiomics_only,
 fusion_early, fusion_intermediate, fusion_late). No model / GPU / data needed --
 purely draws the design from known FusionNet dimensions.
 
-DRAFT: fusion belum di-wire final. Semua dimensi/nama layer diparameterkan di
-blok konstanta di bawah -- kalau desain berubah saat wiring, edit konstanta saja.
+`fusion_late` digambar sebagai arm utama karena itulah klaim utama Track 1
+(docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md sec 6.3). Empat arm lain tetap
+digambar sebagai pembanding yang diuji, bukan dihapus -- ablasinya memang lima
+arm. Semua dimensi/nama layer diparameterkan di blok konstanta di bawah.
 
 Output: artifacts/results/figures/fusion_architecture.png
 """
@@ -19,22 +21,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- parameter desain (edit di sini kalau wiring final berubah) ---------------
-BACKBONE_NAME = "MobileNetV3-Small"
-BACKBONE_OUT = 576       # src/models/backbones.py
+BACKBONE_NAME = "DenseNet201"   # model utama Track 1 (sec 6.3.2)
+BACKBONE_OUT = 1920      # src/models/backbones.py -- densenet201 feature dim
 EMB_DIM = 256            # FusionNet.img_proj  -> src/models/fusion_net.py
 RAD_DIM = 128            # FusionNet.rad_branch
 FUSION_DIM = 128         # FusionNet.classifier hidden
 DROPOUT = 0.3
 N_SLICES = 3
-PATCH_XY = 64
+PATCH_XY = 64            # patch native
+INPUT_XY = 96            # resolusi seragam saat latih/evaluasi (sec 3.3)
 N_CLASSES = 2
 CONCAT_DIM = EMB_DIM + RAD_DIM  # 384
+W_CNN = 0.5              # bobot fusion_late -> src/fusion/late_fusion.py
 
 # warna cabang
 C_CNN = "#4a7fb5"        # steelblue -- aliran CNN
 C_RAD = "#4f9d69"        # seagreen  -- aliran radiomics
 C_INPUT = "#e8e8e8"
 C_ARM = "#fbf3d9"
+C_ARM_PRIMARY = "#f6dd8a"  # arm utama (fusion_late)
 # -----------------------------------------------------------------------------
 
 
@@ -75,14 +80,16 @@ def run(cfg: dict) -> None:
     ax.set_ylim(0, 100)
     ax.axis("off")
 
-    ax.text(50, 96, "Arsitektur Fusion CNN + Radiomics (5-arm ablation)",
+    ax.text(50, 96, "Arsitektur Fusion CNN + Radiomics (ablasi 5 arm)",
             ha="center", va="center", fontsize=13, weight="bold")
-    ax.text(50, 91.5, "DRAFT -- desain menunggu wiring final",
-            ha="center", va="center", fontsize=9, style="italic", color="#b02a2a")
+    ax.text(50, 91.5,
+            "fusion_late = arm utama Track 1; empat arm lain = pembanding yang diuji",
+            ha="center", va="center", fontsize=9, style="italic", color="#555555")
 
     # --- kolom input (kiri) ---
     ct = _box(ax, 12, 72, 20, 11,
-              f"Input 2.5D\n{N_SLICES}x{PATCH_XY}x{PATCH_XY}", C_INPUT, fs=8.5)
+              f"Input 2.5D\n{N_SLICES}x{PATCH_XY}x{PATCH_XY} -> {INPUT_XY}x{INPUT_XY}",
+              C_INPUT, fs=8.5)
     rad = _box(ax, 12, 26, 20, 11,
                "Radiomics vector\nPyRadiomics -> MI-50 -> LASSO", C_INPUT, fs=7.5)
 
@@ -101,23 +108,29 @@ def run(cfg: dict) -> None:
     # --- kolom arm (kanan) ---
     ax_x = 80
     ax_w = 34
+    # arm utama digambar paling atas dan disorot; sisanya pembanding yang diuji
     arms = [
-        (85, "cnn_only",
-         f"CNN -> softmax ({N_CLASSES})", [C_CNN]),
-        (68, "fusion_late",
-         "avg(p_cnn, p_radiomics)", [C_CNN, C_RAD]),
-        (51, "fusion_intermediate",
+        (85, "fusion_late  [ARM UTAMA]",
+         f"p = {W_CNN:g}*p_cnn + {1 - W_CNN:g}*p_radiomics\n"
+         "(fusi tingkat keputusan, tanpa jaringan baru)", [C_CNN, C_RAD], True),
+        (68, "cnn_only",
+         f"CNN -> softmax ({N_CLASSES})", [C_CNN], False),
+        (51, "radiomics_only",
+         "radiomics -> XGBoost", [C_RAD], False),
+        (34, "fusion_intermediate",
          f"img_proj->{EMB_DIM}  (+)  rad_branch->{RAD_DIM}\n"
-         f"concat {CONCAT_DIM} -> dense {FUSION_DIM} -> {N_CLASSES}", [C_CNN, C_RAD]),
-        (34, "fusion_early",
-         f"concat [CNN emb {EMB_DIM} || radiomics] -> XGBoost", [C_CNN, C_RAD]),
-        (17, "radiomics_only",
-         "radiomics -> XGBoost", [C_RAD]),
+         f"concat {CONCAT_DIM} -> dense {FUSION_DIM} -> {N_CLASSES}",
+         [C_CNN, C_RAD], False),
+        (17, "fusion_early",
+         f"concat [CNN emb {EMB_DIM} || radiomics] -> XGBoost",
+         [C_CNN, C_RAD], False),
     ]
 
-    for y, name, desc, srcs in arms:
-        b = _box(ax, ax_x, y, ax_w, 12,
-                 f"{name}\n{desc}", C_ARM, fs=7.5, weight="bold")
+    for y, name, desc, srcs, primary in arms:
+        b = _box(ax, ax_x, y, ax_w, 12, f"{name}\n{desc}",
+                 C_ARM_PRIMARY if primary else C_ARM,
+                 ec="#8a6d1f" if primary else "#333333",
+                 fs=8 if primary else 7.5, weight="bold")
         for c in srcs:
             hub = cnn_hub if c == C_CNN else rad_hub
             _arrow(ax, hub, b["l"], c)

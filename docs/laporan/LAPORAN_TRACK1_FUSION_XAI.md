@@ -16,7 +16,7 @@ Track 1 membandingkan lima *arm* representasi (CNN-only, radiomics-only, early f
 
 **Klaim final** (menggantikan kesimpulan lama "radiomics-only mengungguli semua varian fusi", yang sudah tidak akurat setelah perbaikan bug resolusi dan kuantifikasi run `2026-08-04-run02`):
 
-> `fusion_late` mengalahkan CNN-sendirian secara signifikan tanpa syarat seleksi *checkpoint* (p < 1e-11 pada ketiga backbone, baik dengan maupun tanpa seleksi *checkpoint*), setara dengan radiomics dalam AUC, mempertahankan penjelasan spasial pada tingkat yang praktis sama (selisih pointing accuracy ≤0.05, identik persis pada himpunan enam nodul tetap), dan satu-satunya *arm* yang menyediakan penjelasan spasial dan penjelasan fitur sekaligus.
+> `fusion_late` mengalahkan CNN-sendirian secara signifikan tanpa syarat seleksi *checkpoint* (p < 1e-9 pada ketiga backbone di kedua rezim *checkpoint*; p < 1e-11 bila hanya rezim tanpa seleksi yang dikutip), setara dengan radiomics dalam AUC, mempertahankan penjelasan spasial pada tingkat yang praktis sama (selisih pointing accuracy ≤0.05, identik persis pada himpunan enam nodul tetap), dan satu-satunya *arm* yang menyediakan penjelasan spasial dan penjelasan fitur sekaligus.
 
 Klaim kesetaraan dengan radiomics bertumpu pada DenseNet201 sebagai model utama (§6.3.2); dua backbone pendukung punya ketergantungan *checkpoint* yang dinyatakan eksplisit di §8.5. Temuan sekunder yang tidak berubah: pointing accuracy Grad-CAM/Layer-CAM sangat bervariasi antar backbone tanpa hubungan konsisten terhadap AUC klasifikasi.
 
@@ -159,7 +159,7 @@ Uji DeLong `fusion_late` vs `cnn_only` dijalankan pada kedua rezim *checkpoint*.
 | DenseNet201 | 1.362e-10 | 7.366e-12 |
 | DenseNet121 | 2.969e-11 | 3.775e-15 |
 
-Alasan struktural mengapa klaim ini kebal terhadap kebocoran seleksi *checkpoint* yang dibahas di §8.4: kedua *arm* memakai *checkpoint* CNN yang sama, sehingga keuntungan seleksi masuk ke kedua sisi perbandingan dan saling meniadakan. Perbandingan yang sensitif terhadap rezim *checkpoint* hanyalah `fusion_late` vs `radiomics_only`, karena `radiomics_only` bersih dari seleksi apa pun (§8.4). Batas p yang aman ditulis dalam manuskrip adalah p < 1e-11, mengikuti nilai terbesar dari keenam sel di atas (1.362e-10 pada rezim `best`; jika hanya rezim `last` yang dikutip, batasnya p < 7.4e-12).
+Alasan struktural mengapa klaim ini kebal terhadap kebocoran seleksi *checkpoint* yang dibahas di §8.4: kedua *arm* memakai *checkpoint* CNN yang sama, sehingga keuntungan seleksi masuk ke kedua sisi perbandingan dan saling meniadakan. Perbandingan yang sensitif terhadap rezim *checkpoint* hanyalah `fusion_late` vs `radiomics_only`, karena `radiomics_only` bersih dari seleksi apa pun (§8.4). Batas p yang aman ditulis dalam manuskrip mengikuti nilai terbesar dari sel yang dikutip. Untuk kedua rezim sekaligus, nilai terbesarnya 1.362e-10 sehingga batas yang benar adalah **p < 1e-9**. Untuk rezim `last` saja, nilai terbesarnya 7.366e-12 sehingga batasnya **p < 1e-11**. Jangan menulis p < 1e-11 untuk kedua rezim sekaligus — DenseNet201 rezim `best` melanggarnya.
 
 #### 6.3.4 Explainability: fusi tidak merusak lokalisasi
 

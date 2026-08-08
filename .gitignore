@@ -88,6 +88,9 @@ runs/*/transcripts/
 
 # Secrets
 *.key
+# Keluaran build LaTeX (latexmk $out_dir)
+paper/*/build/
+
 # Editor/OS
 .vscode/
 .DS_Store
