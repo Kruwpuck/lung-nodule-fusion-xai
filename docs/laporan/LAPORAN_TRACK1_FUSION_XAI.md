@@ -54,7 +54,15 @@ Tujuh backbone: DenseNet121, InceptionV3, Xception, GoogLeNet, ConvNeXt-Tiny, In
 
 ### 3.4 Arm fusi
 
-CNN-only, radiomics-only, early fusion (konkatenasi fitur radiomics mentah ke input CNN), intermediate fusion (konkatenasi embedding CNN dengan vektor radiomics sebelum classification head bersama), late fusion (rata-rata probabilitas arm CNN dan radiomics).
+Kelima *arm* di bawah ini diaudit baris demi baris terhadap kodenya pada 8 Agustus 2026 (lihat §8.6 untuk apa yang ditemukan audit itu). Nama fungsi dicantumkan supaya deskripsi dan implementasi tidak bisa lagi berpisah diam-diam.
+
+| Arm | Yang benar-benar dijalankan | Sumber |
+|---|---|---|
+| `cnn_only` | Muat ulang *checkpoint* backbone, inferensi murni pada fold, tanpa pelatihan baru. | `_cnn_only_preds` (`src/stage_03b_fusion.py`) |
+| `radiomics_only` | XGBoost pada vektor radiomik terpilih. Seleksi per fold: filter *mutual information* menyisakan 50 kandidat teratas, lalu LASSO ber-*cross-validation* memilih himpunan akhir, keduanya di-*fit* pada fold latih saja. Tanpa `eval_set`, jadi bebas seleksi berbasis validasi. | `_select_fold_features` + `train_early_fusion_xgboost` |
+| `fusion_early` | Konkatenasi **embedding CNN** dengan vektor radiomik terpilih menjadi satu matriks fitur, lalu XGBoost di atasnya. | `build_early_fusion_features` (`src/fusion/early_fusion.py`) |
+| `fusion_intermediate` | `img_proj` memproyeksikan embedding CNN ke 256-d dan `rad_branch` memproyeksikan vektor radiomik ke 128-d (masing-masing Linear + ReLU + Dropout 0.3), keduanya dikonkatenasi jadi 384-d lalu masuk *classification head* bersama, dilatih *end-to-end*. | `FusionNet` (`src/models/fusion_net.py`) |
+| `fusion_late` | Rata-rata probabilitas, $0.5 \cdot p_\text{CNN} + 0.5 \cdot p_\text{radiomics}$. Nol parameter baru yang dilatih. | `average_fusion` (`src/fusion/late_fusion.py`) |
 
 ### 3.5 Protokol XAI
 
@@ -208,7 +216,8 @@ Rezim `best` memakai `checkpoints/{model}/fold{f}_best.pt`, yaitu *checkpoint* y
 |---|---|---|
 | Panel Grad-CAM per backbone | `artifacts/results/xai/xai_{backbone}.png` | Visualisasi CAM per backbone (belum komparabel lintas model) |
 | Panel komparabilitas XAI baru | `artifacts/results/figures_grid/grid_comparability.png` | Sampel identik, colorbar seragam, baris kegagalan (belum dieksekusi, tidak ada checkpoint lokal) |
-| Diagram arsitektur fusi | `artifacts/results/figures/fusion_architecture.png` | Ilustrasi arm fusi |
+| Diagram arsitektur fusi (Fig 11) | `artifacts/results/figures/fusion_architecture.png` | Kelima arm, `fusion_late` disorot sebagai arm utama. Label DRAFT sudah dibuang dan backbone dikoreksi ke DenseNet201 (8 Agustus 2026) |
+| Bukti spasial dan fitur berdampingan (Fig 14) | `artifacts/results/run02/fig14_spatial_and_feature.png` | Layer-CAM enam nodul tetap plus SHAP cabang radiomik. Satu figure, bukan tiga (§6.3.5) |
 
 ---
 
@@ -269,6 +278,18 @@ Asimetrinya berasal dari §8.4: `radiomics_only` tidak pernah menikmati seleksi 
 
 Konsekuensi untuk penulisan manuskrip: klaim kesetaraan dengan radiomics harus selalu menyebutkan model utamanya (DenseNet201) atau menyebutkan rezim *checkpoint*-nya. Klaim kesetaraan yang digeneralisasi ke ketiga backbone tanpa syarat tidak akan bertahan ketika diperiksa. Perhatikan bahwa batasan ini **tidak menyentuh** klaim terkuat, yaitu kemenangan atas `cnn_only`, dengan alasan yang dijelaskan di §6.3.3.
 
+### 8.6 Temuan reproducibility: kegagalan senyap ketujuh, dan audit deskripsi kelima arm
+
+**Bibliografi terbit kosong sementara sitasinya benar.** Saat manuskrip Track 1 pertama kali di-*build*, `latexmk` gagal dengan `! LaTeX Error: Something's wrong--perhaps a missing \item.` Gejala itu menunjuk ke berkas `.tex`, dan di sana tidak ada yang salah. Penyebab sebenarnya ada dua tingkat di bawahnya: `.latexmkrc` menyetel `ensure_path('BIBINPUTS', '..')`, sedangkan `latexmk` menjalankan `bibtex` dari dalam `$out_dir`, sehingga `'..'` teruraikan dari direktori yang berbeda dengan yang dipakai `pdflatex`. `bibtex` melapor `I couldn't open database file refs.bib` di `main.blg` — berkas yang tidak dibaca siapa pun — lalu tetap menghasilkan `main.bbl` berisi `\begin{thebibliography}` tanpa satu pun `\bibitem`. LaTeX kemudian gagal pada lingkungan kosong itu, dengan pesan yang menyesatkan.
+
+Ini insiden kegagalan senyap **ketujuh** pada proyek ini, setelah *fallback* mRMR yang tidak pernah berjalan (§8.1), fungsi publik yang dijamin gagal dan tak pernah diuji (§8.2), uji yang membekukan angka yang salah (§8.2), disk penuh, *checkpoint* korup, dan proses latih yang mati bersama sesi SSH (§8.3). Polanya persis sama: komponen yang gagal menulis peringatan ke saluran yang tidak dibaca, lalu menyerahkan keluaran yang bentuknya sah tapi isinya kosong ke tahap berikutnya. Yang membedakan kasus ini hanya keberuntungan bahwa LaTeX kebetulan menolak bibliografi kosong. Seandainya dokumen ini tidak punya sitasi sama sekali, *build* akan **berhasil** dan menerbitkan PDF tanpa daftar pustaka tanpa satu pun keluhan.
+
+Perbaikannya memakai jalur mutlak, bukan menambah satu tingkat `..`, karena jumlah tingkat yang benar bergantung pada program mana yang sedang dijalankan `latexmk` — asumsi yang justru menyebabkan cacat ini. `paper/track2/.latexmkrc` identik dan diperbaiki bersamaan, sebelum Track 2 sempat menemukannya sendiri.
+
+**Audit deskripsi kelima arm.** Pemeriksaan silang antara laporan ini dan manuskrip menemukan bahwa §3.4 mendeskripsikan `fusion_early` sebagai "konkatenasi fitur radiomics mentah ke input CNN", padahal `build_early_fusion_features` menggabungkan **embedding CNN** dengan vektor radiomik terpilih lalu melatih XGBoost. Deskripsi itu salah sejak draf awal dan tidak pernah tertangkap karena tidak ada apa pun yang mengikat prosa ke kode. Karena satu deskripsi salah berarti yang lain patut dicurigai, keempat arm sisanya ikut diaudit baris demi baris; keempatnya benar, dan `fusion_intermediate` ditambahi dimensi proyeksi yang sebelumnya tidak disebut. Tabel §3.4 sekarang mencantumkan nama fungsi setiap arm, sehingga deskripsi yang menyimpang dari kodenya bisa diperiksa dalam hitungan detik, bukan ditemukan kebetulan saat menulis paper.
+
+**Celah cakupan test: `_trim_white`.** `src/stage_08d_run02_fig14.py` memuat `_trim_white`, yang memotong bingkai putih PNG SHAP dengan ambang intensitas. Fungsi ini punya cabang nyata (larik yang seluruhnya putih dikembalikan apa adanya) dan nol uji, karena `tests/` masuk daftar tolak izin pada sesi penulisan ini. Dicatat di sini sebagai celah cakupan, bukan dianggap tidak ada — persis seperti `full_feature_selection_pipeline` di §8.2, yang juga bertahan lama justru karena tidak ada yang memanggil maupun mengujinya. Bedanya, kali ini celahnya diketahui sejak menit pertama, dan satu-satunya gerbang yang menjaganya sekarang adalah pemeriksaan visual figure. Uji asap yang dibutuhkan kecil: satu larik putih seluruhnya, satu larik dengan blok gelap di tengah, periksa bentuk keluarannya.
+
 ---
 
 ## 9. Rencana lanjutan
@@ -276,7 +297,32 @@ Konsekuensi untuk penulisan manuskrip: klaim kesetaraan dengan radiomics harus s
 1. Jalankan ulang ablasi fusi dengan perbaikan `input_size` (`python -m src.stage_03b_fusion --config configs/config.yaml`), verifikasi `cnn_only` densenet201 kembali mendekati 0.8988.
 2. Eksekusi ketiga varian fusi baru (branch_norm, GMU, modality dropout) pada grid penuh.
 3. Jalankan panel XAI komparabilitas begitu checkpoint tersedia.
-4. Tambahkan sitasi yang hilang lewat Zotero (`docs/laporan/REFERENSI_DIBUTUHKAN.md`).
+4. Tambahkan sitasi yang hilang lewat Zotero (`docs/laporan/REFERENSI_DIBUTUHKAN.md`). Daftar konkretnya ada di §9.1.
+5. Tulis uji asap untuk `_trim_white` (§8.6) begitu `tests/` bisa disentuh lagi.
+
+### 9.1 Sitasi yang dibutuhkan manuskrip Track 1
+
+Per 8 Agustus 2026, `paper/refs.bib` hanya memuat satu citekey yang relevan, `prabhavalkarHybridPETCTRadiomics2026`; entri satunya sisa Zotero yang tidak berhubungan. Lima belas klaim di manuskrip menunggu kuncinya. Semuanya sudah ditandai di `paper/track1/main.tex` dengan makro `\CITE{...}` yang tercetak merah di PDF, dan seluruhnya padam sekaligus dengan mengganti `\draftnotestrue` jadi `\draftnotesfalse`. Penanda sengaja dibuat terlihat, bukan komentar, supaya tidak bisa lolos ke *submit* tanpa disadari.
+
+| # | Bagian | Klaim yang butuh sitasi |
+|---|---|---|
+| 1 | Related Work | 2–3 studi radiomics LIDC-IDRI yang menopang rentang AUC 0.79–0.94 |
+| 2 | Related Work | Kompetisi modalitas / *greedy multimodal learning* |
+| 3 | Related Work | Taksonomi early/intermediate/late fusion |
+| 4 | Related Work | Gated Multimodal Unit |
+| 5 | Metodologi | Makalah dataset LIDC-IDRI (Armato dkk.) |
+| 6 | Metodologi | Konvensi agregasi label median LIDC |
+| 7 | Metodologi | ConvNeXt |
+| 8 | Metodologi | DenseNet |
+| 9 | Metodologi | XGBoost |
+| 10 | Metodologi | PyRadiomics / IBSI |
+| 11 | Metodologi | Uji DeLong (1988) |
+| 12 | Metodologi | Layer-CAM, dengan Grad-CAM sebagai pendahulunya |
+| 13 | Metodologi | *Pointing game* (Zhang dkk.) |
+| 14 | Metodologi | *Energy-based pointing game* / Score-CAM |
+| 15 | Metodologi | SHAP (Lundberg & Lee 2017) dan TreeSHAP |
+
+Aturan yang berlaku selama menunggu: **jangan mengarang citekey.** Kalau kunci belum ada di `refs.bib`, penandanya dibiarkan sampai ekspor Zotero berikutnya. `refs.bib` adalah auto-export Better BibTeX dan tidak boleh disunting tangan.
 
 ---
 
