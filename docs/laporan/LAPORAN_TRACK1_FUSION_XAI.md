@@ -6,13 +6,19 @@
 - **Repo**: `lung-nodule-fusion-xai`
 - **Tugas**: Track 1 dari pemisahan dua paper (lihat `docs/Review Revisi 1.md` §8)
 - **Dataset**: LIDC-IDRI
-- **Tanggal laporan**: 30 Juli 2026
+- **Tanggal laporan**: 30 Juli 2026 (diperbarui 8 Agustus 2026 dengan hasil run `2026-08-04-run02`, lihat §6.3)
 
 ---
 
 ## 1. Ringkasan eksekutif
 
-Track 1 membandingkan lima *arm* representasi (CNN-only, radiomics-only, early fusion, intermediate fusion, late fusion) pada tujuh backbone CNN, lalu mengevaluasi explainability tiap arm secara terpisah. Temuan utama: radiomics-only mengungguli semua varian fusi, dan pointing accuracy Grad-CAM/Layer-CAM sangat bervariasi antar backbone tanpa hubungan konsisten terhadap AUC klasifikasi.
+Track 1 membandingkan lima *arm* representasi (CNN-only, radiomics-only, early fusion, intermediate fusion, late fusion) pada tujuh backbone CNN, lalu mengevaluasi explainability tiap arm secara terpisah.
+
+**Klaim final** (menggantikan kesimpulan lama "radiomics-only mengungguli semua varian fusi", yang sudah tidak akurat setelah perbaikan bug resolusi dan kuantifikasi run `2026-08-04-run02`):
+
+> `fusion_late` mengalahkan CNN-sendirian secara signifikan tanpa syarat seleksi *checkpoint* (p < 1e-11 pada ketiga backbone, baik dengan maupun tanpa seleksi *checkpoint*), setara dengan radiomics dalam AUC, mempertahankan penjelasan spasial pada tingkat yang praktis sama (selisih pointing accuracy ≤0.05, identik persis pada himpunan enam nodul tetap), dan satu-satunya *arm* yang menyediakan penjelasan spasial dan penjelasan fitur sekaligus.
+
+Klaim kesetaraan dengan radiomics bertumpu pada DenseNet201 sebagai model utama (§6.3.2); dua backbone pendukung punya ketergantungan *checkpoint* yang dinyatakan eksplisit di §8.5. Temuan sekunder yang tidak berubah: pointing accuracy Grad-CAM/Layer-CAM sangat bervariasi antar backbone tanpa hubungan konsisten terhadap AUC klasifikasi.
 
 ### Status komponen
 
@@ -88,7 +94,7 @@ Dari 21 uji DeLong berpasangan (`fusion/delong_fusion.csv`), fusion_late unggul 
 
 #### Batasan: seleksi epoch bocor, belum tertutup di angka ini
 
-Angka `fusion_intermediate` (dan turunannya `fusion_early`/`fusion_late` lewat *embedding* dan probabilitas CNN yang sama) di atas masih memakai protokol lama: *epoch* terbaik dipilih berdasarkan AUC pada *fold* validasi luar, lalu *fold* yang sama dilaporkan sebagai skor akhir (`src/stage_03b_fusion.py:207-215` sebelum perbaikan nested CV). `radiomics_only` satu-satunya arm yang bersih dari kebocoran ini karena `train_early_fusion_xgboost` tidak memakai `eval_set`. Artinya keunggulan tipis fusion_late di atas radiomics_only diukur dengan timbangan berat sebelah dan belum bisa ditafsirkan sampai nested CV (§8.4) dijalankan ulang; lihat §9 untuk rencana lanjutan.
+Angka `fusion_intermediate` (dan turunannya `fusion_early`/`fusion_late` lewat *embedding* dan probabilitas CNN yang sama) di atas masih memakai protokol lama: *epoch* terbaik dipilih berdasarkan AUC pada *fold* validasi luar, lalu *fold* yang sama dilaporkan sebagai skor akhir (`src/stage_03b_fusion.py:207-215` sebelum perbaikan nested CV). `radiomics_only` satu-satunya arm yang bersih dari kebocoran ini karena `train_early_fusion_xgboost` tidak memakai `eval_set`. Artinya keunggulan tipis fusion_late di atas radiomics_only diukur dengan timbangan berat sebelah dan belum bisa ditafsirkan sampai nested CV (§8.4) dijalankan ulang. Pertanyaan itu kini terjawab lewat *sensitivity check* rezim *checkpoint* di §6.3 dan §8.5, yang menggantikan §6.1 sebagai hasil utama untuk `fusion_late`.
 
 ### 6.2 XAI
 
@@ -113,6 +119,89 @@ Pointing accuracy rendah tidak berarti AUC klasifikasi rendah; beberapa backbone
 
 ---
 
+### 6.3 Keunggulan gabungan `fusion_late` (run `2026-08-04-run02`, commit `5220afb`)
+
+Bagian ini adalah hasil utama Track 1 versi terkini. Seluruh angkanya berasal dari satu run tunggal sehingga tidak lagi tersebar antar arsip, dan setiap baris mencantumkan rezim *checkpoint* yang dipakai.
+
+#### 6.3.1 Tabel keunggulan gabungan
+
+Tabel di bawah adalah tabel utama Track 1, disalin apa adanya dari `artifacts/results/run02/combined_advantage_table.md`. Angka dalam kurung adalah rentang antar tiga backbone (`convnext_tiny`, `densenet201`, `densenet121`).
+
+| Kriteria | cnn_only | radiomics_only | fusion_late |
+|---|---|---|---|
+| AUC gabungan 5 fold (rerata 3 backbone) | 0.8944 (0.8907–0.8965) | 0.9336 (0.9336–0.9336) | 0.9327 (0.9300–0.9363) |
+| AUC dengan *checkpoint* tanpa seleksi (T-0) | 0.8806 (0.8725–0.8888) | 0.9336 (0.9336–0.9336) (tidak terpengaruh) | 0.9290 (0.9241–0.9360) |
+| DeLong vs `fusion_late` (p, 3 backbone) | 0.0000 (1.0e-12–1.4e-10); signifikan 3/3 | 0.5417 (0.4555–0.6793); signifikan 0/3 | — |
+| Peta salience spasial (Grad-CAM/Layer-CAM) | ada | mustahil secara struktural | ada (diwarisi dari cabang citra) |
+| Pointing accuracy (60 nodul fold 0, rerata 3 backbone) | 0.6667 (0.5763–0.7288) | tidak terdefinisi | 0.6384 (0.5593–0.6780) |
+| SHAP fitur radiomik | tidak ada | ada | ada |
+| **Penjelasan spasial DAN fitur sekaligus** | **tidak** | **tidak** | **ya** |
+
+Baris terakhir adalah penutup argumen: dua *arm* lain masing-masing hanya menutupi satu sisi explainability, dan hanya `fusion_late` yang menutupi keduanya tanpa membayar dengan AUC.
+
+#### 6.3.2 DenseNet201 sebagai model utama
+
+Klaim kesetaraan AUC dengan `radiomics_only` dilaporkan dengan DenseNet201 sebagai model utama. Alasannya tunggal dan dapat diperiksa: DenseNet201 adalah **satu-satunya backbone yang tetap setara dengan radiomics tanpa keuntungan seleksi *checkpoint*** (p = 0.5122 pada *checkpoint* `last`, dengan AUC nominal lebih tinggi, 0.9360 vs 0.9336). ConvNeXt-Tiny dan DenseNet121 tetap dilaporkan sebagai bukti pendukung, tetapi kesetaraan keduanya hanya bertahan pada rezim `best`; lihat §8.5.
+
+| Backbone | AUC `fusion_late` (best) | p vs radiomics (best) | AUC `fusion_late` (last) | p vs radiomics (last) | Setara tanpa seleksi? |
+|---|---|---|---|---|---|
+| **DenseNet201** | 0.9363 | 0.4901 | **0.9360** | **0.5122** | **ya** |
+| ConvNeXt-Tiny | 0.9300 | 0.4555 | 0.9268 | 0.0246 | tidak |
+| DenseNet121 | 0.9319 | 0.6793 | 0.9241 | 0.0144 | tidak |
+
+#### 6.3.3 Kemenangan atas `cnn_only` bebas syarat
+
+Uji DeLong `fusion_late` vs `cnn_only` dijalankan pada kedua rezim *checkpoint*. Kemenangan `fusion_late` bertahan signifikan pada ketiganya di kedua rezim, dengan p pada rezim tanpa seleksi justru lebih kecil:
+
+| Backbone | p (rezim `best`) | p (rezim `last`) |
+|---|---|---|
+| ConvNeXt-Tiny | 1.009e-12 | 3.903e-12 |
+| DenseNet201 | 1.362e-10 | 7.366e-12 |
+| DenseNet121 | 2.969e-11 | 3.775e-15 |
+
+Alasan struktural mengapa klaim ini kebal terhadap kebocoran seleksi *checkpoint* yang dibahas di §8.4: kedua *arm* memakai *checkpoint* CNN yang sama, sehingga keuntungan seleksi masuk ke kedua sisi perbandingan dan saling meniadakan. Perbandingan yang sensitif terhadap rezim *checkpoint* hanyalah `fusion_late` vs `radiomics_only`, karena `radiomics_only` bersih dari seleksi apa pun (§8.4). Batas p yang aman ditulis dalam manuskrip adalah p < 1e-11, mengikuti nilai terbesar dari keenam sel di atas (1.362e-10 pada rezim `best`; jika hanya rezim `last` yang dikutip, batasnya p < 7.4e-12).
+
+#### 6.3.4 Explainability: fusi tidak merusak lokalisasi
+
+Metrik Grad-CAM/Layer-CAM dihitung pada dua himpunan sampel: himpunan enam nodul tetap dari `artifacts/xai/fixed_display_samples.json` (tidak pernah dipilih ulang) dan himpunan 60 nodul fold 0 (59 nodul dengan mask valid) untuk resolusi statistik yang lebih halus.
+
+| Backbone | Himpunan | Pointing accuracy `cnn_only` | Pointing accuracy `fusion_late` | Selisih | Nodul beda keputusan |
+|---|---|---|---|---|---|
+| ConvNeXt-Tiny | 6 nodul tetap | 1.0000 | 1.0000 | 0.0000 | 0 |
+| DenseNet201 | 6 nodul tetap | 0.3333 | 0.3333 | 0.0000 | 0 |
+| DenseNet121 | 6 nodul tetap | 0.5000 | 0.5000 | 0.0000 | 0 |
+| ConvNeXt-Tiny | 60 nodul fold 0 | 0.7288 | 0.6780 | −0.0508 | 5 |
+| DenseNet201 | 60 nodul fold 0 | 0.6949 | 0.6780 | −0.0169 | 6 |
+| DenseNet121 | 60 nodul fold 0 | 0.5763 | 0.5593 | −0.0169 | 2 |
+
+Temuan ini positif dan dilaporkan sebagai temuan, bukan sebagai kekurangan: **menambahkan modalitas radiomik tidak merusak kemampuan lokalisasi spasial cabang citra.** Selisih terbesar 0.0508 dan identik persis pada himpunan enam nodul tetap.
+
+Penjelasannya arsitektural dan dapat diperiksa langsung dari definisi *arm*. `fusion_late` adalah rata-rata probabilitas, $0.5 \cdot p_\text{CNN} + 0.5 \cdot p_\text{rad}$, tanpa jaringan baru yang dilatih; ia mewarisi cabang citra `cnn_only` secara utuh. Karena peta CAM dihitung terhadap kelas keputusan, peta `fusion_late` **identik dengan peta `cnn_only` pada setiap nodul yang kelas keputusan kedua *arm*-nya sama**, dan hanya berbeda pada nodul yang keputusan fusinya berbeda dari keputusan CNN. Jumlah nodul semacam itu kecil: 5, 6, dan 2 dari 59 pada ketiga backbone, dan nol pada himpunan enam nodul tetap — itulah sebabnya selisihnya persis nol di sana. Selisih kecil pada himpunan 60 nodul karena itu berasal dari segelintir nodul saja, bukan dari degradasi menyeluruh.
+
+Klaim "fusi unggul dalam XAI" **tidak didukung angka dan tidak boleh ditulis**. Yang didukung angka: fusi mempertahankan penjelasan spasial pada tingkat yang praktis sama, sambil menjadi satu-satunya *arm* yang juga punya penjelasan tingkat fitur.
+
+#### 6.3.5 SHAP cabang radiomik
+
+Tiga figur beeswarm (`shap_beeswarm_{backbone}.png`, 23 fitur, fold 0, `fs_method = mutual_info_classif`) secara arsitektural **identik antar backbone**, karena cabang radiomik `fusion_late` tidak menerima masukan apa pun dari cabang CNN. Fakta ini dicatat eksplisit di kolom `identical_across_backbones` pada `artifacts/results/run02/shap_provenance.csv`, bukan disembunyikan dengan menampilkan tiga figur seolah-olah berbeda.
+
+#### 6.3.6 Provenance angka
+
+Seluruh angka §6.3 berasal dari run `2026-08-04-run02` pada commit `5220afb`, kolom `run_id` dan `commit_sha` tersimpan di setiap baris CSV sumbernya.
+
+| Angka | Berkas sumber | Rezim *checkpoint* |
+|---|---|---|
+| AUC per *arm*, uji DeLong | `artifacts/results/run02/delong_run02.csv` | kolom `ckpt_kind` (`best` / `last`) |
+| Sensitivitas T-0 | `artifacts/results/run02/t0_checkpoint_sensitivity.csv` | keduanya, berdampingan |
+| Metrik XAI dan selisihnya | `artifacts/results/run02/xai_fusion_vs_cnn.csv` | `best` |
+| Sampel XAI yang dipakai | `artifacts/results/run02/xai_samples_used.csv` | — |
+| Provenance SHAP | `artifacts/results/run02/shap_provenance.csv` | `best` |
+| Vektor probabilitas mentah | `artifacts/results/run02/probs/{backbone}.npz` | kedua rezim, kolom terpisah |
+| Tabel gabungan §6.3.1 | `artifacts/results/run02/combined_advantage_table.{csv,md}` | dinyatakan per baris |
+
+Rezim `best` memakai `checkpoints/{model}/fold{f}_best.pt`, yaitu *checkpoint* yang dipilih `stage_03_train` berdasarkan AUC pada fold yang sama dengan yang dilaporkan. Rezim `last` memakai `fold{f}_last.pt`, *checkpoint* akhir pelatihan tanpa seleksi apa pun. Rezim `last` adalah *sensitivity check* batas bawah, bukan nested CV penuh — nested CV akan menuntut pelatihan ulang 3 backbone × 5 fold dan tidak dijalankan.
+
+---
+
 ## 7. Figur
 
 | Figur | Berkas | Kegunaan |
@@ -130,6 +219,7 @@ Pointing accuracy rendah tidak berarti AUC klasifikasi rendah; beberapa backbone
 3. Panel XAI komparabilitas baru (`stage_07f_xai_comparability.py`) belum bisa dijalankan di mesin manapun karena checkpoint tidak tersedia lokal saat ditulis.
 4. SHAP dan Grad-CAM dilaporkan pada skala terpisah tanpa metrik penyatu; ini gap metodologis terbuka, bukan keterbatasan khusus studi ini.
 5. Seleksi fitur radiomics memakai *mutual information* (`mutual_info_classif`), bukan mRMR. Lihat §8.1.
+6. Kesetaraan `fusion_late` dengan `radiomics_only` bergantung pada rezim *checkpoint* untuk dua dari tiga backbone. Lihat §8.5.
 
 ### 8.1 Temuan reproducibility: kegagalan yang diam
 
@@ -169,6 +259,16 @@ Audit yang sama menemukan kebocoran nyata, tapi di tempat lain dari yang diduga 
 
 **Perbaikan diterapkan**: `_train_fusion_fold` sekarang mencarik *inner split* per pasien (85/15, `GroupShuffleSplit` disemai per *fold*) dari *fold* pelatihan luar. *Epoch* terbaik dipilih dari AUC *inner-validation* itu; *fold* validasi luar (`outer_val_loader`) hanya dievaluasi sekali, setelah pelatihan selesai, dan tidak pernah memengaruhi bobot mana yang disimpan. Cakupan perbaikan ini sengaja dibatasi pada `stage_03b_fusion.py` saja — 215 *run* Track 2 di `src/training/trainer.py` tidak disentuh, karena keduanya jalur kode terpisah dan Track 2 di luar cakupan revisi ini.
 
+### 8.5 Batasan: kesetaraan dengan radiomics bergantung pada rezim *checkpoint* pada dua backbone
+
+Ini keterbatasan paling material dari klaim final dan dinyatakan di sini secara eksplisit, bukan diserahkan pada pembaca untuk menemukannya sendiri.
+
+Pada rezim `best` — *checkpoint* yang dipilih berdasarkan AUC fold yang sama dengan yang dilaporkan — `fusion_late` setara secara statistik dengan `radiomics_only` pada ketiga backbone (p = 0.4555, 0.4901, 0.6793). Pada rezim `last`, yang membuang keuntungan seleksi itu, kesetaraan **runtuh pada dua backbone**: `fusion_late` menjadi signifikan **lebih buruk** daripada `radiomics_only` pada ConvNeXt-Tiny (p = 0.0246) dan DenseNet121 (p = 0.0144). Hanya DenseNet201 yang bertahan setara (p = 0.5122) sekaligus nominal lebih tinggi.
+
+Asimetrinya berasal dari §8.4: `radiomics_only` tidak pernah menikmati seleksi berbasis validasi sama sekali, sehingga ia adalah satu-satunya pembanding yang rezim *checkpoint*-nya tidak berubah antar kolom. Ketika keuntungan seleksi dicabut dari sisi fusi saja, selisihnya terlihat. Besar keuntungan seleksi itu sendiri terbatas, paling banyak 0.0078 AUC (`delta_late` pada `t0_checkpoint_sensitivity.csv`), dan tidak ada satu pun backbone yang urutan peringkat *arm*-nya terbalik.
+
+Konsekuensi untuk penulisan manuskrip: klaim kesetaraan dengan radiomics harus selalu menyebutkan model utamanya (DenseNet201) atau menyebutkan rezim *checkpoint*-nya. Klaim kesetaraan yang digeneralisasi ke ketiga backbone tanpa syarat tidak akan bertahan ketika diperiksa. Perhatikan bahwa batasan ini **tidak menyentuh** klaim terkuat, yaitu kemenangan atas `cnn_only`, dengan alasan yang dijelaskan di §6.3.3.
+
 ---
 
 ## 9. Rencana lanjutan
@@ -184,6 +284,8 @@ Audit yang sama menemukan kebocoran nyata, tapi di tempat lain dari yang diduga 
 
 Semua angka pada laporan ini ditelusuri ke baris CSV nyata yang ditarik dari mesin remote pada 30 Juli 2026, bukan diperkirakan. Batasan bug resolusi dinyatakan eksplisit di titik angkanya muncul (§6.1), bukan disembunyikan.
 
+Untuk angka §6.3, setiap baris CSV sumber menyimpan `run_id` dan `commit_sha`-nya sendiri, dan setiap perbandingan AUC menyimpan kolom `ckpt_kind` sehingga rezim *checkpoint* tidak pernah terpisah dari angkanya — penerapan langsung dari prinsip §8.1. Dua hasil yang tidak menguntungkan klaim penelitian ini dilaporkan apa adanya di titik angkanya muncul: runtuhnya kesetaraan dengan radiomics pada dua backbone tanpa seleksi *checkpoint* (§8.5), dan pointing accuracy `fusion_late` yang sedikit di bawah `cnn_only` alih-alih di atasnya (§6.3.4).
+
 ---
 
 ## Lampiran: berkas hasil
@@ -193,3 +295,8 @@ Semua angka pada laporan ini ditelusuri ke baris CSV nyata yang ditarik dari mes
 | `artifacts/results/fusion/ablation_summary.csv` | 175 baris, AUC per arm per backbone per fold |
 | `artifacts/results/fusion/delong_fusion.csv` | 21 baris, uji DeLong fusi vs radiomics-only |
 | `artifacts/results/xai/xai_metrics.csv` | 12 baris, metrik Grad-CAM/Layer-CAM per backbone |
+| `artifacts/results/run02/delong_run02.csv` | 12 baris, DeLong `fusion_late` vs `cnn_only` dan vs `radiomics_only`, dua rezim *checkpoint* |
+| `artifacts/results/run02/t0_checkpoint_sensitivity.csv` | 3 baris, AUC `best` vs `last` per backbone (§8.5) |
+| `artifacts/results/run02/xai_fusion_vs_cnn.csv` | 24 baris, selisih metrik XAI per backbone per himpunan sampel |
+| `artifacts/results/run02/combined_advantage_table.md` | tabel utama §6.3.1 |
+| `artifacts/results/run02/shap_provenance.csv` | 3 baris, provenance figur SHAP termasuk `identical_across_backbones` |
