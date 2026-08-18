@@ -135,6 +135,40 @@ def _fusion_ablation_summary(results_dir: str) -> tuple[pd.DataFrame, pd.DataFra
     return pooled, delong
 
 
+def _fusion_verdict(delong: pd.DataFrame, alpha: float = 0.05) -> str:
+    """Rumuskan vonis per arm fusion dari tabel DeLong, bukan dari ingatan penulis.
+
+    Dibuat setelah menemukan versi hardcoded yang menyebut fusion_late "signifikan
+    lebih buruk (p=0.0015)" masih tercetak persis di bawah tabel yang menunjukkan
+    0 dari 7 backbone signifikan. Selama kalimatnya ditulis tangan, kalimat itu akan
+    selalu bisa tertinggal di belakang datanya.
+    """
+    if delong.empty or "fusion_arm" not in delong.columns:
+        return "_Tabel DeLong tidak tersedia, vonis per arm tidak dirumuskan._\n"
+    lines = []
+    for arm, g in delong.groupby("fusion_arm", sort=False):
+        worse = int((g["delong_p"] < alpha).sum())
+        if worse == len(g):
+            verdict = f"**signifikan lebih buruk di seluruh {len(g)} backbone**"
+        elif worse:
+            verdict = f"**signifikan lebih buruk di {worse} dari {len(g)} backbone**"
+
+        else:
+            verdict = f"tidak terbedakan dari radiomics-only di seluruh {len(g)} backbone"
+        lines.append(f"- `{arm}`: {verdict} "
+                     f"(p {_fmt_p(g['delong_p'].min())} sampai {_fmt_p(g['delong_p'].max())})")
+    return "\n".join(lines) + "\n"
+
+
+def _fmt_p(p: float) -> str:
+    """`< 0.0001`, bukan `0`, untuk p yang tergilas pembulatan empat desimal.
+
+    Tabel DeLong dibulatkan ke 4 desimal sebelum dirender, sehingga p sekecil 2.6e-7
+    tercetak 0.0. Menuliskannya sebagai "p 0" akan terbaca sebagai nol persis.
+    """
+    return "< 0.0001" if p < 1e-4 else f"{p:.4g}"
+
+
 def _shap_top_features(results_dir: str, n: int = 10) -> pd.DataFrame:
     path = os.path.join(results_dir, "xai_track1", "shap_feature_importance.csv")
     if not os.path.exists(path):
@@ -223,8 +257,10 @@ def run(cfg: dict, repo_root: str) -> None:
     a(f"Temuan utama: backbone **{best_auc_row['Backbone']}** meraih AUC binary tertinggi "
       f"({best_auc_row['AUC (mean+-std)']}), tapi **{most_efficient_row['Backbone']}** paling "
       f"efisien (AUC/M params={most_efficient_row['AUC/M params']}). Di Track 1, "
-      f"**radiomics-only mengalahkan semua varian fusion** (lihat Bab 6.3) — temuan negatif "
-      f"yang dilaporkan apa adanya sesuai decision rule pre-registered. Di XAI, kualitas "
+      f"**radiomics-only mengalahkan varian fusion berparameter** (lihat Bab 6.3) — temuan "
+      f"negatif yang dilaporkan apa adanya sesuai decision rule pre-registered. Cakupannya "
+      f"dipersempit per 8 Agustus 2026: `fusion_late` tidak termasuk yang dikalahkan, dan "
+      f"klaim finalnya ada di §6.3 `docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md`. Di XAI, kualitas "
       f"lokalisasi Grad-CAM **tidak mengikuti kapasitas model** — vit_base (86M params) nyaris "
       f"tidak melokalisasi nodul (pointing_acc=0), sementara vgg16 terbaik (pointing_acc=0.20).\n")
 
@@ -288,7 +324,8 @@ def run(cfg: dict, repo_root: str) -> None:
     a("- Feature selection (mutual_info_classif + LASSO per fold; mRMR tidak pernah jalan, "
       "`pymrmr` tidak terpasang) -> ablation 5 arm "
       "(cnn_only/radiomics_only/fusion_early/intermediate/late) -> SHAP + Grad-CAM sidebyside")
-    a("- Hasil: lihat Bab 6.3. Fusion TIDAK mengalahkan radiomics-only (dilaporkan transparan)")
+    a("- Hasil: lihat Bab 6.3. Tidak ada varian fusion yang mengalahkan radiomics-only "
+      "(dilaporkan transparan); fusion_late setara, bukan kalah")
     a("- Fig 11 (diagram arsitektur fusion) sudah dibuat sebagai draft (fusion_architecture.png); "
       "Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample) menyusul saat "
       "penulisan Track 1 lanjutan, bukan blocker hasil\n")
@@ -403,11 +440,16 @@ def run(cfg: dict, repo_root: str) -> None:
     if not fusion_delong.empty:
         a(_df_to_markdown(fusion_delong) + "\n")
     a("**Kesimpulan (decision rule pre-registered, ditetapkan sebelum lihat hasil)**: "
-      "fusion HANYA jadi headline kalau DeLong p<0.05 DAN AUC fusion lebih tinggi. Hasil "
-      "nyata: fusion_intermediate tidak signifikan berbeda (p=0.60) dari radiomics-only; "
-      "fusion_early dan fusion_late justru **signifikan lebih buruk** (p=0.019 dan p=0.0015). "
-      "**Radiomics-only tetap headline Track 1** -- dilaporkan transparan sebagai temuan valid, "
-      "bukan disembunyikan karena tidak sesuai ekspektasi.\n")
+      "fusion HANYA jadi headline kalau DeLong p<0.05 DAN AUC fusion lebih tinggi.\n")
+    # Rincian per arm dihitung dari tabel di atas, bukan ditulis tangan. Versi lama
+    # meng-hardcode "fusion_late signifikan lebih buruk (p=0.0015)" dan tetap tercetak
+    # setelah angkanya berubah, sehingga bertentangan dengan tabel tepat di atasnya.
+    # Prinsipnya sama dengan Bab 8: angka harus melekat pada sumber yang melahirkannya.
+    a(_fusion_verdict(fusion_delong))
+    a("**Radiomics-only tetap headline Track 1** -- dilaporkan transparan sebagai temuan valid, "
+      "bukan disembunyikan karena tidak sesuai ekspektasi. Cakupannya dipersempit 8 Agustus "
+      "2026: yang dikalahkan radiomics adalah fusion berparameter. `fusion_late` setara, dan "
+      "diuji tersendiri di §6.3 `docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md`.\n")
     a("**Top-10 fitur radiomics terpenting (mean |SHAP|):**\n")
     if not shap_top.empty:
         a(_df_to_markdown(shap_top) + "\n")
@@ -444,7 +486,10 @@ def run(cfg: dict, repo_root: str) -> None:
     a("- Repo lokal sempat stale terhadap state remote (checkpoint 120 run sudah jalan tapi belum ter-sync) -- pentingnya audit state nyata sebelum planning")
     a("- Naming bug laten: checkpoint/log/pred arm A (binary) tidak pakai suffix task, sementara arm lain pakai -- ditemukan & diperbaiki sebelum sempat merusak hasil di rerun")
     a("- Temuan XAI: interpretability != kapasitas model (ViT besar tapi Grad-CAM nyaris flat)")
-    a("- Temuan Track 1: fusion tidak otomatis menang atas modalitas tunggal -- radiomics-only mengalahkan 3 skema fusion, dilaporkan apa adanya sesuai decision rule pre-registered\n")
+    a("- Temuan Track 1: fusion tidak otomatis menang atas modalitas tunggal -- radiomics-only "
+      "mengalahkan skema fusion berparameter, dilaporkan apa adanya sesuai decision rule "
+      "pre-registered. Cakupan dipersempit 8 Agustus 2026: fusion_late setara dengan "
+      "radiomics-only, bukan kalah (§6.3 LAPORAN_TRACK1_FUSION_XAI.md)\n")
     a("---\n")
 
     a("## 9. RENCANA LANJUTAN\n")

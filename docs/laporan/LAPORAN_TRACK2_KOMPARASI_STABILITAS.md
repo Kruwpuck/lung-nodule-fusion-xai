@@ -110,11 +110,27 @@ Metrik ordinal-native (`ordinal_native_metrics.csv`): QWK 0.5451, MAE 0.6433, ak
 
 ## 7. Figur
 
-| Figur | Berkas | Kegunaan |
+**Fig T2-1. Sebaran AUC per model, 5-fold, kombinasi default.**
+
+![Boxplot AUC enam model legacy pada 5-fold: mobilenetv3_small terendah, vgg16 tertinggi dengan sebaran paling lebar](../../artifacts/results/figures/auc_boxplot.png)
+
+Dua hal terbaca sekaligus, dan yang kedua lebih penting daripada yang pertama. Peringkat median memang naik dari `mobilenetv3_small` ke `vgg16`, tetapi **lebar kotaknya berbeda-beda jauh**, dan `vgg16` yang medianya tertinggi justru punya sebaran terlebar. Membaca peringkat median tanpa melihat lebar kotak akan melahirkan klaim "model X terbaik" yang tidak bertahan begitu fold-nya diganti. Inilah alasan §6.2 memakai uji ragam, bukan sekadar membandingkan rerata.
+
+**Fig T2-2. Quadratic Weighted Kappa per model pada arm ordinal.**
+
+![Boxplot QWK enam model pada arm B ordinal: mobilenetv3_small sekitar 0.32, empat model teratas berkerumun di 0.60 sampai 0.64](../../artifacts/results/figures_ordinal/qwk_boxplot.png)
+
+Metrik ordinal-native memisahkan model jauh lebih tegas daripada AUC biner. Pada Fig T2-1 keenam model berdesakan dalam rentang 0.84 sampai 0.91; pada QWK, `mobilenetv3_small` tertinggal di sekitar 0.32 sementara empat model teratas berkerumun di 0.60 sampai 0.64. Model yang tampak hanya sedikit lebih lemah pada tugas biner ternyata jauh lebih lemah begitu jarak antar tingkat malignansi ikut diperhitungkan.
+
+**Belum bisa dipasang.** Tiga figur berikut dirujuk versi laporan sebelumnya tetapi **tidak ikut di-*track* git**, sehingga tautannya patah pada klon yang bersih. Dicatat di sini alih-alih dipasang sebagai tautan mati.
+
+| Figur | Berkas | Keadaan |
 |---|---|---|
-| AUC per optimizer | `artifacts/results/figures/track2_auc_by_optimizer.png` | Visualisasi sebaran AUC per optimizer |
-| Heatmap AUC | `artifacts/results/figures/track2_auc_heatmap.png` | Peta AUC backbone x optimizer x weight_decay |
-| Kurva training Track 2 | `artifacts/results/figures/curves_track2.png` | Kurva loss/AUC per epoch |
+| AUC per optimizer | `artifacts/results/figures/track2_auc_by_optimizer.png` | Ada di disk, tidak tracked |
+| Heatmap AUC | `artifacts/results/figures/track2_auc_heatmap.png` | Ada di disk, tidak tracked |
+| Kurva training Track 2 | `artifacts/results/figures/curves_track2.png` | Ada di disk, tidak tracked |
+
+Ketiganya justru figur yang paling relevan untuk §6.2, jadi menjadikannya tracked adalah pekerjaan lanjutan yang murah dan berdampak.
 
 ---
 

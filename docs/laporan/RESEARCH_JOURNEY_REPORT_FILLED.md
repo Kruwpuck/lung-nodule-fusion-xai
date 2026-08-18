@@ -13,8 +13,9 @@
 - **Peneliti**:
   - Ihab Hasanain Akmal (103032330054)
   - Siti Nurhayati Syafaningrum (101012330012)
-- **Pembimbing**: Felix Corputty
-- **Periode**: 2026-06-27 s/d 2026-07-20 (dari git log)
+- **Pembimbing**: Naufal Hanan Lutfianto
+- **Periode**: 2026-06-27 s/d 2026-08-18 (dari git log)
+- **Target sidang**: <<ISI: target sidang/deadline>>
 
 ---
 
@@ -24,7 +25,7 @@ Penelitian ini membangun pipeline klasifikasi malignancy nodul paru pada LIDC-ID
 
 Status sekarang: **kedua track sudah menghasilkan hasil lengkap** — Track 2 (120 run: 6 backbone x 4 arm x 5 fold) dan Track 1 (fusion ablation 5 arm x 5 fold + SHAP + cross-modality figure) sudah selesai dieksekusi dan dievaluasi.
 
-Temuan utama: backbone **vgg16** meraih AUC binary tertinggi (0.9103 +- 0.0336), tapi **mobilenetv3_small** paling efisien (AUC/M params=0.8946). Di Track 1, **radiomics-only mengalahkan semua varian fusion** (lihat Bab 6.3) — temuan negatif yang dilaporkan apa adanya sesuai decision rule pre-registered. Di XAI, kualitas lokalisasi Grad-CAM **tidak mengikuti kapasitas model** — vit_base (86M params) nyaris tidak melokalisasi nodul (pointing_acc=0), sementara vgg16 terbaik (pointing_acc=0.20).
+Temuan utama: backbone **vgg16** meraih AUC binary tertinggi (0.9103 +- 0.0336), tapi **mobilenetv3_small** paling efisien (AUC/M params=0.8946). Di Track 1, **radiomics-only mengalahkan varian fusion berparameter** (lihat Bab 6.3) — temuan negatif yang dilaporkan apa adanya sesuai decision rule pre-registered. Cakupannya dipersempit per 8 Agustus 2026: `fusion_late` tidak termasuk yang dikalahkan, dan klaim finalnya ada di §6.3 `docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md`. Di XAI, kualitas lokalisasi Grad-CAM **tidak mengikuti kapasitas model** — vit_base (86M params) nyaris tidak melokalisasi nodul (pointing_acc=0), sementara vgg16 terbaik (pointing_acc=0.20).
 
 **Tabel status cepat:**
 
@@ -54,7 +55,7 @@ Temuan utama: backbone **vgg16** meraih AUC binary tertinggi (0.9103 +- 0.0336),
 
 ## 3. TIMELINE JOURNEY (kronologi revisi)
 
-Rentang commit git: **2026-06-27** (initial commit) s/d **2026-07-20** (commit terakhir).
+Rentang commit git: **2026-06-27** (initial commit) s/d **2026-08-18** (commit terakhir).
 
 ### Fase 1 — Perencanaan awal & pemilihan dataset
 - Dataset dipilih: LIDC-IDRI (1018 scan, anotasi 4 radiolog, rating malignancy 1-5)
@@ -89,8 +90,8 @@ Rentang commit git: **2026-06-27** (initial commit) s/d **2026-07-20** (commit t
 - Temuan: densenet121/resnet50/vgg16 nempel nodul di Grad-CAM, mobilenetv3/efficientnet meleset, vit_base nyaris flat
 
 ### Fase 8 — Track 1 Fusion (selesai)
-- Feature selection (mRMR fallback mutual_info + LASSO per fold) -> ablation 5 arm (cnn_only/radiomics_only/fusion_early/intermediate/late) -> SHAP + Grad-CAM sidebyside
-- Hasil: lihat Bab 6.3. Fusion TIDAK mengalahkan radiomics-only (dilaporkan transparan)
+- Feature selection (mutual_info_classif + LASSO per fold; mRMR tidak pernah jalan, `pymrmr` tidak terpasang) -> ablation 5 arm (cnn_only/radiomics_only/fusion_early/intermediate/late) -> SHAP + Grad-CAM sidebyside
+- Hasil: lihat Bab 6.3. Tidak ada varian fusion yang mengalahkan radiomics-only (dilaporkan transparan); fusion_late setara, bukan kalah
 - Fig 11 (diagram arsitektur fusion) sudah dibuat sebagai draft (fusion_architecture.png); Fig 14 (cross-validation SHAP<->Grad-CAM lintas lebih banyak sample) menyusul saat penulisan Track 1 lanjutan, bukan blocker hasil
 
 ---
@@ -184,7 +185,7 @@ Kontur hijau pada figure di atas adalah mask segmentasi dari anotasi radiolog di
 ### 5.3 Radiomics
 - PyRadiomics, binWidth 25, resample [1,1,1]
 - Feature classes: firstorder, shape, glcm, glrlm, glszm, gldm, ngtdm
-- Selection per fold (train split only, anti-leakage): mRMR (fallback `mutual_info_classif`, `pymrmr` tidak terpasang) -> LASSO (`LassoCV`)
+- Selection per fold (train split only, anti-leakage): `mutual_info_classif` -> LASSO (`LassoCV`). Bukan mRMR: `pymrmr` tidak terpasang, jadi cabang mRMR tidak pernah dieksekusi. Metode yang benar-benar jalan tercatat per baris di kolom `fs_method` pada ablation_summary.csv
 
 ### 5.4 Fusion & statistik
 - FusionNet: emb_dim=256, rad_dim=128, fusion_dim=128, dropout=0.3
@@ -272,12 +273,18 @@ Benign-vs-malignant AUC pada subset nodul saja (headline, anti-inflasi):
 
 | Backbone | Dice | IoU | Dice (size-matched) | Pointing Acc | Energy |
 |---|---|---|---|---|---|
+| densenet121 | 0.103 | 0.063 | 0.4703 | 0.7167 | 0.0309 |
+| convnext_tiny | 0.1091 | 0.0653 | 0.4443 | 0.7167 | 0.0478 |
+| densenet201 | 0.097 | 0.0576 | 0.4322 | 0.7 | 0.0315 |
+| inception_resnet_v2 | 0.1199 | 0.0726 | 0.3089 | 0.3833 | 0.0669 |
 | vgg16 | 0.0914 | 0.0597 | 0.1785 | 0.2 | 0.1027 |
-| densenet121 | 0.0993 | 0.0599 | 0.1099 | 0.1333 | 0.045 |
+| inceptionv3 | 0.09 | 0.0502 | 0.1647 | 0.2 | 0.0378 |
+| xception | 0.0716 | 0.0479 | 0.1519 | 0.2 | 0.0464 |
 | resnet50 | 0.1181 | 0.0703 | 0.1461 | 0.1167 | 0.0534 |
 | efficientnet_b0 | 0.061 | 0.0353 | 0.0667 | 0.0833 | 0.0563 |
 | mobilenetv3_small | 0.0379 | 0.0201 | 0.0176 | 0.0 | 0.0205 |
 | vit_base | 0.0357 | 0.0198 | 0.015 | 0.0 | 0.0074 |
+| googlenet | 0.035 | 0.0189 | 0.0113 | 0.0 | 0.0 |
 
 **Temuan kualitatif (fixed sample set S1-S6)**: densenet121, resnet50, dan vgg16 -- hot spot Grad-CAM konsisten jatuh di dalam mask nodul (S1-S4). mobilenetv3_small dan efficientnet_b0 sering meleset ke tepi nodul/struktur sekitar. vit_base nyaris flat (pointing_acc=0), konsisten dengan skor rendah di tabel metrik. **Interpretability tidak mengikuti kapasitas model** -- vit_base 86M params tapi lokalisasi terlemah.
 
@@ -297,21 +304,65 @@ Diagram di atas skema 5 arm yang diablasi: dua modalitas tunggal (cnn_only, radi
 
 | arm | pooled_auc | auc_std | n_folds |
 |---|---|---|---|
-| radiomics_only | 0.9342 | 0.0159 | 5 |
-| fusion_intermediate | 0.9338 | 0.0106 | 5 |
-| fusion_early | 0.922 | 0.0089 | 5 |
-| fusion_late | 0.9196 | 0.0199 | 5 |
-| cnn_only | 0.8362 | 0.0183 | 5 |
+| fusion_late | 0.9349 | 0.0169 | 35 |
+| radiomics_only | 0.9324 | 0.0147 | 35 |
+| fusion_intermediate_gmu | 0.9192 | 0.0165 | 15 |
+| fusion_intermediate_branch_norm | 0.919 | 0.015 | 15 |
+| fusion_intermediate_branch_norm_moddrop_auxloss | 0.9156 | 0.0179 | 15 |
+| fusion_intermediate_gmu_moddrop_auxloss | 0.9133 | 0.0115 | 15 |
+| fusion_early | 0.9119 | 0.0216 | 35 |
+| fusion_intermediate | 0.9098 | 0.0248 | 35 |
+| cnn_only | 0.9018 | 0.0211 | 35 |
 
 **DeLong test: tiap varian fusion vs radiomics-only (best single arm):**
 
-| fusion_arm | fusion_auc | best_single_arm | best_single_auc | delong_p | fusion_significantly_better |
-|---|---|---|---|---|---|
-| fusion_intermediate | 0.9304 | radiomics | 0.9332 | 0.6008 | False |
-| fusion_early | 0.9205 | radiomics | 0.9332 | 0.0186 | False |
-| fusion_late | 0.9183 | radiomics | 0.9332 | 0.0015 | False |
+| backbone | fusion_arm | fusion_auc | best_single_arm | best_single_auc | delong_p | fusion_significantly_better | run_id | input_size | commit_sha | condition |
+|---|---|---|---|---|---|---|---|---|---|---|
+| inceptionv3 | fusion_intermediate | 0.9154 | radiomics | 0.933 | 0.0087 | False | nan | nan | nan | nan |
+| inceptionv3 | fusion_early | 0.9135 | radiomics | 0.933 | 0.0034 | False | nan | nan | nan | nan |
+| inceptionv3 | fusion_late | 0.9364 | radiomics | 0.933 | 0.3773 | False | nan | nan | nan | nan |
+| xception | fusion_intermediate | 0.8916 | radiomics | 0.9311 | 0.0 | False | nan | nan | nan | nan |
+| xception | fusion_early | 0.9009 | radiomics | 0.9311 | 0.0001 | False | nan | nan | nan | nan |
+| xception | fusion_late | 0.9316 | radiomics | 0.9311 | 0.9022 | False | nan | nan | nan | nan |
+| googlenet | fusion_intermediate | 0.9059 | radiomics | 0.9314 | 0.0002 | False | nan | nan | nan | nan |
+| googlenet | fusion_early | 0.9069 | radiomics | 0.9314 | 0.0028 | False | nan | nan | nan | nan |
+| googlenet | fusion_late | 0.9326 | radiomics | 0.9314 | 0.7989 | False | nan | nan | nan | nan |
+| convnext_tiny | fusion_intermediate | 0.9199 | radiomics | 0.9317 | 0.064 | False | nan | nan | nan | nan |
+| convnext_tiny | fusion_early | 0.9042 | radiomics | 0.9317 | 0.0006 | False | nan | nan | nan | nan |
+| convnext_tiny | fusion_late | 0.9269 | radiomics | 0.9317 | 0.3354 | False | nan | nan | nan | nan |
+| inception_resnet_v2 | fusion_intermediate | 0.8839 | radiomics | 0.9308 | 0.0 | False | nan | nan | nan | nan |
+| inception_resnet_v2 | fusion_early | 0.9144 | radiomics | 0.9308 | 0.0148 | False | nan | nan | nan | nan |
+| inception_resnet_v2 | fusion_late | 0.9313 | radiomics | 0.9308 | 0.8883 | False | nan | nan | nan | nan |
+| densenet201 | fusion_intermediate | 0.8983 | radiomics | 0.929 | 0.0001 | False | nan | nan | nan | nan |
+| densenet201 | fusion_early | 0.9076 | radiomics | 0.929 | 0.0058 | False | nan | nan | nan | nan |
+| densenet201 | fusion_late | 0.9342 | radiomics | 0.929 | 0.204 | False | nan | nan | nan | nan |
+| densenet121 | fusion_intermediate | 0.9157 | radiomics | 0.9336 | 0.0069 | False | nan | nan | nan | nan |
+| densenet121 | fusion_early | 0.913 | radiomics | 0.9336 | 0.0021 | False | nan | nan | nan | nan |
+| densenet121 | fusion_late | 0.9319 | radiomics | 0.9336 | 0.6793 | False | nan | nan | nan | nan |
+| convnext_tiny | fusion_intermediate_branch_norm | 0.882 | radiomics | 0.9336 | 0.0 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | plain |
+| convnext_tiny | fusion_intermediate_gmu | 0.9065 | radiomics | 0.9336 | 0.0 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | plain |
+| densenet201 | fusion_intermediate_branch_norm | 0.9161 | radiomics | 0.9336 | 0.0012 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | plain |
+| densenet201 | fusion_intermediate_gmu | 0.9088 | radiomics | 0.9336 | 0.0001 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | plain |
+| densenet121 | fusion_intermediate_branch_norm | 0.9083 | radiomics | 0.9336 | 0.0001 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | plain |
+| densenet121 | fusion_intermediate_gmu | 0.9246 | radiomics | 0.9336 | 0.1378 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | plain |
+| convnext_tiny | fusion_intermediate_branch_norm_moddrop_auxloss | 0.8758 | radiomics | 0.9336 | 0.0 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | reg |
+| convnext_tiny | fusion_intermediate_gmu_moddrop_auxloss | 0.9122 | radiomics | 0.9336 | 0.0006 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | reg |
+| densenet201 | fusion_intermediate_branch_norm_moddrop_auxloss | 0.9067 | radiomics | 0.9336 | 0.0 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | reg |
+| densenet201 | fusion_intermediate_gmu_moddrop_auxloss | 0.8968 | radiomics | 0.9336 | 0.0 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | reg |
+| densenet121 | fusion_intermediate_branch_norm_moddrop_auxloss | 0.9066 | radiomics | 0.9336 | 0.0 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | reg |
+| densenet121 | fusion_intermediate_gmu_moddrop_auxloss | 0.9053 | radiomics | 0.9336 | 0.0 | False | 2026-08-04-run01 | 96.0 | 7fafbb8 | reg |
 
-**Kesimpulan (decision rule pre-registered, ditetapkan sebelum lihat hasil)**: fusion HANYA jadi headline kalau DeLong p<0.05 DAN AUC fusion lebih tinggi. Hasil nyata: fusion_intermediate tidak signifikan berbeda (p=0.60) dari radiomics-only; fusion_early dan fusion_late justru **signifikan lebih buruk** (p=0.019 dan p=0.0015). **Radiomics-only tetap headline Track 1** -- dilaporkan transparan sebagai temuan valid, bukan disembunyikan karena tidak sesuai ekspektasi.
+**Kesimpulan (decision rule pre-registered, ditetapkan sebelum lihat hasil)**: fusion HANYA jadi headline kalau DeLong p<0.05 DAN AUC fusion lebih tinggi.
+
+- `fusion_intermediate`: **signifikan lebih buruk di 6 dari 7 backbone** (p < 0.0001 sampai 0.064)
+- `fusion_early`: **signifikan lebih buruk di seluruh 7 backbone** (p 0.0001 sampai 0.0148)
+- `fusion_late`: tidak terbedakan dari radiomics-only di seluruh 7 backbone (p 0.204 sampai 0.9022)
+- `fusion_intermediate_branch_norm`: **signifikan lebih buruk di seluruh 3 backbone** (p < 0.0001 sampai 0.0012)
+- `fusion_intermediate_gmu`: **signifikan lebih buruk di 2 dari 3 backbone** (p < 0.0001 sampai 0.1378)
+- `fusion_intermediate_branch_norm_moddrop_auxloss`: **signifikan lebih buruk di seluruh 3 backbone** (p < 0.0001 sampai < 0.0001)
+- `fusion_intermediate_gmu_moddrop_auxloss`: **signifikan lebih buruk di seluruh 3 backbone** (p < 0.0001 sampai 0.0006)
+
+**Radiomics-only tetap headline Track 1** -- dilaporkan transparan sebagai temuan valid, bukan disembunyikan karena tidak sesuai ekspektasi. Cakupannya dipersempit 8 Agustus 2026: yang dikalahkan radiomics adalah fusion berparameter. `fusion_late` setara, dan diuji tersendiri di §6.3 `docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md`.
 
 **Top-10 fitur radiomics terpenting (mean |SHAP|):**
 
@@ -367,7 +418,7 @@ Kedua figure di atas membandingkan atensi spasial CNN (Grad-CAM) dengan kontribu
 - Repo lokal sempat stale terhadap state remote (checkpoint 120 run sudah jalan tapi belum ter-sync) -- pentingnya audit state nyata sebelum planning
 - Naming bug laten: checkpoint/log/pred arm A (binary) tidak pakai suffix task, sementara arm lain pakai -- ditemukan & diperbaiki sebelum sempat merusak hasil di rerun
 - Temuan XAI: interpretability != kapasitas model (ViT besar tapi Grad-CAM nyaris flat)
-- Temuan Track 1: fusion tidak otomatis menang atas modalitas tunggal -- radiomics-only mengalahkan 3 skema fusion, dilaporkan apa adanya sesuai decision rule pre-registered
+- Temuan Track 1: fusion tidak otomatis menang atas modalitas tunggal -- radiomics-only mengalahkan skema fusion berparameter, dilaporkan apa adanya sesuai decision rule pre-registered. Cakupan dipersempit 8 Agustus 2026: fusion_late setara dengan radiomics-only, bukan kalah (§6.3 LAPORAN_TRACK1_FUSION_XAI.md)
 
 ---
 

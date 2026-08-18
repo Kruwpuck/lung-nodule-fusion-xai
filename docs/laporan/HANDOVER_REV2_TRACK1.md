@@ -8,6 +8,14 @@ mengikuti sesi sebelumnya.
 Laporan hasil lengkap ada di `docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md`. Dokumen ini
 tidak menggantikannya, melainkan merangkum keputusan dan keadaan operasional.
 
+> **Dibaca setelah 5 Agustus 2026? Mulai dari sini.** Dokumen ini bertanggal 4 Agustus.
+> Sehari sesudahnya, run `2026-08-04-run02` mengubah kesimpulan Track 1 untuk satu arm.
+> Seluruh perbaikan dan angka operasional di bawah tetap berlaku, tetapi kalimat
+> "radiomics-only mengungguli seluruh varian fusi" sekarang **terlalu luas**. Yang
+> dikalahkan radiomics adalah fusi berparameter, yaitu `fusion_early` dan
+> `fusion_intermediate`. `fusion_late` setara dengannya, dan menang telak atas `cnn_only`.
+> Klaim final ada di §6.3 laporan Track 1; jangan mengutip dokumen ini sebagai kesimpulan.
+
 ---
 
 ## 1. Ringkasan satu paragraf
@@ -16,8 +24,12 @@ Empat perbaikan dijalankan berurutan: bug resolusi input, kebocoran seleksi *epo
 ablasi fusi, seleksi fitur yang tidak deterministik, dan *checkpoint* DenseNet121 dari dua
 rezim resolusi berbeda. Setiap perbaikan diukur terhadap arsip *baseline*, dan tiga di
 antaranya mengubah angka secara berarti. Kesimpulan utama tidak berubah, malah menguat:
-radiomics-only mengungguli seluruh varian fusi, dan nol dari 21 uji DeLong mendukung fusi.
-Kebocoran ternyata menyamarkan kekalahan, bukan menciptakan kemenangan.
+radiomics-only mengungguli varian fusi **berparameter**, dan nol dari 21 uji DeLong
+mendukung fusi. Kebocoran ternyata menyamarkan kekalahan, bukan menciptakan kemenangan.
+Batas cakupannya penting: ke-21 uji itu membandingkan tiap arm fusi terhadap arm tunggal
+terbaik, dan tidak satu pun **mendukung** fusi — tetapi tidak terbedakan secara statistik
+berbeda artinya dengan kalah. `fusion_late` termasuk yang tidak terbedakan, dan run
+`2026-08-04-run02` kemudian menguji arm itu tersendiri (§6.3 laporan Track 1).
 
 Step 2 (dua tahap *fine-tuning* dengan BatchNorm dibekukan) **belum dimulai** dan menunggu
 keputusan.
@@ -45,8 +57,8 @@ Kolom `fs_method` terisi `mutual_info_classif` pada 175 dari 175 baris, nol koso
 Sumber: `artifacts/results/fusion/delong_fusion.csv`. Kolom
 `fusion_significantly_better` bernilai `False` pada seluruh 21 baris.
 
-fusion_late unggul angka pada 5 dari 7 *backbone*, tetapi p terkecil di sisi menang adalah
-0.2040 (`densenet201`). fusion_early kalah signifikan pada ketujuh *backbone*.
+fusion_late unggul angka pada 5 dari 7 backbone, tetapi p terkecil di sisi menang adalah
+0.2040 (`densenet201`). fusion_early kalah signifikan pada ketujuh backbone.
 fusion_intermediate kalah signifikan pada enam dari tujuh, dengan p terkecil 2.6e-7 pada
 `inception_resnet_v2`.
 
@@ -79,7 +91,7 @@ beralih ke `mutual_info_classif` sambil hanya menulis satu baris `logger.warning
 pun. Seluruh angka radiomics dihasilkan oleh *mutual information*.
 
 Perbaikannya bersifat teks, bukan eksperimen, karena yang salah adalah deskripsinya bukan
-metodenya. Seleksi berbasis *mutual information* sah dan tetap dijalankan per *fold* pada
+metodenya. Seleksi berbasis mutual information sah dan tetap dijalankan per fold pada
 data latih saja. Yang ditambahkan adalah jaminan struktural: `mrmr_select` sekarang
 mengembalikan nama metode yang benar-benar berjalan, dan nama itu ditulis ke kolom
 `fs_method` pada setiap baris hasil.
@@ -88,16 +100,16 @@ mengembalikan nama metode yang benar-benar berjalan, dan nama itu ditulis ke kol
 
 ### 3.2 Kebocoran seleksi epoch pada ablasi fusi
 
-`_train_fusion_fold` memilih *epoch* terbaik berdasarkan AUC pada *fold* validasi luar,
-lalu melaporkan skor pada *fold* yang sama. Kebocoran ini **asimetris antar-arm**, dan itu
+`_train_fusion_fold` memilih epoch terbaik berdasarkan AUC pada fold validasi luar,
+lalu melaporkan skor pada fold yang sama. Kebocoran ini **asimetris antar-arm**, dan itu
 bagian yang penting. `radiomics_only` bersih karena `train_early_fusion_xgboost` memanggil
 `clf.fit` tanpa `eval_set`. Karena pembanding satu-satunya yang bersih justru adalah
 radiomics, setiap kemenangan tipis arm fusi di atasnya diukur dengan timbangan berat
 sebelah.
 
 Perbaikannya memakai *inner split* per pasien, yaitu `GroupShuffleSplit` 85/15 yang
-disemai per *fold*, diambil dari *fold* pelatihan luar. *Epoch* terbaik dipilih dari AUC
-*inner-validation*, dan *fold* validasi luar hanya dievaluasi sekali setelah pelatihan
+disemai per fold, diambil dari fold pelatihan luar. Epoch terbaik dipilih dari AUC
+*inner-validation*, dan fold validasi luar hanya dievaluasi sekali setelah pelatihan
 selesai. Cakupannya sengaja dibatasi pada `src/stage_03b_fusion.py`; 215 *run* Track 2 di
 `src/training/trainer.py` tidak disentuh.
 
@@ -105,14 +117,14 @@ Hasilnya menurunkan `fusion_intermediate` sebesar 0.0210 AUC. Tiga arm lain berg
 di bawah 0.0005 dan `cnn_only` nol persis, yang berfungsi sebagai konfirmasi silang bahwa
 perbaikan mengenai sasaran: hanya `fusion_intermediate` yang melewati `_train_fusion_fold`.
 
-*Commit* `31a4ecd`, dengan perbaikan susulan `da7e0cb` untuk `drop_last=True` pada *loader*
+Commit `31a4ecd`, dengan perbaikan susulan `da7e0cb` untuk `drop_last=True` pada *loader*
 pelatihan. Pemotongan 85 persen mengubah ukuran himpunan latih sehingga sebagian kombinasi
-*fold* dan *backbone* menghasilkan *batch* terakhir berukuran satu, yang ditolak
+fold dan backbone menghasilkan *batch* terakhir berukuran satu, yang ditolak
 `BatchNorm` dalam moda pelatihan.
 
 ### 3.3 Seleksi fitur tidak deterministik
 
-Setelah nested CV, `radiomics_only` bergerak sampai 0.0036 AUC per *backbone* padahal nol
+Setelah nested CV, `radiomics_only` bergerak sampai 0.0036 AUC per backbone padahal nol
 baris kode pada jalur arm itu berubah. Penyebabnya `mutual_info_classif` yang dipanggil
 tanpa `random_state`; penaksir *k-nearest-neighbour*-nya menambahkan derau untuk memecah
 nilai seri.
@@ -122,29 +134,29 @@ menghasilkan himpunan berbeda pada 4 fitur, sementara dua pemanggilan dengan
 `random_state=42` identik. Sumber acak lain sudah tertutup, `train_early_fusion_xgboost`
 memakai `random_state=42` dan `LassoCV` deterministik pada moda `cyclic`.
 
-Angka lantai derau 0.0036 diukur **sebelum** *seed* dipasang. Ia berguna sebagai ambang
-untuk menafsirkan hasil lama, tetapi tidak berlaku untuk *run* setelah `733856b`.
+Angka lantai derau 0.0036 diukur **sebelum** seed dipasang. Ia berguna sebagai ambang
+untuk menafsirkan hasil lama, tetapi tidak berlaku untuk run setelah `733856b`.
 
 ### 3.4 Checkpoint DenseNet121 dari dua rezim resolusi
 
-AUC standalone DenseNet121 0.8333 jauh di bawah enam *backbone* lain, dengan dua *fold*
-nyaris kolaps (sensitivitas 0.0864 pada *fold* 1 dan 0.1196 pada *fold* 4). Membacanya
+AUC standalone DenseNet121 0.8333 jauh di bawah enam backbone lain, dengan dua fold
+nyaris kolaps (sensitivitas 0.0864 pada fold 1 dan 0.1196 pada fold 4). Membacanya
 sebagai instabilitas pelatihan keliru.
 
 Bukti yang menentukan bukan tanggal berkas melainkan `best_auc` yang tersimpan di dalam
-setiap *checkpoint*. Dibandingkan dengan AUC hasil evaluasi ulang, 32 dari 35 *checkpoint*
-Track 1 cocok sampai 0.0000. Hanya DenseNet121 *fold* 0, 1, dan 4 yang menyimpang, dengan
+setiap checkpoint. Dibandingkan dengan AUC hasil evaluasi ulang, 32 dari 35 checkpoint
+Track 1 cocok sampai 0.0000. Hanya DenseNet121 fold 0, 1, dan 4 yang menyimpang, dengan
 selisih 0.0965, 0.0787, dan 0.1079.
 
-Penyebabnya, `input_size: 96` masuk pada *commit* `0b54376` yang sekaligus menambahkan
-enam *backbone* Track 1 lainnya. Keenamnya karena itu tidak pernah ada sebelum rezim 96
+Penyebabnya, `input_size: 96` masuk pada commit `0b54376` yang sekaligus menambahkan
+enam backbone Track 1 lainnya. Keenamnya karena itu tidak pernah ada sebelum rezim 96
 piksel. DenseNet121 satu-satunya yang berasal dari himpunan model legacy dan sudah dilatih
-sejak 14 Juli. Ketika *pipeline* dijalankan ulang, `maybe_resume` menemukan *epoch* 49
+sejak 14 Juli. Ketika *pipeline* dijalankan ulang, `maybe_resume` menemukan epoch 49
 dengan `epochs: 50` sehingga syarat `start_epoch >= epochs` pada
 `src/stage_03_train.py:211` terpenuhi dan baris berikutnya mencetak `[SKIP]` tanpa
-melatih satu *epoch* pun.
+melatih satu epoch pun.
 
-Kelima *fold* dilatih ulang dari nol dalam dua tahap, dengan *checkpoint* lama dipindahkan
+Kelima fold dilatih ulang dari nol dalam dua tahap, dengan checkpoint lama dipindahkan
 ke `artifacts/checkpoints/_archive_densenet121_pre_input_size/` (10 berkas, tidak dihapus
 karena menjadi bukti bagi §8.6 laporan).
 
@@ -156,16 +168,16 @@ karena menjadi bukti bagi §8.6 laporan).
 | 3 | 0.8911 | 0.8841 | 0.6739 | 0.6957 |
 | 4 | 0.7804 | 0.8921 | 0.1196 | 0.7283 |
 
-Tahap pertama menyentuh *fold* 0, 1, dan 4 saja; selama itu *fold* 2 dan 3 bergerak nol
-persis, yang menjadi kontrol bahwa lonjakan ketiga *fold* lain berasal dari pelatihan
-ulang. Tahap kedua melatih ulang *fold* 2 dan 3 demi keseragaman protokol, dan keduanya
+Tahap pertama menyentuh fold 0, 1, dan 4 saja; selama itu fold 2 dan 3 bergerak nol
+persis, yang menjadi kontrol bahwa lonjakan ketiga fold lain berasal dari pelatihan
+ulang. Tahap kedua melatih ulang fold 2 dan 3 demi keseragaman protokol, dan keduanya
 turun tipis (0.0027 dan 0.0069). Penurunan itu diperlakukan sebagai angka yang lebih
 jujur, sebab angka lama berasal dari jalur yang tidak dapat ditelusuri.
 
 Ablasi fusi kemudian dijalankan ulang khusus untuk DenseNet121, ditulis ke direktori
-terpisah lalu digabungkan, sehingga 150 baris milik enam *backbone* lain tidak tersentuh.
+terpisah lalu digabungkan, sehingga 150 baris milik enam backbone lain tidak tersentuh.
 
-*Commit* `84c48c0`, `1994b4a`, `fd2de16`.
+Commit `84c48c0`, `1994b4a`, `fd2de16`.
 
 ---
 
@@ -186,11 +198,11 @@ seleksi yang sama.
 | densenet201 | 0.796 | 0.697 | 15.6 | 18.6 |
 | googlenet | 0.795 | 0.692 | 15.2 | 19.4 |
 
-Rata-rata per *fold*, n rata-rata 273, ambang keputusan 0,5.
+Rata-rata per fold, n rata-rata 273, ambang keputusan 0,5.
 
 CNN punya kontribusi unik tetapi kecil. Korelasinya tinggi namun jauh dari jenuh, dan CNN
-benar sementara radiomik salah pada sekitar 14 kasus per *fold* atau 5,1 persen, stabil di
-ketujuh *backbone*. Arah ketimpangannya tetap jelas: radiomik unik-benar pada 16 sampai 22
+benar sementara radiomik salah pada sekitar 14 kasus per fold atau 5,1 persen, stabil di
+ketujuh backbone. Arah ketimpangannya tetap jelas: radiomik unik-benar pada 16 sampai 22
 kasus, lebih banyak.
 
 Satu batasan tafsir yang harus dijaga, angka-angka ini adalah keputusan keras pada ambang
@@ -198,8 +210,8 @@ Satu batasan tafsir yang harus dijaga, angka-angka ini adalah keputusan keras pa
 bahwa memperkuat CNN akan menolong, dan juga tidak membuktikan sebaliknya.
 
 Baris DenseNet121 di tabel ini adalah hasil hitung ulang setelah pelatihan ulang. Sebelum
-itu ia mencatat Pearson 0.626 dan radiomik-unik-benar 43.6, dua kali lipat *backbone*
-lain; kedua anomali hilang setelah *checkpoint*-nya benar, yang menjadi bukti tambahan
+itu ia mencatat Pearson 0.626 dan radiomik-unik-benar 43.6, dua kali lipat backbone
+lain; kedua anomali hilang setelah checkpoint-nya benar, yang menjadi bukti tambahan
 bahwa penyimpangannya berasal dari bobot rezim salah.
 
 ---
@@ -208,16 +220,16 @@ bahwa penyimpangannya berasal dari bobot rezim salah.
 
 Enam temuan reproducibility pada §8.1 sampai §8.8 laporan berbagi satu bentuk. Bukti untuk
 setiap temuan **sudah tercetak atau tersimpan** sebelum ditemukan, sebagian bahkan
-berulang pada setiap *run*.
+berulang pada setiap run.
 
 | Bagian laporan | Bukti yang sudah ada | Tidak terbaca sejak |
 |---|---|---|
 | §8.1 | `logger.warning` menyebut `pymrmr` tidak terpasang | awal proyek |
 | §8.3 | proses hilang dari daftar proses setelah sesi SSH ditutup | insiden pertama |
-| §8.4 | `n_val` 1366 lawan 1391 tercetak di setiap baris log *fold* | ablasi pertama |
-| §8.5 | `LASSO selected 29/50` lawan `25/50` untuk arm yang tidak bergantung *backbone* | ablasi pertama |
-| §8.6 | `best_auc` tersimpan di dalam setiap *checkpoint* | 14 Juli |
-| §8.8 | `[SKIP]` tercetak untuk kelima *fold* DenseNet121 | 28 Juli |
+| §8.4 | `n_val` 1366 lawan 1391 tercetak di setiap baris log fold | ablasi pertama |
+| §8.5 | `LASSO selected 29/50` lawan `25/50` untuk arm yang tidak bergantung backbone | ablasi pertama |
+| §8.6 | `best_auc` tersimpan di dalam setiap checkpoint | 14 Juli |
+| §8.8 | `[SKIP]` tercetak untuk kelima fold DenseNet121 | 28 Juli |
 
 Nol dari enam membutuhkan eksperimen baru untuk ditemukan. Yang hilang bukan datanya
 melainkan pembandingnya. Konsekuensi praktis bagi penerus: pemeriksaan konsistensi yang
@@ -231,9 +243,9 @@ anomali di antara ribuan baris normal.
 ### 6.1 Mengubah resolusi mewajibkan pengarsipan checkpoint
 
 Mengubah `input_size`, `patch_xy`, atau `n_slices` **wajib** disertai pemindahan
-*checkpoint* lama ke arsip. Menjalankan ulang saja tidak cukup, dan menaikkan `epochs`
+checkpoint lama ke arsip. Menjalankan ulang saja tidak cukup, dan menaikkan `epochs`
 juga tidak cukup, sebab pelatihan akan dilanjutkan dari bobot rezim lama alih-alih dimulai
-dari nol. `maybe_resume` hanya membandingkan nomor *epoch* dan tidak pernah membandingkan
+dari nol. `maybe_resume` hanya membandingkan nomor epoch dan tidak pernah membandingkan
 konfigurasi, karena `save_ckpt` memang tidak menyimpan ketiga nilai itu.
 
 Gejalanya bukan galat melainkan angka lebih rendah yang masuk akal, dan pesan yang muncul
@@ -259,7 +271,7 @@ pembuktian dilakukan dengan menghapus `densenet201` dari registry lalu memastika
 tersebut gagal dan menyebut nama itu.
 
 Prinsip yang sama berlaku untuk hipotesis. Dua uji sintetis pertama untuk determinisme
-`mutual_info_classif` menyimpulkan "deterministik walau tanpa *seed*", dan keduanya salah
+`mutual_info_classif` menyimpulkan "deterministik walau tanpa seed", dan keduanya salah
 karena datanya terlalu mudah; nilai MI terpisah jauh sehingga derau 1e-10 tidak membalik
 peringkat. Baru pengujian pada matriks 1130 fitur asli memberi jawaban yang benar.
 
@@ -298,7 +310,7 @@ Dari `configs/config.yaml`:
 | `track1_fusion.modality_dropout_rate` | 0.0 |
 | `track1_fusion.aux_loss_weight` | 0.0 |
 
-`input_size: 96` dipilih sebagai kelipatan 32 terkecil di atas *floor* semua *backbone*
+`input_size: 96` dipilih sebagai kelipatan 32 terkecil di atas *floor* semua backbone
 (InceptionV3 dan Inception-ResNet-v2 mensyaratkan 75, Xception 71).
 
 ### 7.3 Perintah
@@ -311,7 +323,7 @@ python -m src.stage_04_evaluate --config configs/config.yaml --task binary
 python -m src.stage_03b_fusion --config configs/config.yaml
 ```
 
-Membatasi ablasi ke satu *backbone* dilakukan dengan menyalin konfigurasi dalam memori,
+Membatasi ablasi ke satu backbone dilakukan dengan menyalin konfigurasi dalam memori,
 mengganti `tracks.track1.backbones` menjadi satu nama, mengarahkan `paths.results` ke
 direktori sementara, lalu menggabungkan baris hasilnya. Menjalankan `stage_03b_fusion`
 dengan konfigurasi terbatas tanpa mengalihkan `paths.results` akan **menimpa** 175 baris
@@ -319,9 +331,9 @@ dengan konfigurasi terbatas tanpa mengalihkan `paths.results` akan **menimpa** 1
 
 ### 7.4 Pembagian data
 
-Lima *fold* dibagi per `patient_id`, disemai 42, sehingga nol pasien menyumbang kasus ke
-lebih dari satu *fold*. Pembagian ini dibekukan dan tidak diubah selama Rev2, agar 215
-*run* Track 2 tetap sahih.
+Lima fold dibagi per `patient_id`, disemai 42, sehingga nol pasien menyumbang kasus ke
+lebih dari satu fold. Pembagian ini dibekukan dan tidak diubah selama Rev2, agar 215
+run Track 2 tetap sahih.
 
 Kohort ablasi fusi berisi 1366 nodul, sedangkan evaluasi standalone 1391. Selisih 25
 berasal dari `_load_merged` yang membuang 42 baris berkunci `(patient_id, nodule_idx)`
@@ -331,7 +343,7 @@ ditimbulkannya berkisar 0.0019 sampai 0.0070.
 
 ### 7.5 Uji statistik
 
-Uji DeLong berpasangan, satu per *backbone* per varian fusi terhadap `radiomics_only`,
+Uji DeLong berpasangan, satu per backbone per varian fusi terhadap `radiomics_only`,
 totalnya 21. Ambang 0,05. Aturan keputusan ditetapkan sebelum hasil dilihat: fusi
 dilaporkan sebagai *headline* hanya bila p terhadap arm tunggal terbaik di bawah 0,05.
 
@@ -340,7 +352,7 @@ dilaporkan sebagai *headline* hanya bila p terhadap arm tunggal terbaik di bawah
 `artifacts/results/_baseline_pre_rev2/` adalah titik referensi wajib dan tidak boleh
 ditimpa atau dihapus. Isinya `ablation_summary.csv` dan `delong_fusion.csv` pra-Rev2, 150
 berkas `preds/*.npz`, dan `xai/xai_metrics.csv`. README di dalamnya memuat peringatan
-provenance untuk `preds/densenet121_fold*.npz`, yang berbeda dari versi ter-*commit* sejak
+provenance untuk `preds/densenet121_fold*.npz`, yang berbeda dari versi ter-commit sejak
 29 Juli.
 
 `artifacts/results/_leaky_pre_nestedcv/` menyimpan hasil sebelum nested CV, dipakai untuk
@@ -352,14 +364,18 @@ menghitung selisih bias seleksi 0.0210.
 
 ### 8.1 Step 2 dan Step 3, menunggu keputusan
 
-Step 2 adalah dua tahap *fine-tuning* dengan BatchNorm dibekukan; Step 3 menjalankan arm
+Step 2 adalah dua tahap fine-tuning dengan BatchNorm dibekukan; Step 3 menjalankan arm
 `branch_norm`, `gmu`, dan *modality dropout* yang kodenya sudah ada tetapi belum pernah
 dieksekusi pada grid penuh. Urutan sudah diputuskan: nested CV mendahului keduanya, dan
 itu sudah selesai.
 
 Batas yang disepakati: Step 2 dan Step 3 adalah upaya sah terakhir. Bila setelah cabang
 CNN diperbaiki dan fusi direbalans hasilnya tetap 0 dari 21, maka "radiomics mengungguli
-fusion" adalah temuan final dan dilaporkan apa adanya.
+fusi berparameter" adalah temuan final dan dilaporkan apa adanya.
+
+Catatan per 5 Agustus 2026: batas itu kini hanya mengikat arm fusi berparameter. Untuk
+`fusion_late`, run `2026-08-04-run02` sudah menjalankan pengujian tersendiri dan hasilnya
+ada di §6.3 laporan Track 1, jadi arm itu tidak lagi menunggu Step 2 maupun Step 3.
 
 Data komplementaritas pada bagian 4 relevan untuk keputusan ini dan sebaiknya dibaca lebih
 dulu.
@@ -368,12 +384,12 @@ dulu.
 
 Diantrikan, tidak mendesak. Tujuannya mengukur seberapa jauh bug resolusi mendistorsi
 kesimpulan tanpa pelatihan ulang. Perlu diperhatikan bahwa `preds/densenet121_fold*.npz`
-di arsip punya provenance tidak pasti, sehingga uji ini paling sahih untuk enam *backbone*
+di arsip punya provenance tidak pasti, sehingga uji ini paling sahih untuk enam backbone
 lainnya.
 
 ### 8.3 Perbaikan struktural yang diusulkan tetapi belum dikerjakan
 
-Menyimpan `input_size`, `patch_xy`, dan `n_slices` di dalam *checkpoint* lalu menolak
+Menyimpan `input_size`, `patch_xy`, dan `n_slices` di dalam checkpoint lalu menolak
 melanjutkan ketika salah satunya tidak cocok. Ini menutup jebakan pada bagian 6.1 secara
 permanen, sejalan dengan prinsip yang sama pada kolom `fs_method`.
 
@@ -409,15 +425,15 @@ Dari yang terlama:
 | `3bb42b4` | laporkan metode seleksi fitur yang benar-benar berjalan |
 | `64eefdd` | uji untuk jalur seleksi yang tak pernah diuji, invarian registry |
 | `10a11bc` | ablasi ulang dengan perbaikan `input_size` |
-| `31a4ecd` | tutup kebocoran *early stopping* dengan *inner split* per pasien |
-| `da7e0cb` | `drop_last` untuk menghindari galat BatchNorm pada *batch* berukuran satu |
+| `31a4ecd` | tutup kebocoran *early stopping* dengan inner split per pasien |
+| `da7e0cb` | `drop_last` untuk menghindari galat BatchNorm pada batch berukuran satu |
 | `733856b` | semai `mutual_info_classif` agar seleksi fitur dapat diulang |
 | `e5448a1` | hasil nested CV, kuantifikasi bias seleksi 0.0210 |
-| `8df41d6` | koreksi diagnosis *checkpoint* DenseNet121, catat pola berulang |
-| `84c48c0` | latih ulang DenseNet121 *fold* 0/1/4 |
+| `8df41d6` | koreksi diagnosis checkpoint DenseNet121, catat pola berulang |
+| `84c48c0` | latih ulang DenseNet121 fold 0/1/4 |
 | `b8ced86` | catat jebakan `input_size` tanpa pelatihan ulang |
-| `1994b4a` | latih ulang *fold* 2/3 agar protokol seragam |
-| `fd2de16` | ablasi ulang DenseNet121 pada *checkpoint* baru |
+| `1994b4a` | latih ulang fold 2/3 agar protokol seragam |
+| `fd2de16` | ablasi ulang DenseNet121 pada checkpoint baru |
 
 Seluruhnya sudah didorong ke `origin/main`. Pohon kerja bersih.
 
@@ -426,24 +442,24 @@ Seluruhnya sudah didorong ke `origin/main`. Pohon kerja bersih.
 ## 10. Koreksi yang dibuat terhadap pernyataan sendiri
 
 Dicatat karena penerus mungkin menemukan versi lama di riwayat percakapan atau pesan
-*commit* awal.
+commit awal.
 
 Bukti pertama tentang `pymrmr` diambil dari interpreter yang salah, sehingga tidak
-membuktikan apa pun tentang *pipeline*. Diverifikasi ulang di dalam *venv*, kesimpulannya
+membuktikan apa pun tentang pipeline. Diverifikasi ulang di dalam venv, kesimpulannya
 tidak berubah.
 
 Klaim bahwa `paper/track1/main.tex` menyebut mRMR keliru; berkas itu tidak pernah
 menyebutnya, dan `docs/laporan/RESEARCH_JOURNEY_REPORT.md:175` justru sudah mengungkap
 *fallback* itu dengan benar.
 
-Hipotesis bahwa selisih 0.0037 pada `cnn_only` berasal dari kebocoran *early stopping*
+Hipotesis bahwa selisih 0.0037 pada `cnn_only` berasal dari kebocoran early stopping
 tertolak. Kebocoran itu ada di kedua jalur sehingga simetris dan tidak dapat menghasilkan
 selisih. Penyebab sebenarnya penyempitan kohort, terverifikasi eksak sampai desimal
 keempat.
 
-Mekanisme *checkpoint* DenseNet121 yang semula dijelaskan sebagai "satu *epoch* tersisa
-sehingga `best.pt` hanya tertimpa pada *fold* yang kebetulan membaik" keliru. Yang terjadi
-adalah `[SKIP]` total tanpa satu *epoch* pun berjalan. Provenance *fold* 2 dan 3 karena itu
+Mekanisme checkpoint DenseNet121 yang semula dijelaskan sebagai "satu epoch tersisa
+sehingga `best.pt` hanya tertimpa pada fold yang kebetulan membaik" keliru. Yang terjadi
+adalah `[SKIP]` total tanpa satu epoch pun berjalan. Provenance fold 2 dan 3 karena itu
 bukan warisan-*resume* melainkan tidak terlacak, dan itulah alasan keduanya ikut dilatih
 ulang.
 
