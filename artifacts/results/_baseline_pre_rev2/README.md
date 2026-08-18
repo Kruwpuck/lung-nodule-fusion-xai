@@ -57,6 +57,44 @@ Angka `densenet201` 0.6432 berhadapan dengan AUC *standalone*-nya 0.8988 adalah
 gejala bug resolusi yang belum diperbaiki saat snapshot ini diambil. Gerbang
 verifikasi Rev2 langkah 1 adalah kembalinya angka ini mendekati 0.8988.
 
+## Peringatan provenance: `preds/densenet121_fold*.npz` dan checkpoint DenseNet121
+
+Kelima `preds/densenet121_fold*.npz` di *working tree* remote **berbeda dari versi
+ter-commit** sejak 29 Juli 2026, dan arsip ini menyalin versi *working tree*.
+Artinya berkas di sini bukan yang tercatat di git, dan tidak boleh diperlakukan
+sebagai salinan `git show` dari titik mana pun.
+
+Penyebabnya terlacak, dan bukan korupsi. `artifacts/checkpoints/densenet121/`
+berisi *checkpoint* dua angkatan:
+
+| Fold | `fold*_best.pt` | Angkatan | AUC standalone |
+|---|---|---|---|
+| 0 | 14 Juli | pra-`input_size` | 0.8018 |
+| 1 | 14 Juli | pra-`input_size` | 0.8272 |
+| 2 | 28 Juli | pasca-`input_size` | 0.8659 |
+| 3 | 28 Juli | pasca-`input_size` | 0.8911 |
+| 4 | 14 Juli | pra-`input_size` | 0.7804 |
+
+`input_size: 96` baru masuk pada commit `0b54376`, 28 Juli 09:15:32. Sesi latih
+28 Juli (09:31 sampai 10:00) melanjutkan tiap *fold* DenseNet121 dari *epoch* 49
+dengan `epochs: 50`, jadi hanya satu *epoch* tersisa. Untuk *fold* 2 dan 3 *epoch*
+terakhir itu memperbaiki AUC sehingga `best.pt` ditimpa bobot rezim 96 piksel;
+untuk *fold* 0, 1, dan 4 tidak, sehingga `best.pt` tetap bobot rezim 64 piksel
+yang kini dievaluasi pada 96 piksel. DenseNet121 satu-satunya *backbone* dengan
+*checkpoint* campuran, enam lainnya seragam 28 Juli atau lebih baru.
+
+Konsekuensi: AUC DenseNet121 0.8333 pada `summary_binary.csv` **bukan** ukuran
+kemampuan arsitekturnya. Rata-rata tiga *fold* basi 0.8031 lawan dua *fold* segar
+0.8785; angka segar itu sejajar dengan enam *backbone* lain. Dua *fold* kolaps
+(sensitivitas 0.0864 pada *fold* 1 dan 0.1196 pada *fold* 4) keduanya berada di
+himpunan basi. Ini artefak infrastruktur, bukan instabilitas pelatihan, sehingga
+mendiagnosisnya lewat *fine-tuning* akan salah sasaran.
+
+Perlu dicatat: korupsi *checkpoint* OneDrive dan pemulihan dari *epoch* 31 yang
+tercatat pada `run_all_log.txt` **tidak** menyentuh DenseNet121. Kejadian itu
+mengenai `inceptionv3`, `xception`, `convnext_tiny`, dan `inception_resnet_v2`.
+Kedua masalah berdiri sendiri.
+
 ## Dua cacat yang sudah diketahui pada baseline ini
 
 1. **Bug resolusi input belum diperbaiki.** *Checkpoint* dilatih pada 96 piksel
