@@ -30,15 +30,18 @@ def _auc_variance(y_true: np.ndarray, y_prob: np.ndarray) -> tuple[float, np.nda
     return auc, v10, v01
 
 
-def delong_test(
+def auc_diff_variance(
     y_true: np.ndarray,
     y_prob_a: np.ndarray,
     y_prob_b: np.ndarray,
 ) -> tuple[float, float, float]:
-    """DeLong test for paired AUC comparison.
+    """Both AUCs and the standard error of their difference, DeLong-style.
 
-    Returns (z_stat, p_value, delta_auc).
-    H0: AUC_A == AUC_B.
+    Returns (auc_a, auc_b, se_diff). se_diff is 0.0 when the structural variance
+    is degenerate -- identical predictors, or too few of one class.
+
+    Split out of delong_test so the significance test and the equivalence test
+    share one variance path. Two copies of this would be free to drift apart.
     """
     auc_a, v10_a, v01_a = _auc_variance(y_true, y_prob_a)
     auc_b, v10_b, v01_b = _auc_variance(y_true, y_prob_b)
@@ -56,12 +59,92 @@ def delong_test(
     cov_ab = s10[0, 1] / n_pos + s01[0, 1] / n_neg
 
     var_diff = var_a + var_b - 2 * cov_ab
-    if var_diff <= 0:
+    se = float(np.sqrt(var_diff)) if var_diff > 0 else 0.0
+    return float(auc_a), float(auc_b), se
+
+
+def delong_test(
+    y_true: np.ndarray,
+    y_prob_a: np.ndarray,
+    y_prob_b: np.ndarray,
+) -> tuple[float, float, float]:
+    """DeLong test for paired AUC comparison.
+
+    Returns (z_stat, p_value, delta_auc).
+    H0: AUC_A == AUC_B.
+    """
+    auc_a, auc_b, se = auc_diff_variance(y_true, y_prob_a, y_prob_b)
+    if se <= 0:
         return 0.0, 1.0, auc_a - auc_b
 
-    z = (auc_a - auc_b) / np.sqrt(var_diff)
+    z = (auc_a - auc_b) / se
     p_value = 2 * (1 - stats.norm.cdf(abs(z)))
     return float(z), float(p_value), float(auc_a - auc_b)
+
+
+def tost_auc(
+    y_true: np.ndarray,
+    y_prob_a: np.ndarray,
+    y_prob_b: np.ndarray,
+    margin: float,
+    alpha: float = 0.05,
+) -> dict:
+    """Two one-sided tests for equivalence of two paired AUCs.
+
+    Where delong_test asks whether two AUCs differ, this asks what a parity
+    claim actually needs: whether the difference is small enough to be
+    uninteresting. Failing to reject equality is not evidence of equivalence,
+    so a parity claim resting on a large DeLong p is rejectable on sight.
+
+    The composite null is delta <= -margin OR delta >= +margin, tested as two
+    one-sided z tests on the DeLong-variance difference (principle: Lakens 2017;
+    paired-AUC formulation: Liu, Ma, Wu & Tai, Stat Med 2006). Equivalence is
+    declared when both are rejected, which is the same statement as the
+    (1 - 2*alpha) interval lying entirely inside +/- margin.
+
+    `margin` must be fixed on clinical grounds before this runs. Choosing it
+    after seeing the interval turns the test into a formality.
+
+    Returns both AUCs, delta, se, both one-sided p values, p_tost, the
+    1-2*alpha and 1-alpha intervals, and the equivalent / noninferior verdicts.
+    """
+    if margin < 0:
+        raise ValueError(f"margin must be non-negative, got {margin}")
+
+    auc_a, auc_b, se = auc_diff_variance(y_true, y_prob_a, y_prob_b)
+    delta = auc_a - auc_b
+
+    if se <= 0:
+        # Degenerate: the difference has no spread, so the verdict is just
+        # whether the point estimate sits inside the margin.
+        inside = abs(delta) < margin
+        p = 0.0 if inside else 1.0
+        return {
+            "auc_a": auc_a, "auc_b": auc_b, "delta": delta, "se": 0.0,
+            "margin": float(margin),
+            "p_lower": p, "p_upper": p, "p_tost": p,
+            "ci90_low": delta, "ci90_high": delta,
+            "ci95_low": delta, "ci95_high": delta,
+            "equivalent": inside, "noninferior": delta > -margin,
+        }
+
+    # H0_lower: delta <= -margin   (rejecting it establishes non-inferiority)
+    # H0_upper: delta >= +margin
+    p_lower = float(1 - stats.norm.cdf((delta + margin) / se))
+    p_upper = float(stats.norm.cdf((delta - margin) / se))
+    p_tost = max(p_lower, p_upper)
+
+    z_90 = stats.norm.ppf(1 - alpha)      # the 1-2*alpha interval TOST corresponds to
+    z_95 = stats.norm.ppf(1 - alpha / 2)
+    return {
+        "auc_a": auc_a, "auc_b": auc_b, "delta": delta, "se": se,
+        "margin": float(margin),
+        "p_lower": p_lower, "p_upper": p_upper, "p_tost": p_tost,
+        "ci90_low": delta - z_90 * se, "ci90_high": delta + z_90 * se,
+        "ci95_low": delta - z_95 * se, "ci95_high": delta + z_95 * se,
+        "equivalent": p_tost < alpha,
+        "noninferior": p_lower < alpha,
+    }
 
 
 def build_ablation_table(
