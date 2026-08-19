@@ -6,7 +6,7 @@
 - **Repo**: `lung-nodule-fusion-xai`
 - **Tugas**: Track 1 dari pemisahan dua paper (lihat `docs/Review Revisi 1.md` §8)
 - **Dataset**: LIDC-IDRI
-- **Tanggal laporan**: 30 Juli 2026 (diperbarui 8 Agustus 2026 dengan hasil run `2026-08-04-run02`, lihat §6.3)
+- **Tanggal laporan**: 30 Juli 2026 (diperbarui 8 Agustus 2026 dengan hasil run `2026-08-04-run02`, lihat §6.3; diperbarui 19 Agustus 2026 dengan uji ekuivalensi run `2026-08-19-run03`, lihat §6.4)
 
 ---
 
@@ -16,9 +16,11 @@ Track 1 membandingkan lima *arm* representasi (CNN-only, radiomics-only, early f
 
 **Klaim final** (menggantikan kesimpulan lama "radiomics-only mengungguli semua varian fusi", yang sudah tidak akurat setelah perbaikan bug resolusi dan kuantifikasi run `2026-08-04-run02`):
 
-> `fusion_late` mengalahkan CNN-sendirian secara signifikan tanpa syarat seleksi *checkpoint* (p < 1e-9 pada ketiga backbone di kedua rezim checkpoint; p < 1e-11 bila hanya rezim tanpa seleksi yang dikutip), setara dengan radiomics dalam AUC, mempertahankan penjelasan spasial pada tingkat yang praktis sama (selisih pointing accuracy ≤0.05, identik persis pada himpunan enam nodul tetap), dan satu-satunya arm yang menyediakan penjelasan spasial dan penjelasan fitur sekaligus.
+> `fusion_late` mengalahkan CNN-sendirian secara signifikan tanpa syarat seleksi *checkpoint* (p < 1e-9 pada ketiga backbone di kedua rezim checkpoint; p < 1e-11 bila hanya rezim tanpa seleksi yang dikutip), **ekuivalen dengan radiomics dalam margin 0.02 AUC pada ketiga backbone di kedua rezim** (p_TOST < 0.004, §6.4), mempertahankan penjelasan spasial pada tingkat yang praktis sama (selisih pointing accuracy ≤0.05, identik persis pada himpunan enam nodul tetap), dan satu-satunya arm yang menyediakan penjelasan spasial dan penjelasan fitur sekaligus.
 
-Klaim kesetaraan dengan radiomics bertumpu pada DenseNet201 sebagai model utama (§6.3.2); dua backbone pendukung punya ketergantungan checkpoint yang dinyatakan eksplisit di §8.9. Temuan sekunder yang tidak berubah: pointing accuracy Grad-CAM/Layer-CAM sangat bervariasi antar backbone tanpa hubungan konsisten terhadap AUC klasifikasi.
+Kata "ekuivalen" di atas menggantikan "setara" yang dipakai draf sebelumnya, dan pergantiannya bukan kosmetik. Draf lama menyimpulkan kesetaraan dari uji DeLong yang **gagal menolak** hipotesis nol kesamaan AUC. Itu penalaran yang tidak sah: tidak adanya bukti perbedaan bukan bukti tidak adanya perbedaan. Sejak 19 Agustus 2026 klaimnya bertumpu pada uji yang hipotesis nolnya justru "keduanya berbeda sedikitnya sebesar margin", lalu ditolak. Rinciannya di §6.4.
+
+Konsekuensinya, klaim kesetaraan **tidak lagi bergantung pada DenseNet201 sebagai model utama**. DenseNet201 tetap disebut model utama, tapi alasannya menyempit: ia satu-satunya backbone yang juga lolos klaim yang lebih kuat, yaitu tidak terbedakan sama sekali oleh DeLong di kedua rezim (§6.3.2, §8.9). Temuan sekunder yang tidak berubah: pointing accuracy Grad-CAM/Layer-CAM sangat bervariasi antar backbone tanpa hubungan konsisten terhadap AUC klasifikasi.
 
 ### Status komponen
 
@@ -284,9 +286,74 @@ Rezim `best` memakai `checkpoints/{model}/fold{f}_best.pt`, yaitu checkpoint yan
 
 ---
 
+## 6.4 Uji ekuivalensi: kesetaraan dengan radiomics, diuji alih-alih disimpulkan (run `2026-08-19-run03`)
+
+### 6.4.1 Mengapa DeLong saja tidak cukup
+
+Seluruh §6.3 menyandarkan klaim kesetaraan pada p DeLong yang besar — 0.4555, 0.4901, 0.6793. Itu cara yang salah untuk sampai ke kesimpulan itu, dan salahnya bersifat logis, bukan numerik.
+
+Hipotesis nol uji DeLong adalah "kedua AUC sama". Gagal menolaknya berarti data tidak cukup untuk memperlihatkan perbedaan; ia sama sekali tidak berarti perbedaannya nol. Sampel yang kecil, prediktor yang berisik, atau uji yang lemah semuanya menghasilkan p besar tanpa satu pun di antaranya menjadi bukti kesetaraan. Klaim kesetaraan yang berdiri di atas p besar bisa dijatuhkan dalam satu kalimat.
+
+Uji yang benar membalik beban itu. **TOST** (*two one-sided tests*) memakai hipotesis nol gabungan "selisihnya sedikitnya sebesar margin δ, ke salah satu arah", lalu berusaha menolaknya dari dua sisi sekaligus. Kalau keduanya tertolak, yang tersisa adalah pernyataan positif: selisihnya berada di dalam ±δ. Setara persis dengan menyatakan bahwa interval kepercayaan 90 persen atas selisih itu seluruhnya termuat di dalam ±δ.
+
+### 6.4.2 Margin ditetapkan lebih dulu, atas dasar klinis
+
+Margin dipakai **δ = 0.02 AUC**, ditetapkan sebelum uji dijalankan dan tidak direvisi sesudahnya. Dua pertimbangan menetapkannya, keduanya dari luar data penelitian ini:
+
+1. **Label rujukannya sendiri tidak sepresisi itu.** Penilaian malignansi LIDC berasal dari empat pembaca yang saling tidak sepakat pada tingkat yang jauh melampaui 0.02; disagreement rating malignansi terukur 0.2144 pada studi yang mengkuantifikasinya. Selisih model di bawah lantai derau itu tidak bisa mengubah keputusan yang standar rujukannya sendiri tidak tentukan.
+2. **Performa yang dilaporkan pada LIDC bergerak lebih dari 0.02 karena pilihan sampel saja.** Baltatzis dkk. menunjukkan pilihan *truthing* dan ambang menggerakkan angka yang dilaporkan, sehingga selisih sebesar itu tidak stabil untuk ditindaklanjuti.
+
+Nilai ini juga **konservatif** dibanding margin 0.05 dan 0.10 yang lazim diperdebatkan untuk uji non-inferioritas pada akurasi diagnostik. Margin longgar membuat ekuivalensi mudah dinyatakan dan karenanya tidak informatif; margin ketat membuat pernyataannya bermakna.
+
+Yang **tidak** dipakai sebagai alasan: bahwa intervalnya kebetulan muat. Margin yang dipilih karena datanya masuk adalah margin post-hoc, dan itu persis cara memilih margin yang akan diserang.
+
+### 6.4.3 Hasil
+
+![Fig 16. Uji ekuivalensi TOST, dua belas perbandingan](../../artifacts/results/run02/fig16_tost_equivalence.png)
+
+*Fig 16. Kedua belas uji ekuivalensi pada satu sumbu. Titik adalah selisih AUC, garis adalah interval kepercayaan 90 persen, pita hijau adalah margin ±0.02. Blok bawah menjawab pertanyaan sebenarnya; blok atas adalah kontrol negatif. Sumber: `artifacts/results/run02/fig16_tost_equivalence.png`, ditulis `src/stage_08f_run02_tost.py`.*
+
+| Backbone | Rezim | Δ AUC | CI 90% | p_TOST | Ekuivalen | p DeLong |
+|---|---|---|---|---|---|---|
+| ConvNeXt-Tiny | best | −0.0036 | (−0.0115, +0.0043) | 3.3e-4 | ya | 0.4555 |
+| ConvNeXt-Tiny | last | −0.0068 | (−0.0117, −0.0018) | 5.7e-6 | ya | **0.0246** |
+| DenseNet201 | best | +0.0027 | (−0.0037, +0.0090) | 3.6e-6 | ya | 0.4901 |
+| DenseNet201 | last | +0.0024 | (−0.0036, +0.0084) | 8.2e-7 | ya | 0.5122 |
+| DenseNet121 | best | −0.0017 | (−0.0085, +0.0051) | 4.4e-6 | ya | 0.6793 |
+| DenseNet121 | last | −0.0095 | (−0.0160, −0.0031) | 3.7e-3 | ya | **0.0144** |
+
+Δ adalah `fusion_late` dikurangi `radiomics_only`. Keenam baris ekuivalen; tidak ada satu pun yang sekadar "tidak signifikan".
+
+**Dua baris yang dicetak tebal adalah inti temuannya.** Pada ConvNeXt-Tiny dan DenseNet121 rezim `last`, DeLong menolak kesamaan AUC — itulah batasan yang dicatat §8.9. TOST tetap menyatakan keduanya ekuivalen. Kedua pernyataan itu benar sekaligus dan tidak saling bertentangan: selisihnya cukup besar untuk **terdeteksi** pada 1366 nodul, dan terlalu kecil untuk **berarti**. Selisih terbesar di seluruh tabel 0.0095 AUC, dan ujung terjauh intervalnya berhenti di −0.0160, masih di dalam margin.
+
+Perlu ditegaskan bahwa keduanya membaca varians yang sama persis. Keduanya memanggil `auc_diff_variance` yang sama pada vektor probabilitas yang sama. Jadi perbedaannya bukan pada data, melainkan pada pertanyaannya.
+
+### 6.4.4 Kontrol negatif
+
+Uji ekuivalensi yang menyatakan semuanya ekuivalen tidak membuktikan apa pun. Karena itu prosedur yang sama dijalankan pada perbandingan yang **sudah diketahui berbeda jauh**, yaitu `fusion_late` lawan `cnn_only`, dengan selisih 0.035 sampai 0.052 AUC.
+
+Hasilnya: **ekuivalen 0 dari 6**, dengan p_TOST di atas 0.99 pada keenam baris. Ujinya menolak seperti seharusnya. Kalau satu saja baris di sana lolos, yang salah ujinya, bukan datanya — dan itu dinyatakan sebagai assert di dalam skripnya, bukan sekadar diharapkan.
+
+Non-inferioritas, bentuk satu arah dari uji yang sama, berlaku pada **keduabelas** baris: `fusion_late` tidak pernah lebih buruk dari arm mana pun sebesar 0.02 AUC atau lebih.
+
+### 6.4.5 Provenance
+
+| Angka | Berkas sumber |
+|---|---|
+| Seluruh tabel §6.4.3 dan §6.4.4 | `artifacts/results/run02/tost_run02.csv` (12 baris) |
+| Fig 16 | `artifacts/results/run02/fig16_tost_equivalence.png` |
+| Kode uji | `src/evaluation/statistical_tests.py` (`auc_diff_variance`, `tost_auc`) |
+| Stage | `src/stage_08f_run02_tost.py` |
+
+Probabilitasnya diambil ulang dari `artifacts/results/run02/probs/{backbone}.npz` milik run02; **nol pelatihan ulang, nol GPU, nol eksperimen baru**. Karena ujinya dijalankan belakangan, CSV-nya membawa dua kolom run: `run_id = 2026-08-19-run03` untuk ujinya, `source_run_id = 2026-08-04-run02` untuk asal probabilitasnya. Mencampur keduanya akan membuat provenance-nya berbohong.
+
+Pemeriksaan silang yang menjamin angka ini: pada margin 0, kedua uji satu arah TOST runtuh menjadi uji dua arah yang sama dengan DeLong. `python -m src.stage_08f_run02_tost --self-check` menurunkan ulang p DeLong dari sisi TOST untuk keduabelas baris dan menuntut kecocokan sampai 1e-12. Kalau varians keduanya pernah menyimpang, pemeriksaan ini gagal sebelum angkanya sempat terbit.
+
+---
+
 ## 7. Figur
 
-Empat figur kini tampil langsung di dalam laporan, di bagian tempat angkanya dibahas, bukan dikumpulkan di akhir. Tabel ini merangkumnya sekaligus mencatat figur yang belum bisa diterbitkan.
+Enam figur kini tampil langsung di dalam laporan, di bagian tempat angkanya dibahas, bukan dikumpulkan di akhir. Tabel ini merangkumnya sekaligus mencatat figur yang belum bisa diterbitkan.
 
 | Figur | Tampil di | Berkas | Kegunaan |
 |---|---|---|---|
@@ -295,6 +362,7 @@ Empat figur kini tampil langsung di dalam laporan, di bagian tempat angkanya dib
 | Fig 12. Panel Layer-CAM DenseNet121 | §6.2 | `artifacts/results/xai/xai_densenet121.png` | Wujud nyata pointing accuracy 0.7167, lengkap dua baris kegagalan. Hanya berlabel malignan, jadi bukan sampel acak |
 | Fig 14. Bukti spasial dan fitur | §6.3.4 | `artifacts/results/run02/fig14_spatial_and_feature.png` | Layer-CAM enam nodul tetap plus SHAP cabang radiomik. Satu figure, bukan tiga (§6.3.5) |
 | Fig 15. p-value DeLong kedua rezim | §6.3.3 | `artifacts/results/run02/fig15_delong_pvalues.png` | Klaim §6.3.3 dan batasan §8.9 pada satu sumbu; panah menunjukkan arah pergeseran antar rezim checkpoint |
+| Fig 16. Uji ekuivalensi TOST | §6.4.3 | `artifacts/results/run02/fig16_tost_equivalence.png` | Kedua belas interval terhadap pita margin ±0.02, lengkap dengan kontrol negatifnya. Pasangan Fig 15: yang satu memplot signifikansi, yang satu ekuivalensi, dari varians yang sama |
 
 Belum terbit:
 
@@ -315,7 +383,12 @@ Bagian ini memuat dua jenis isi yang sengaja disatukan. Daftar bernomor di bawah
 3. Panel XAI komparabilitas baru (`stage_07f_xai_comparability.py`) belum bisa dijalankan di mesin manapun karena checkpoint tidak tersedia lokal saat ditulis.
 4. SHAP dan Grad-CAM dilaporkan pada skala terpisah tanpa metrik penyatu; ini gap metodologis terbuka, bukan keterbatasan khusus studi ini.
 5. Seleksi fitur radiomics memakai mutual information (`mutual_info_classif`), bukan mRMR. Lihat §8.1.
-6. Kesetaraan `fusion_late` dengan `radiomics_only` bergantung pada rezim checkpoint untuk dua dari tiga backbone. Lihat §8.9.
+6. Ketidakterbedaan `fusion_late` dari `radiomics_only` **menurut uji DeLong** bergantung pada rezim checkpoint untuk dua dari tiga backbone. Ekuivalensi dalam margin 0.02 tidak bergantung padanya (§6.4). Lihat §8.9.
+7. Margin ekuivalensi 0.02 AUC adalah **pertimbangan, bukan pengukuran**. Pembaca yang menganggap 0.02 berarti secara klinis harus membaca tabel §6.4.3 sebagai interval, bukan vonis — intervalnya sengaja dicetak supaya margin lain bisa diterapkan tanpa menjalankan ulang apa pun. Margin ditetapkan sebelum analisis dan tidak direvisi, tapi tidak ada prosedur yang bisa membuat pemilihannya objektif.
+8. Metrik explainability mengukur **lokalisasi, bukan faithfulness**. Pointing accuracy dan variannya menanyakan di mana peta jatuh relatif terhadap mask; tidak satu pun menanyakan apakah peta itu mencerminkan komputasi yang benar-benar dilakukan model. Metrik faithfulness berbasis perturbasi (ROAD, kurva deletion/insertion) belum dijalankan dan menjadi fase tersendiri.
+9. Perbandingan explainability mencakup **dua arm, bukan lima**. `fusion_early` dan `fusion_intermediate` dievaluasi hanya pada AUC; **tidak ada satu pun stage yang menghitung CAM untuk keduanya**. Laporan ini karena itu tidak menyatakan apa pun tentang efek fusi berparameter terhadap lokalisasi.
+10. **Tidak ada validasi eksternal.** Seluruh angka berasal dari satu dataset dengan satu split. LUNA16 bukan pengganti langsung: labelnya menandai nodul lawan bukan-nodul untuk tugas deteksi, bukan malignansi. Validasi eksternal menuntut kohort dengan ground truth malignansi.
+11. **Penjelasannya belum dinilai klinisi.** Protokolnya siap di `docs/laporan/PROTOKOL_READER_STUDY.md`, tapi nol data pembaca dikumpulkan.
 
 ### 8.1 Temuan reproducibility: kegagalan yang diam
 
@@ -436,17 +509,23 @@ Tiga sifat membuatnya sulit terlihat. Pertama, `[SKIP]` adalah pesan normal yang
 
 Aturan praktis yang berlaku untuk pipeline ini: **mengubah `input_size`, `patch_xy`, atau `n_slices` mewajibkan pemindahan checkpoint lama ke arsip, bukan sekadar menjalankan ulang.** Menaikkan `epochs` saja tidak cukup, sebab pelatihan akan dilanjutkan dari bobot rezim lama alih-alih dimulai dari nol. Perbaikan struktural yang menutup jebakan ini adalah menyimpan ketiga nilai itu di dalam checkpoint lalu menolak melanjutkan ketika salah satunya tidak cocok, sejalan dengan prinsip yang sama pada §8.1: konfigurasi yang menghasilkan sebuah angka harus melekat pada angka itu.
 
-### 8.9 Batasan: kesetaraan dengan radiomics bergantung pada rezim checkpoint pada dua backbone
+### 8.9 Batasan: ketidakterbedaan menurut DeLong bergantung pada rezim checkpoint pada dua backbone
 
-Ini keterbatasan paling material dari klaim final dan dinyatakan di sini secara eksplisit, bukan diserahkan pada pembaca untuk menemukannya sendiri.
+Bagian ini ditulis ulang 19 Agustus 2026 setelah §6.4. Batasannya tidak hilang, tapi cakupannya menyempit dari "kesetaraan" menjadi "ketidakterbedaan menurut uji DeLong" — dua hal yang draf sebelumnya perlakukan sebagai satu.
 
-Pada rezim `best` — checkpoint yang dipilih berdasarkan AUC fold yang sama dengan yang dilaporkan — `fusion_late` setara secara statistik dengan `radiomics_only` pada ketiga backbone (p = 0.4555, 0.4901, 0.6793). Pada rezim `last`, yang membuang keuntungan seleksi itu, kesetaraan **runtuh pada dua backbone**: `fusion_late` menjadi signifikan **lebih buruk** daripada `radiomics_only` pada ConvNeXt-Tiny (p = 0.0246) dan DenseNet121 (p = 0.0144). Hanya DenseNet201 yang bertahan setara (p = 0.5122) sekaligus nominal lebih tinggi.
+Pada rezim `best` — checkpoint yang dipilih berdasarkan AUC fold yang sama dengan yang dilaporkan — DeLong tidak membedakan `fusion_late` dari `radiomics_only` pada ketiga backbone (p = 0.4555, 0.4901, 0.6793). Pada rezim `last`, yang membuang keuntungan seleksi itu, DeLong **menolak kesamaan pada dua backbone**: ConvNeXt-Tiny (p = 0.0246) dan DenseNet121 (p = 0.0144), keduanya dengan `fusion_late` sebagai pihak yang lebih rendah. Hanya DenseNet201 yang tidak terbedakan di kedua rezim (p = 0.5122) sekaligus nominal lebih tinggi.
 
 Asimetrinya berasal dari §8.4. `radiomics_only` tidak pernah menikmati seleksi berbasis validasi sama sekali, sehingga ia satu-satunya pembanding yang tidak bergerak antar kolom. Ketika keuntungan seleksi dicabut dari sisi fusi saja, selisihnya jadi terlihat.
 
-Perlu ditambahkan bahwa keuntungan seleksi itu sendiri kecil, paling banyak 0.0078 AUC (`delta_late` pada `t0_checkpoint_sensitivity.csv`), dan tidak ada satu pun backbone yang urutan peringkat arm-nya terbalik. Yang berubah adalah status signifikansi, bukan peringkat.
+**Yang berubah setelah §6.4.** Kedua backbone itu tetap **ekuivalen** dengan radiomics dalam margin 0.02 di rezim `last` (p_TOST = 5.7e-6 dan 3.7e-3). Jadi rezim checkpoint menentukan apakah selisihnya *terdeteksi*, dan tidak menentukan apakah selisihnya *berarti*. Selisih terbesarnya 0.0095 AUC, dan keuntungan seleksi itu sendiri paling banyak 0.0078 AUC (`delta_late` pada `t0_checkpoint_sensitivity.csv`); tidak ada satu pun backbone yang urutan peringkat arm-nya terbalik.
 
-Konsekuensi untuk penulisan manuskrip: klaim kesetaraan dengan radiomics harus selalu menyebutkan model utamanya (DenseNet201) atau menyebutkan rezim checkpoint-nya. Klaim kesetaraan yang digeneralisasi ke ketiga backbone tanpa syarat tidak akan bertahan ketika diperiksa. Perhatikan bahwa batasan ini **tidak menyentuh** klaim terkuat, yaitu kemenangan atas `cnn_only`, dengan alasan yang dijelaskan di §6.3.3.
+Konsekuensi untuk penulisan manuskrip, dalam bentuknya yang sekarang:
+
+- Klaim **ekuivalensi** dalam margin 0.02 boleh digeneralisasi ke ketiga backbone dan kedua rezim tanpa syarat. Itu yang diuji §6.4 dan itu yang lolos.
+- Klaim yang lebih kuat — bahwa **tidak ada perbedaan yang terdeteksi sama sekali** — tetap wajib menyebutkan DenseNet201 atau menyebutkan rezim `best`. Digeneralisasi tanpa syarat, klaim itu tidak akan bertahan diperiksa.
+- Kedua nilai p DeLong yang menolak **tetap dicetak** di §6.3.3, §6.4.3, dan tabel manuskrip. Menyembunyikannya karena TOST sudah lolos adalah persis bentuk pelaporan selektif yang dilarang GOAL2.
+
+Batasan ini **tidak menyentuh** klaim terkuat, yaitu kemenangan atas `cnn_only`, dengan alasan yang dijelaskan di §6.3.3.
 
 ### 8.10 Temuan reproducibility: kegagalan senyap terbaru, dan audit deskripsi kelima arm
 
@@ -459,6 +538,24 @@ Ordinalnya sengaja tidak disebut. Draf sebelumnya menulis "ketujuh", angka yang 
 Polanya persis sama: komponen yang gagal menulis peringatan ke saluran yang tidak dibaca, lalu menyerahkan keluaran yang bentuknya sah tapi isinya kosong ke tahap berikutnya. Kasus ini tertangkap semata karena LaTeX kebetulan menolak bibliografi kosong — bukan karena ada yang mengawasinya. Seandainya dokumen ini tidak punya sitasi sama sekali, build akan **berhasil** dan menerbitkan PDF tanpa daftar pustaka tanpa satu pun keluhan.
 
 Perbaikannya memakai jalur mutlak, bukan menambah satu tingkat `..`, karena jumlah tingkat yang benar bergantung pada program mana yang sedang dijalankan `latexmk` — asumsi yang justru menyebabkan cacat ini. `paper/track2/.latexmkrc` identik dan diperbaiki bersamaan, sebelum Track 2 sempat menemukannya sendiri.
+
+**Koreksi, 19 Agustus 2026: diagnosis di dua paragraf sebelumnya salah, dan perbaikannya tidak pernah bekerja.** Saat manuskrip di-build ulang untuk memuat §6.4, `latexmk` mencetak:
+
+```
+Bib file(s) not found in search path:
+  refs.bib
+Latexmk: Veto of running of 'bibtex build/main' ($bibtex_use=1)
+```
+
+Penyebabnya bukan jumlah tingkat `..`, dan bukan pula bahwa `bibtex` dijalankan dari direktori lain. `Cwd::abs_path('..')` di dalam `.latexmkrc` dijalankan oleh perl, dan ketika `latexmk` dipanggil dari Git Bash, perl mengembalikan **jalur bergaya MSYS** — `/c/Users/...` — yang tidak bisa diuraikan MiKTeX sama sekali. Jadi perbaikan sebelumnya memasang jalur mutlak dengan gaya yang salah, dan `BIBINPUTS` tetap kosong bagi `kpsewhich` sejak hari pertama.
+
+Dua cacat menumpuk, dan yang kedua menyembunyikan yang pertama. `$bibtex_use = 1` membuat `latexmk` mencari `refs.bib` sendiri, gagal, lalu **memveto** `bibtex` tanpa menjadikannya error. Build tetap dilaporkan sukses karena `build/main.bbl` peninggalan 8 Agustus masih ada di disk. Sitasi apa pun yang ditambahkan ke `refs.bib` **tidak akan pernah muncul di PDF, dan tidak ada satu pun yang akan mengeluh.**
+
+Ini persis bentuk yang sama dengan seluruh isi §8.7: komponen menulis peringatan ke saluran yang tidak dibaca, lalu menyerahkan keluaran yang bentuknya sah tapi isinya basi. Perbedaannya justru memperburuk: kali ini **perbaikannya sendiri** yang menjadi kegagalan senyap, dan catatan di laporan ini menyatakan masalahnya sudah beres selama sebelas hari.
+
+Perbaikan sekarang dua baris. `$paper_dir` dinormalkan ke bentuk drive Windows sebelum dipasang, dan `$bibtex_use` dinaikkan ke `2` supaya `bibtex` selalu dijalankan — kesalahan jalur berikutnya akan gagal dengan berisik alih-alih diveto. Setelah itu `main.blg` melapor `Database file #1: refs.bib` dan build bersih. `paper/track2/.latexmkrc` memuat cacat yang sama dan ikut diperbaiki; Track 2 belum punya `\bibliography` sehingga perangkapnya belum sempat menggigit.
+
+Pelajaran yang tidak bisa dihindari: **perbaikan yang tidak diverifikasi berjalan bukan perbaikan.** Yang diverifikasi pada 8 Agustus adalah bahwa build berhasil, bukan bahwa `bibtex` benar-benar membaca `refs.bib`. Gerbang yang benar sudah tersedia sejak awal dan cuma satu baris: `grep "Database file" build/main.blg`.
 
 **Audit deskripsi kelima arm.** Saat laporan ini dicocokkan dengan manuskrip, §3.4 ternyata mendeskripsikan `fusion_early` sebagai "konkatenasi fitur radiomics mentah ke input CNN". Yang sebenarnya dilakukan `build_early_fusion_features` adalah menggabungkan **embedding CNN** dengan vektor radiomik terpilih, lalu melatih XGBoost di atasnya.
 
@@ -477,10 +574,16 @@ Tabel §3.4 sekarang mencantumkan nama fungsi setiap arm. Deskripsi yang menyimp
 3. Jalankan panel XAI komparabilitas begitu checkpoint tersedia.
 4. Tambahkan sitasi yang hilang lewat Zotero (`docs/laporan/REFERENSI_DIBUTUHKAN.md`). Daftar konkretnya ada di §9.1.
 5. Tulis uji asap untuk `_trim_white` (§8.10) begitu `tests/` bisa disentuh lagi.
+6. Jalankan metrik faithfulness — ROAD dan kurva deletion/insertion — plus HiResCAM sebagai pembanding, dan perluas jalur CAM ke `fusion_intermediate` serta `fusion_early`. Ditulis sebagai GOAL terpisah di `handoff/GOAL3.md` karena beban GPU-nya besar dan hasilnya bisa mengubah pembingkaian §8 (batasan 8 dan 9).
+7. Jalankan reader study bila klinisi tersedia. Protokolnya siap di `docs/laporan/PROTOKOL_READER_STUDY.md`.
 
 ### 9.1 Sitasi yang dibutuhkan manuskrip Track 1
 
-Per 8 Agustus 2026, `paper/refs.bib` hanya memuat satu citekey yang relevan, `prabhavalkarHybridPETCTRadiomics2026`; entri satunya sisa Zotero yang tidak berhubungan. Lima belas klaim di manuskrip menunggu kuncinya. Semuanya sudah ditandai di `paper/track1/main.tex` dengan makro `\CITE{...}` yang tercetak merah di PDF, dan seluruhnya padam sekaligus dengan mengganti `\draftnotestrue` jadi `\draftnotesfalse`. Penanda sengaja dibuat terlihat, bukan komentar, supaya tidak bisa lolos ke *submit* tanpa disadari.
+Per 19 Agustus 2026, `paper/refs.bib` hanya memuat satu citekey yang relevan, `prabhavalkarHybridPETCTRadiomics2026`; entri satunya sisa Zotero yang tidak berhubungan. **Tiga puluh satu** penanda `\CITE{...}` kini terpasang di `paper/track1/main.tex`, naik dari lima belas setelah revisi rev2 menambahkan Related Work berposisi, protokol TOST, dan Limitations yang diperluas. Semuanya tercetak merah di PDF dan padam sekaligus dengan mengganti `\draftnotestrue` jadi `\draftnotesfalse`. Penanda sengaja dibuat terlihat, bukan komentar, supaya tidak bisa lolos ke *submit* tanpa disadari.
+
+Catatan yang tidak boleh dilewat: sampai 19 Agustus 2026, menambahkan entri ke `refs.bib` **tidak akan mengubah PDF sama sekali** karena `bibtex` diveto diam-diam. Bug itu sudah diperbaiki (§8.10). Verifikasi setelah ekspor Zotero berikutnya bukan "build berhasil", melainkan `grep "Database file" paper/track1/build/main.blg`.
+
+Tabel di bawah adalah daftar asli lima belas klaim. Sepuluh sampai enam belas penanda tambahan dari revisi rev2 — Astaraki, Rudin, HSCNN, X-Caps, Lakens, Liu dkk., Lin dkk., Baltatzis, Varoquaux & Cheplygina, ROAD, CLAIM, TRIPOD+AI — didaftar lengkap dengan DOI di `docs/laporan/REFERENSI_DIBUTUHKAN.md`, bukan diduplikasi di sini.
 
 | # | Bagian | Klaim yang butuh sitasi |
 |---|---|---|

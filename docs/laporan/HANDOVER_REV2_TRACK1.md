@@ -16,6 +16,18 @@ tidak menggantikannya, melainkan merangkum keputusan dan keadaan operasional.
 > `fusion_intermediate`. `fusion_late` setara dengannya, dan menang telak atas `cnn_only`.
 > Klaim final ada di §6.3 laporan Track 1; jangan mengutip dokumen ini sebagai kesimpulan.
 
+> **Pembaruan 19 Agustus 2026.** Kata "setara" di paragraf atas kini punya dasar yang
+> berbeda, dan bedanya penting. Sampai 18 Agustus, kesetaraan `fusion_late` dengan
+> radiomics disimpulkan dari uji DeLong yang **gagal menolak** kesamaan AUC — penalaran
+> yang tidak sah, karena tidak adanya bukti perbedaan bukan bukti tidak adanya perbedaan.
+> Sejak run `2026-08-19-run03` klaimnya bertumpu pada uji ekuivalensi (TOST) dengan margin
+> 0.02 AUC yang ditetapkan lebih dulu atas dasar klinis: **ekuivalen pada ketiga backbone
+> di kedua rezim checkpoint**, dan uji yang sama menolak ekuivalensi terhadap `cnn_only`
+> pada keenam perbandingan sebagai kontrol negatif. Rinciannya di §6.4 laporan Track 1.
+> Konsekuensi praktisnya, klaim kesetaraan tidak lagi bergantung pada DenseNet201 maupun
+> pada rezim checkpoint tertentu — yang masih bergantung padanya hanya klaim yang lebih
+> kuat, yaitu bahwa tidak ada perbedaan yang terdeteksi sama sekali (§8.9).
+
 ---
 
 ## 1. Ringkasan satu paragraf
