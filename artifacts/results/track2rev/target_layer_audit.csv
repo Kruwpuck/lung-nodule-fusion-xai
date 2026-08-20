@@ -1,0 +1,13 @@
+run_id,commit_sha,backbone,internal_name,input_size,path_taken,module_class,module_path,spatial_h,spatial_w,heights_seen,band_lo,band_hi,error
+2026-08-20-run04,4f939a2,mobilenetv3_small,mobilenet_v3_small,64,auto,Conv2dNormActivation,features.0.4.block.0,8,8,1|2|4|8|16|32,7,10,
+2026-08-20-run04,4f939a2,efficientnet_b0,efficientnet_b0,64,auto,Conv2dNormActivation,features.0.4.0.block.0,8,8,1|2|4|8|16|32,7,10,
+2026-08-20-run04,4f939a2,densenet121,densenet121,96,fallback,BatchNorm2d,features.0.norm5,3,3,1|3|6|12|24|48,7,10,
+2026-08-20-run04,4f939a2,resnet50,resnet50,64,auto,ReLU,features.6.0.relu,4,4,1|2|4|8|16|32,7,10,
+2026-08-20-run04,4f939a2,vgg16,vgg16,64,auto,ReLU,features.0.22,8,8,1|2|4|8|16|32|64,7,10,
+2026-08-20-run04,4f939a2,vit_base,vit_b_16,224,fallback,LayerNorm,features.encoder.layers.encoder_layer_11.ln_1,,,14,7,10,
+2026-08-20-run04,4f939a2,inceptionv3,inception_v3,96,auto,BasicConv2d,features.10.branch3x3dbl_2,9,9,1|4|9|20|22|45|47,7,10,
+2026-08-20-run04,4f939a2,xception,xception,96,fallback,SeparableConv2d,features.conv4,3,3,1|3|6|12|23|45|47,7,10,
+2026-08-20-run04,4f939a2,googlenet,googlenet,96,fallback,Dropout,features.17,1,1,1|3|6|12|24|48,7,10,
+2026-08-20-run04,4f939a2,convnext_tiny,convnext_tiny,96,fallback,Sequential,features.0.7,3,3,1|3|6|12|24,7,10,
+2026-08-20-run04,4f939a2,inception_resnet_v2,inception_resnet_v2,96,auto,ConvNormAct,features.mixed_6a.branch1.1,9,9,1|4|9|20|22|45|47,7,10,
+2026-08-20-run04,4f939a2,densenet201,densenet201,96,fallback,BatchNorm2d,features.0.norm5,3,3,1|3|6|12|24|48,7,10,

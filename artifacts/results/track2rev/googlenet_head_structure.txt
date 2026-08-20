@@ -1,0 +1,26 @@
+run_id=2026-08-20-run04
+GoogLeNet BackboneClassifier.features, one line per direct child.
+Input handed to the model: (1, 3, 64, 64); the model resizes internally to 96x96.
+
+ idx  class                   output shape
+   0  BasicConv2d             1x64x48x48
+   1  MaxPool2d               1x64x24x24
+   2  BasicConv2d             1x64x24x24
+   3  BasicConv2d             1x192x24x24
+   4  MaxPool2d               1x192x12x12
+   5  Inception               1x256x12x12
+   6  Inception               1x480x12x12
+   7  MaxPool2d               1x480x6x6
+   8  Inception               1x512x6x6
+   9  Inception               1x512x6x6
+  10  Inception               1x512x6x6
+  11  Inception               1x528x6x6
+  12  Inception               1x832x6x6
+  13  MaxPool2d               1x832x3x3
+  14  Inception               1x832x3x3
+  15  Inception               1x1024x3x3
+  16  AdaptiveAvgPool2d       1x1024x1x1
+  17  Dropout                 1x1024x1x1
+  18  Flatten                 1x1024
+
+features[-1] is Flatten, features[-2] is the Dropout, features[-3] is the AdaptiveAvgPool2d. `_get_target_layer`'s googlenet branch returns features[-2], i.e. the Dropout, whose output is 1x1 because it sits after the pool.
