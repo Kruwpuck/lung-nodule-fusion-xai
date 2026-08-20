@@ -27,16 +27,27 @@ def measure_flops(model, input_res: tuple = (3, 224, 224)) -> tuple[float, int]:
 
 def measure_latency(model, input_res: tuple = (3, 224, 224),
                     n: int = 50, device: str = "cpu") -> float:
-    """Mean forward-pass latency in ms (n runs after 5 warmup)."""
+    """Mean forward-pass latency in ms (n runs after 5 warmup).
+
+    CUDA kernel launches are asynchronous, so on a CUDA device the timed region
+    has to be bracketed by synchronisation or the wall clock only measures the
+    time taken to queue the work. The sync is a no-op branch on CPU, so CPU
+    callers are unaffected.
+    """
     import torch
+    cuda = torch.device(device).type == "cuda"
     model = model.to(device).eval()
     dummy = torch.randn(1, *input_res).to(device)
     with torch.no_grad():
         for _ in range(5):
             model(dummy)
+        if cuda:
+            torch.cuda.synchronize()
         t0 = time.perf_counter()
         for _ in range(n):
             model(dummy)
+        if cuda:
+            torch.cuda.synchronize()
     return (time.perf_counter() - t0) / n * 1000
 
 
