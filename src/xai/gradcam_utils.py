@@ -83,14 +83,91 @@ def _get_target_layer(model: Any, backbone_name: str) -> Any:
     raise ValueError(f"Cannot resolve target layer for backbone: {backbone_name}")
 
 
+def _last_spatial_target_layer(model: Any, sample_input: Any) -> Any:
+    """Pick the deepest-executed module whose 4-D output still has spatial extent.
+
+    This is the canonical Grad-CAM rule (Selvaraju et al.): explain at the last layer
+    that still carries a spatial map, i.e. the deepest module whose output is 4-D with
+    both height and width greater than 1. Everything after that point has been through
+    global pooling and carries a 1x1 map, which min-max normalises to identically zero
+    and makes every localisation metric degenerate.
+
+    Three details are resolved deliberately here rather than left to hook ordering:
+
+    * A module that runs more than once in a forward pass (a shared ReLU inside a
+      residual block, for instance) fires at several resolutions. pytorch-grad-cam pairs
+      `target_layers[i]` with `activations[i]`, so a reused module hands the CAM its
+      FIRST execution, which need not be the execution whose shape was observed here.
+      Modules that fire more than once are therefore not eligible at all, so the shape
+      recorded is always the shape the CAM receives.
+    * A module sitting inside a block that has already collapsed the map to 1x1 is not
+      the last spatial layer in any useful sense: it is one parallel branch of a block
+      that pools at its exit (an Inception block whose stride-2 branches meet a 1x1
+      concat, for instance). Explaining a single branch hides the class evidence flowing
+      through its siblings, and the CAM can come out identically zero as a result --
+      measured on inception_resnet_v2, 23 of 60 samples. Candidates enclosed by a
+      collapsed block are dropped, which steps the choice out to the last block that
+      still emitted a spatial map.
+    * When the winner is a plain `nn.Sequential`, the tensor was really produced by its
+      last child, and nothing happens between that child returning and the container
+      returning. We descend to the child so the resolved layer names the operation that
+      made the map instead of the wrapper around it. Descending is only safe for
+      `Sequential`: any other container may combine or mutate its children's outputs
+      after they return (a residual add, for example), which would make a child's
+      activation differ from the block output the CAM should explain.
+
+    Returns None when no module qualifies -- ViT has no 4-D intermediate outputs at all --
+    and the caller then falls back to `_get_target_layer`.
+    """
+    import torch
+    from torch import nn
+
+    fired: list[tuple[Any, int, int]] = []   # (module, h, w) in execution order, 4-D only
+    n_calls: dict[int, int] = {}
+
+    def hook(mod: Any, inp: Any, out: Any) -> None:
+        n_calls[id(mod)] = n_calls.get(id(mod), 0) + 1
+        if isinstance(out, torch.Tensor) and out.dim() == 4:
+            fired.append((mod, int(out.shape[2]), int(out.shape[3])))
+
+    handles = [m.register_forward_hook(hook) for m in model.modules()]
+    try:
+        with torch.no_grad():
+            model(sample_input)
+    finally:
+        for h in handles:
+            h.remove()
+
+    paths = {id(m): name for name, m in model.named_modules()}
+    collapsed = [paths[id(m)] for m, h, w in fired if h == 1 and w == 1 and paths[id(m)]]
+
+    def _inside_collapsed(path: str) -> bool:
+        return any(path.startswith(c + ".") for c in collapsed)
+
+    spatial = [(m, h, w) for m, h, w in fired
+               if h > 1 and w > 1 and n_calls[id(m)] == 1
+               and not _inside_collapsed(paths[id(m)])]
+    if not spatial:
+        return None
+
+    target, h, w = spatial[-1]
+    shapes = {id(m): (mh, mw) for m, mh, mw in spatial}
+    while isinstance(target, nn.Sequential) and len(target) and shapes.get(id(target[-1])) == (h, w):
+        target = target[-1]
+    return target
+
+
 def _auto_target_layer(model: Any, sample_input: Any, lo: int = 7, hi: int = 10) -> Any:
     """Pick the deepest spatial (4D) submodule whose feature-map height falls in [lo, hi].
 
-    For small (e.g. 64x64) inputs, the last conv layer of stride-32 backbones collapses
-    to ~2x2, which is too coarse for CAM to localize a small lesion. This scans all
-    submodules via forward hooks and returns the deepest one with an ~8x8 map instead.
-    Falls back to None if no candidate is found (caller should fall back to
-    `_get_target_layer`).
+    Superseded and no longer on the CAM path. The premise behind the band -- that an
+    ~8x8 map localises a small lesion better than the last spatial layer -- was measured
+    and is false (see artifacts/results/track2rev/googlenet_layer_sweep.csv: a 6x6 map
+    scored worse than a 3x3 map on both backbones tested), and on backbones whose heights
+    never enter the band the search returned None and pushed resolution into the
+    hand-written fallback table, which is how GoogLeNet ended up explaining a 1x1
+    Dropout. Kept only so `src/stage_09a_target_layer_audit.py` can still reproduce the
+    audit that established all of that.
     """
     import torch
 
@@ -144,11 +221,16 @@ def compute_gradcam(
             model does not associate with that class — expected Grad-CAM
             behavior (ReLU zeroes out unsupported classes), not a bug.
         method: one of 'layercam', 'hirescam', 'gradcam', 'gradcampp', 'scorecam',
-            'eigencam'. Default 'layercam': at a small (e.g. 64x64) input, the last
-            conv layer of stride-32 CNN backbones collapses to ~2x2, too coarse to
-            localize a small nodule. For non-ViT backbones the target layer is
-            auto-selected as the deepest ~8x8 feature map (`_auto_target_layer`)
-            instead of the last (2x2) layer.
+            'eigencam'. Default 'layercam', which weights each activation position
+            separately and so keeps more detail than Grad-CAM's globally pooled
+            weights on the small feature maps these inputs produce.
+
+    Target layer: for non-ViT backbones it is resolved by `_last_spatial_target_layer`,
+    the canonical rule -- the last layer that still has spatial extent. At a 64x64 input
+    that map can be as small as 2x2 on a stride-32 backbone; it is upsampled to the input
+    size, so the CAM is coarse but honest. ViT has no 4-D intermediate outputs, so it
+    skips that search and resolves through `_get_target_layer` to the last encoder
+    block's `ln_1`, read back into a grid by `vit_reshape_transform`.
 
     Returns:
         grayscale_cam: (H, W) numpy array, values in [0, 1]
@@ -182,7 +264,7 @@ def compute_gradcam(
     is_vit = "vit" in backbone_name.lower()
     target_layer = None
     if not is_vit:
-        target_layer = _auto_target_layer(model, img_tensor)
+        target_layer = _last_spatial_target_layer(model, img_tensor)
     if target_layer is None:
         target_layer = _get_target_layer(model, backbone_name)
     targets = None if target_class is None else [ClassifierOutputTarget(target_class)]

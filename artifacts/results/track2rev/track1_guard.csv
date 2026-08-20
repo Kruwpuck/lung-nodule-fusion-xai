@@ -1,0 +1,7 @@
+run_id,commit_sha,tag,backbone,internal_name,input_size,rule,path_taken,module_class,module_path,spatial_h,spatial_w,n_samples,cam_sha1
+2026-08-20-run04,784156,before,densenet121,densenet121,96,band_7_10,fallback,BatchNorm2d,features.0.norm5,3,3,60,0862db594955b054afdc814b33fb00a021a92d21
+2026-08-20-run04,784156,before,densenet201,densenet201,96,band_7_10,fallback,BatchNorm2d,features.0.norm5,3,3,60,55b95ff031e9c5d8e1953caa6337845b6d637ab0
+2026-08-20-run04,784156,before,convnext_tiny,convnext_tiny,96,band_7_10,fallback,Sequential,features.0.7,3,3,60,4356c4ad6a1efebb79983008cf1a128e3361fbce
+2026-08-20-run04,784156,after,densenet121,densenet121,96,last_spatial,auto,BatchNorm2d,features.0.norm5,3,3,60,0862db594955b054afdc814b33fb00a021a92d21
+2026-08-20-run04,784156,after,densenet201,densenet201,96,last_spatial,auto,BatchNorm2d,features.0.norm5,3,3,60,55b95ff031e9c5d8e1953caa6337845b6d637ab0
+2026-08-20-run04,784156,after,convnext_tiny,convnext_tiny,96,last_spatial,auto,CNBlock,features.0.7.2,3,3,60,4356c4ad6a1efebb79983008cf1a128e3361fbce
