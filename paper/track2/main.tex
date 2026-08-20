@@ -48,7 +48,7 @@ email@domain.com}
 \maketitle
 
 \begin{abstract}
-A backbone comparison is usually read as a question about architecture, but three design axes move together in one: model capacity, the training protocol, and the architecture family itself. We ask which of the three governs performance and interpretability for lung nodule malignancy classification on LIDC-IDRI, and find that the decisive variable is none of them. It is the \emph{explanation site}: the layer at which a class-activation map is taken. Sweeping 86 candidate sites across twelve backbones, pointing accuracy against the radiologist mask moves by up to 0.633 within a single fixed network as the site is varied, which is larger than any between-backbone difference we measure at a fixed site. The canonical last-spatial-layer choice is best in only 4 of 12 backbones, and in none of the twelve is the deepest candidate site the best one. Automatic target-layer selectors fail silently on this task: of the 86 sites, 17 emit an identically-zero map on at least one sample and 12 do so on every sample, and because a constant-zero map still yields a finite Dice value (0.0350) and a finite pointing rate (0.0000), a selector that lands there reports a plausible number instead of an error. One published row of ours was produced this way: GoogLeNet scores 0.0000 pointing accuracy at the automatically resolved site, a $1\times1$ dropout layer with no spatial extent, and 0.7667 at a $3\times3$ site in the same network under the same weights. Capacity is a subordinate confirmation rather than a discovery: over seven backbones sharing a 96\,px input, a 9.7-fold parameter range (5.60 to 54.31\,M) spans only 0.0144 AUC (0.8911 to 0.9055), and the 27.82\,M model attains the highest AUC of the seven while the 54.31\,M model does not; the Spearman correlation between capacity and AUC is 0.50 at $n=7$ and is not significant ($p=0.25$), which at this sample size settles the capacity question in neither direction. On the protocol axis, a factorial ANOVA over four backbones attributes $\eta^2=0.4533$ of AUC variance to optimizer choice against $0.0002$ to weight decay. The practical consequence is that any cross-architecture explainability number reported without a target-layer audit is uninterpretable, and may be an artifact of the tooling rather than a property of the network.
+A backbone comparison is usually read as a question about architecture, but three design axes move together in one: model capacity, the training protocol, and the architecture family itself. We ask which of the three governs performance and interpretability for lung nodule malignancy classification on LIDC-IDRI, and find that the decisive variable is none of them. It is the \emph{explanation site}: the layer at which a class-activation map is taken. Sweeping 86 candidate sites across twelve backbones, pointing accuracy against the radiologist mask moves by up to 0.7333 within a single fixed network as the site is varied, which is larger than any between-backbone difference we measure at a fixed site. The canonical last-spatial-layer choice is best in only 4 of 12 backbones, and in none of the twelve is the deepest candidate site the best one. Automatic target-layer selectors fail silently on this task: of the 86 sites, 17 emit an identically-zero map on at least one sample and 12 do so on every sample, and because a constant-zero map still yields a finite Dice value (0.0350) and a finite pointing rate (0.0000), a selector that lands there reports a plausible number instead of an error. One published row of ours was produced this way: GoogLeNet scores 0.0000 pointing accuracy at the automatically resolved site, a $1\times1$ dropout layer with no spatial extent, and 0.7667 at a $3\times3$ site in the same network under the same weights. Capacity is a subordinate confirmation rather than a discovery: over seven backbones sharing a 96\,px input, a 9.7-fold parameter range (5.60 to 54.31\,M) spans only 0.0144 AUC (0.8911 to 0.9055), and the 27.82\,M model attains the highest AUC of the seven while the 54.31\,M model does not; the Spearman correlation between capacity and AUC is 0.50 at $n=7$ and is not significant ($p=0.25$), which at this sample size settles the capacity question in neither direction. On the protocol axis, a factorial ANOVA over four backbones attributes $\eta^2=0.4533$ of AUC variance to optimizer choice against $0.0002$ to weight decay. The practical consequence is that any cross-architecture explainability number reported without a target-layer audit is uninterpretable, and may be an artifact of the tooling rather than a property of the network.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -126,12 +126,195 @@ Twelve models and seven cost-profiled models are small samples. Correlations are
 \section{Results}
 \label{sec:results}
 
+\subsection{A degenerate explanation site, dissected}
+\label{sec:degenerate}
+One row of our own earlier localization table reported a pointing accuracy of exactly 0.0000 for GoogLeNet, together with a Dice of 0.0350, an IoU of 0.0189, a size-matched Dice of 0.0113, and a mean inside-mask energy of 0.0000. Following Section~\ref{sec:methods}, that row was treated as a suspected artifact rather than as a property of the network, and the diagnosis is conclusive.
+
+The site had been resolved by the band rule. GoogLeNet at a 96\,px input emits feature maps of heights $\{48, 24, 12, 6, 3, 1\}$; none of these falls inside the $[7,10]$ band, so the rule exhausted its candidates and fell back to the deepest module in the graph. That module is \texttt{features.17}, a \texttt{Dropout} with a $1\times1$ output. A $1\times1$ activation has no spatial structure to weight, so Layer-CAM returns a constant map, and after min-max normalisation a constant map is identically zero on all 60 samples. Thresholding an all-zero map at the 80th percentile selects the whole frame, which is why the metrics remain finite: Dice against a small lesion mask becomes $2|M|/(|M|+|I|)$, a fixed 0.0350 on this sample set, while the pointing rate collapses to 0.0000 because the argmax of a constant map is not inside the mask by any tie-break. Nothing in this chain raises an error. The immediately preceding module, \texttt{features.16}, is an adaptive average pool, also $1\times1$, and produces exactly the same numbers.
+
+Localization recovers as soon as the map is taken somewhere with spatial extent, under identical weights. Fig.~\ref{fig:diagnosis} shows the layer sweep. At \texttt{features.15} (\texttt{inception5b}, $3\times3$) pointing accuracy is 0.5000 and Dice 0.0901; at \texttt{features.13} (\texttt{maxpool4}, $3\times3$) it reaches 0.7667 with Dice 0.1216 and size-matched Dice 0.5262; at \texttt{features.12} ($6\times6$) it falls to 0.0833, and at \texttt{features.3} ($24\times24$) it is 0.4000. Chance pointing accuracy on these 60 samples, the mean lesion area fraction, is 0.0189. A cross-check at \texttt{features.13} excludes a gradient-averaging artifact peculiar to Layer-CAM: HiResCAM reaches 0.4167, Grad-CAM 0.3833, and the gradient-free Score-CAM 0.4167, all far above chance, at 0.5329\,s per sample for Score-CAM against 0.0253\,s for Layer-CAM. The published 0.0000 was therefore a property of where the map was taken and not of the network, of the weights, or of the CAM family.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{fig_t2_1_googlenet_diagnosis.png}}
+\caption{Diagnosis of the degenerate site in GoogLeNet. The automatically resolved site (\texttt{features.17}, a $1\times1$ \texttt{Dropout}) emits an identically-zero map on all 60 samples yet still reports finite Dice; sites with spatial extent in the same network under the same weights recover pointing accuracy far above the 0.0189 chance rate.}
+\label{fig:diagnosis}
+\end{figure}
+
+\subsection{The depth sweep: the site dominates}
+\label{sec:depthsweep}
+Fig.~\ref{fig:depthsweep} and Table~\ref{tab:depth} give the sweep over all 86 candidate sites, 6 to 12 per backbone. Every curve is a within-model control: only the site changes along it.
+
+Curve shapes are assigned by the rule stated in \texttt{depth\_curve\_summary.csv}, quoted here rather than paraphrased: \emph{sites ordered shallow to deep by exec\_index\_norm; score = pointing\_acc; flat if max-min $<$ 0.05; else shallow\_peak if the best site is the first, deep\_peak if it is the last, mid\_peak otherwise}. The 0.05 threshold is three of sixty samples. Nine of the twelve curves are mid-peaked, two are shallow-peaked (ResNet50 and VGG16, both best at their shallowest candidate), and one is flat (MobileNetV3-Small, whose whole range is 0.0333). \textbf{No curve is deep-peaked.} In none of the twelve backbones is the deepest candidate site the best one, which is a direct empirical contradiction of the last-convolutional-layer default as an optimum rather than as a convention.
+
+The canonical rule is best in only 4 of 12 backbones (DenseNet121, GoogLeNet, ConvNeXt-Tiny, DenseNet201), and in each of those four it coincides with the best site rather than beating it. The largest gap between a backbone's best site and the canonical pick is 0.6333, in Inception-ResNet-v2: 0.7333 at a $20\times20$ site against 0.1000 at the $4\times4$ canonical pick. VGG16 gives 0.4667 against 0.0000, ResNet50 0.3833 against 0.0000, and InceptionV3 0.4333 against 0.0333. The band rule fails differently: its largest deficit is 0.5000 in GoogLeNet, where it lands on the degenerate $1\times1$ site of Section~\ref{sec:degenerate}, and it is also 0.2667 behind on ResNet50 and VGG16 and 0.3500 behind on Inception-ResNet-v2. Taken over the twelve, the within-backbone range in pointing accuracy runs up to 0.7333 (Inception-ResNet-v2), against a between-backbone spread at the published sites of 0.7167 (Table~\ref{tab:joint}); the site moves the metric at least as far as the choice of network does.
+
+\begin{figure*}[htbp]
+\centerline{\includegraphics[width=\textwidth]{fig_t2_2_depth_sweep.png}}
+\caption{Layer-CAM pointing accuracy against normalised execution depth for all 86 candidate explanation sites across the twelve backbones. Each panel is one frozen network on the same 60 nodules; only the site varies. The canonical and band picks are marked. No panel peaks at its deepest site.}
+\label{fig:depthsweep}
+\end{figure*}
+
+\begin{table*}[htbp]
+\caption{Depth-curve summary over 86 sites. \emph{Canonical} is the deepest module with spatial extent; \emph{band} is the deepest module whose feature-map height falls in $[7,10]$. Scores are pointing accuracy over the same 60 nodules.}
+\begin{center}
+\begin{tabular}{lccccccccc}
+\toprule
+\textbf{Backbone} & \textbf{Sites} & \textbf{Best site} & \textbf{Best} & \textbf{Canonical site} & \textbf{Canon.} & \textbf{Best$-$canon.} & \textbf{Band} & \textbf{Best$-$band} & \textbf{Shape} \\
+\midrule
+MobileNetV3-Small & 7 & $32\times32$ & 0.0333 & $2\times2$ & 0.0000 & 0.0333 & 0.0000 & 0.0333 & flat \\
+EfficientNet-B0 & 7 & $16\times16$ & 0.1833 & $2\times2$ & 0.0000 & 0.1833 & 0.0833 & 0.1000 & mid \\
+DenseNet121 & 6 & $3\times3$ & 0.5833 & $3\times3$ & 0.5833 & 0.0000 & 0.5833 & 0.0000 & mid \\
+ResNet50 & 7 & $32\times32$ & 0.3833 & $2\times2$ & 0.0000 & 0.3833 & 0.1167 & 0.2667 & shallow \\
+VGG16 & 7 & $64\times64$ & 0.4667 & $2\times2$ & 0.0000 & 0.4667 & 0.2000 & 0.2667 & shallow \\
+ViT-Base & 12 & $14\times14$ & 0.0667 & $14\times14$ & 0.0000 & 0.0667 & 0.0000 & 0.0667 & mid \\
+InceptionV3 & 7 & $20\times20$ & 0.4333 & $4\times4$ & 0.0333 & 0.4000 & 0.2000 & 0.2333 & mid \\
+Xception & 8 & $45\times45$ & 0.3833 & $3\times3$ & 0.0667 & 0.3167 & 0.2000 & 0.1833 & mid \\
+GoogLeNet & 6 & $3\times3$ & 0.5000 & $3\times3$ & 0.5000 & 0.0000 & 0.0000 & 0.5000 & mid \\
+ConvNeXt-Tiny & 6 & $3\times3$ & 0.7167 & $3\times3$ & 0.7167 & 0.0000 & 0.7167 & 0.0000 & mid \\
+Inception-ResNet-v2 & 7 & $20\times20$ & 0.7333 & $4\times4$ & 0.1000 & 0.6333 & 0.3833 & 0.3500 & mid \\
+DenseNet201 & 6 & $3\times3$ & 0.7000 & $3\times3$ & 0.7000 & 0.0000 & 0.7000 & 0.0000 & mid \\
+\bottomrule
+\end{tabular}
+\label{tab:depth}
+\end{center}
+\end{table*}
+
+\subsection{Silent-failure census}
+\label{sec:census}
+The GoogLeNet row is not an isolated accident. Of the 86 candidate sites, 17 emit an identically-zero map on at least one of the 60 samples, and 12 do so on every sample. At least one affected site occurs in \emph{all twelve} backbones, so the failure mode is a property of how explanation sites are enumerated on this task and not of one architecture.
+
+Eleven of the twelve all-sample failures are $1\times1$ modules -- adaptive average pools in eight backbones, dropouts in GoogLeNet and InceptionV3 -- where the constant-map mechanism of Section~\ref{sec:degenerate} applies exactly, and each of them emits the same Dice of 0.0350 with a pointing rate of 0.0000. The twelfth has real spatial extent: EfficientNet-B0 at \texttt{features.0.6.0.block.0.2}, a $4\times4$ SiLU, is identically zero on all 60 samples, which shows that a size check alone would not catch the failure. The five partial failures span $3\times3$ to $14\times14$: Xception at \texttt{features.conv4} is zero on 9 of 60, MobileNetV3-Small at a $4\times4$ Hardswish on 49 of 60, and ViT-Base on 27, 50 and 53 of 60 at encoder layers 8, 10 and 11 respectively, a monotone worsening with depth. Every one of these emits a finite Dice, between 0.0357 and 0.0716.
+
+The two selectors are hit at different rates. The band rule resolves to a site with at least one zero map in three backbones (GoogLeNet, ViT-Base, Xception); the canonical rule does so in one (ViT-Base). That one is a published row: the resolver placed ViT-Base at \texttt{encoder\_layer\_11.ln\_1}, zero on 53 of 60 samples, and the row still reported a finite Dice of 0.0357 and a pointing accuracy of 0.0000. A reader of that table has no signal distinguishing it from a network that simply localises poorly.
+
+\subsection{Sanity checks at the recovered site}
+\label{sec:sanity}
+Recovering a plausible map is not the same as recovering a faithful one, and the cascading-randomisation test is explicit about the difference. Randomising GoogLeNet from the classifier backwards, the Spearman rank correlation between the original map at \texttt{features.13} and the map from the progressively randomised model is 0.8500 with the classifier alone randomised, then 0.8015, 0.7671 and 0.7087 as \texttt{features.15}, \texttt{features.14} and \texttt{features.12} are added. It collapses to 0.0033 once \texttt{features.10} is randomised, and goes mildly negative thereafter ($-0.2659$, $-0.2967$, $-0.2550$ down to \texttt{features.0}). The map therefore does depend on the trained weights, but only on the mid-level ones; the deepest four stages can be destroyed with the explanation largely intact. The class-flip probe points the same way: the map computed for the non-predicted class correlates with the original at a mean Spearman of 0.7712 (median 0.7967), so the map is only weakly class-discriminative.
+
+The pre-registered verdict criteria are all met -- the resolved site is all-zero on every sample, a candidate site recovers pointing accuracy far above chance with no zero maps, and the recovered map's correlation with the fully randomised map is below 0.5 -- so the automated verdict is \emph{artifact}. We record the sanity results as a bound on what the recovered map licenses, and return to them in Section~\ref{sec:limits}.
+
+\subsection{Efficiency: capacity confirms rather than discovers}
+\label{sec:efficiency}
+On efficiency7, the seven backbones sharing a 96\,px input, parameters range from 5.60\,M (GoogLeNet) to 54.31\,M (Inception-ResNet-v2), a 9.7-fold spread. Across that entire range mean AUC moves from 0.8911 (Xception) to 0.9055 (ConvNeXt-Tiny), a spread of 0.0144. Six of the seven backbones have a within-model standard deviation across the five folds larger than that spread: the fold standard deviations run from 0.0119 (GoogLeNet) to 0.0283 (Xception), with only GoogLeNet's below 0.0144. The entire capacity effect over an order of magnitude in parameters is thus smaller than the run-to-run noise of a single model, which is the reason we decline to rank these seven on AUC.
+
+The largest model is not the best one. The 27.82\,M ConvNeXt-Tiny attains the highest AUC of the seven; the 54.31\,M Inception-ResNet-v2 reaches 0.8986, fifth of seven, at 34.4\,ms median CPU latency and 346.8\,MB peak GPU memory, the worst on both cost axes. Accuracy per million parameters spans an order of magnitude in the opposite direction, from 0.1600 for GoogLeNet and 0.1285 for DenseNet121 down to 0.0165 for Inception-ResNet-v2. The Pareto front over AUC against GFLOPs, marked in Fig.~\ref{fig:pareto}, contains three models: \textbf{GoogLeNet} (0.5558 GFLOPs, 0.8962 AUC), \textbf{InceptionV3} (0.6828, 0.8992) and \textbf{ConvNeXt-Tiny} (1.6486, 0.9055). The remaining four are dominated. GFLOPs and wall-clock latency do not agree even within the front: InceptionV3 costs 23\% more GFLOPs than GoogLeNet but only 45\% more CPU time, while Xception at 1.6683 GFLOPs is the second-fastest of the seven on GPU.
+
+Neither capacity correlation is significant. On efficiency7, Spearman between parameter count and mean AUC is $\rho=0.50$ at $n=7$ with $p=0.2532$. On localization12, with input resolution free to vary, Spearman between parameter count and pointing accuracy is $\rho=0.13$ at $n=12$ with $p=0.6860$ (Fig.~\ref{fig:pointingparams}). Both are reported as descriptive summaries of a small sample; neither demonstrates a monotone association, and neither is evidence that no association exists.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{fig_t2_3_pareto.png}}
+\caption{Mean AUC against GFLOPs for the seven backbones at 96\,px. The Pareto front is GoogLeNet, InceptionV3 and ConvNeXt-Tiny. The vertical span of the whole plot, 0.0144 AUC, is smaller than the within-model fold standard deviation of six of the seven.}
+\label{fig:pareto}
+\end{figure}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=\columnwidth]{fig_t2_4_pointing_vs_params.png}}
+\caption{Pointing accuracy against parameter count for all twelve backbones at their published explanation sites. Spearman $\rho=0.13$, $p=0.6860$, $n=12$. The five backbones at 0.0000 are exactly the five not evaluated at a 96\,px input, so family and input resolution are confounded along this axis (Section~\ref{sec:limits}).}
+\label{fig:pointingparams}
+\end{figure}
+
+\subsection{Optimizer and protocol axis}
+\label{sec:optimizer}
+The third axis is optimizer4, which shares only three backbones with localization12. Table~\ref{tab:backbone} reports mean AUC pooled over the full optimizer and weight-decay sweep, 45 runs per backbone. VGG16 reaches the highest mean AUC and the lowest coefficient of variation, ahead of ResNet50, with MobileNetV2 and EfficientNet-B0 close together at the lower end.
+
+\begin{table}[htbp]
+\caption{Mean AUC by backbone on optimizer4, pooled over the optimizer/weight-decay sweep and 5 folds (45 runs per backbone)}
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Backbone} & \textbf{Mean AUC} & \textbf{CV} \\
+\midrule
+VGG16 & 0.8966 & 0.0400 \\
+ResNet50 & 0.8553 & 0.0792 \\
+MobileNetV2 & 0.8262 & 0.0615 \\
+EfficientNet-B0 & 0.8241 & 0.0865 \\
+\bottomrule
+\end{tabular}
+\label{tab:backbone}
+\end{center}
+\end{table}
+
+Brown-Forsythe tests with Holm correction across all six backbone pairs find exactly one significant pair: ResNet50 versus VGG16 ($p_{\mathrm{holm}}=0.0426$). The remaining five, including VGG16 versus EfficientNet-B0 ($p_{\mathrm{holm}}=0.0840$), do not survive correction. A claim that VGG16 is unconditionally the most stable backbone across this sweep is therefore not supported at the individual-pair level and is not made; only the ResNet50-versus-VGG16 variance difference is statistically defensible. The choice of variance test matters here and we state it rather than select on it: the mean-based Levene variant flags four of the six pairs after Holm correction, but it is the more skew-sensitive of the two, and the median-based Brown-Forsythe result reported above is the one specified in Section~\ref{sec:methods}.
+
+The factorial ANOVA attributes $\eta^2=0.4533$ to optimizer ($p=1.1\times10^{-45}$), 0.2060 to backbone ($p=4.6\times10^{-27}$), 0.0684 to fold ($p=8.2\times10^{-11}$), and 0.00019 to weight decay ($p=0.996$), with 0.1827 residual. Optimizer choice thus accounts for roughly \textbf{2400 times} more AUC variance than weight decay in this decomposition. An earlier version of this analysis put the ratio at ``over 200 times''; recomputing it from the recorded $\eta^2$ values gives $0.4533/0.000189 = 2401$, so the earlier statement was true but understated by an order of magnitude. The gap is driven by SGD: at the single learning rate shared by all three optimizers, SGD costs EfficientNet-B0 0.146 AUC relative to Adam (0.7287 against 0.8744) and ResNet50 0.126 (0.7720 against 0.8980), while Adam and AdamW are within 0.006 of each other on every backbone.
+
+The label scheme is the second protocol lever. The Friedman omnibus test across the four label arms is significant ($\chi^2=43.96$, $p=1.5\times10^{-9}$), with mean ranks favouring the four-class arm (1.33) over binary (2.40), three-class (2.77) and ordinal (3.50, worst). Nemenyi post-hoc finds every arm pair significantly different except binary versus three-class ($p=0.69$). At the individual-model level, however, paired DeLong tests for binary versus four-class reach significance in only 3 of the 6 models tested (MobileNetV3-Small, VGG16, ViT-Base), and are not significant for DenseNet121, EfficientNet-B0 or ResNet50 ($p=0.055$ to $0.17$). Label granularity therefore affects performance in aggregate across models and folds without holding uniformly at the level of an individual model. Ordinal-native metrics for the ordinal arm, averaged over its six models and five folds, are a quadratic-weighted kappa of 0.5451, a mean absolute error of 0.6433 and a one-off accuracy of 0.9155.
+
+\subsection{Joint table}
+\label{sec:joint}
+Table~\ref{tab:joint} brings the three axes together. All twelve rows carry localization; only the seven at 96\,px carry efficiency columns, and the five blank cells are blank by design rather than by omission.
+
+\begin{table*}[htbp]
+\caption{Joint master table. Localization is measured at each backbone's published explanation site over the same 60 nodules; \emph{zero} counts identically-zero maps among them. Pointing intervals are Wilson at 95\%; Dice intervals are percentile bootstrap at 95\%, $B=10{,}000$. Efficiency columns are populated for the seven backbones at a shared 96\,px input only; see the footnote.}
+\begin{center}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llcccccccccc}
+\toprule
+\textbf{Backbone} & \textbf{Subsets} & \textbf{px} & \textbf{Site} & \textbf{Zero} & \textbf{Pointing [95\% CI]} & \textbf{Dice [95\% CI]} & \textbf{Params (M)} & \textbf{GFLOPs} & \textbf{CPU (ms)} & \textbf{Mem (MB)} & \textbf{AUC} \\
+\midrule
+MobileNetV3-Small & L & 64 & $2\times2$ & 0 & 0.0000 [0.000, 0.060] & 0.0017 [0.000, 0.005] & --- & --- & --- & --- & --- \\
+EfficientNet-B0 & L+O & 64 & $2\times2$ & 0 & 0.0000 [0.000, 0.060] & 0.0013 [0.000, 0.004] & --- & --- & --- & --- & --- \\
+DenseNet121 & L+E & 96 & $3\times3$ & 0 & 0.5833 [0.457, 0.699] & 0.0622 [0.040, 0.090] & 6.96 & 1.065 & 17.3 & 164.8 & 0.8940 \\
+ResNet50 & L+O & 64 & $2\times2$ & 0 & 0.0000 [0.000, 0.060] & 0.0030 [0.000, 0.007] & --- & --- & --- & --- & --- \\
+VGG16 & L+O & 64 & $2\times2$ & 0 & 0.0000 [0.000, 0.060] & 0.0025 [0.000, 0.007] & --- & --- & --- & --- & --- \\
+ViT-Base$^{\dagger}$ & L & 224 & token grid & 53 & 0.0000 [0.000, 0.060] & 0.0357 [0.020, 0.056] & --- & --- & --- & --- & --- \\
+InceptionV3 & L+E & 96 & $4\times4$ & 0 & 0.0333 [0.009, 0.114] & 0.0955 [0.062, 0.134] & 21.79 & 0.683 & 12.1 & 222.1 & 0.8992 \\
+Xception & L+E & 96 & $3\times3$ & 0 & 0.0667 [0.026, 0.159] & 0.0286 [0.006, 0.059] & 20.81 & 1.668 & 14.8 & 93.5 & 0.8911 \\
+GoogLeNet & L+E & 96 & $3\times3$ & 0 & 0.5000 [0.377, 0.623] & 0.0901 [0.058, 0.128] & 5.60 & 0.556 & 8.3 & 159.2 & 0.8962 \\
+ConvNeXt-Tiny & L+E & 96 & $3\times3$ & 0 & 0.7167 [0.592, 0.815] & 0.1091 [0.075, 0.149] & 27.82 & 1.649 & 12.7 & 125.5 & 0.9055 \\
+Inception-ResNet-v2 & L+E & 96 & $4\times4$ & 0 & 0.1000 [0.047, 0.202] & 0.1175 [0.081, 0.157] & 54.31 & 1.473 & 34.4 & 346.8 & 0.8986 \\
+DenseNet201 & L+E & 96 & $3\times3$ & 0 & 0.7000 [0.575, 0.801] & 0.0970 [0.067, 0.133] & 18.10 & 1.613 & 33.5 & 207.9 & 0.8988 \\
+\bottomrule
+\end{tabular}
+\label{tab:joint}
+\end{center}
+\footnotesize
+Subsets: L = localization12, E = efficiency7, O = optimizer4. MobileNetV2 belongs to optimizer4 only and has no row here, so optimizer4 is not nested in localization12.
+\emph{Why five efficiency cells are empty.} MobileNetV3-Small, EfficientNet-B0, ResNet50 and VGG16 were trained and profiled at 64\,px and ViT-Base at 224\,px. GFLOPs, latency and peak memory all scale with input size, so entering their own measurements into this block would put three different input sizes into one column and invite precisely the comparison the column exists to support. The rows are kept because they still carry localization. A parameter count at each model's own input size does exist for all twelve and is used as the abscissa of Fig.~\ref{fig:pointingparams}, never as a cost figure.
+$^{\dagger}$ ViT-Base's CAM path is broken rather than merely weak: the map is identically zero on 53 of 60 samples at this site. The row is retained with that annotation; see Section~\ref{sec:limits}.
+\end{table*}
+
 \section{Discussion}
+\label{sec:discussion}
+
+\textbf{Why a selector lands where it does.} Neither rule inspects the signal it is about to explain; both walk the module graph and stop on a structural condition. The canonical rule stops at the deepest module that reports a spatial shape, and a module can report a shape without carrying spatial structure -- an adaptive average pool and a dropout after it both emit a well-formed $1\times1$ tensor. The band rule stops at the deepest module whose feature-map height lies in $[7,10]$, and that interval is not a property of the network at all. It is a property of a $224\,$px input, where an ImageNet backbone terminates at $7\times7$. Our patches are 96\,px and 64\,px, so the same GoogLeNet emits heights $\{48,24,12,6,3,1\}$ and the band is empty; the rule exhausts its candidates and falls back to the deepest module, which is the dropout. The heuristic did not misjudge a trade-off, it was evaluated outside the input regime its constant encodes. This is why the failure clusters on small medical patches rather than on natural-image benchmarks, and it is the practical warning we would want a reader to take away: a target-layer heuristic imported unchanged from a 224\,px pipeline has an unstated precondition that a 96\,px pipeline violates.
+
+Falling back is not itself fatal. Five of the twelve backbones took the fallback path and four of them landed on usable $3\times3$ sites; DenseNet121, DenseNet201 and ConvNeXt-Tiny reach their own best score there. What is fatal is falling back into a network whose terminal modules are pooling and dropout, because the fallback rule is ordered by depth and depth is exactly the direction in which spatial extent disappears.
+
+\textbf{Why the failure is silent rather than loud.} Every operation downstream of the degenerate site is total on degenerate input. Min-max normalisation of a constant map is defined and returns zeros. A percentile threshold on an array whose values are all equal is defined and selects the entire frame. Dice between the entire frame and a small mask is defined and, on a fixed sample set, is a constant -- 0.0350 here, appearing identically in all eleven $1\times1$ failures. The pointing rate is defined and returns 0.0000. Not one of these steps has an input it can reject, so the pipeline converts a structural mistake into a number in the same range that a genuinely poor explanation would produce. The reader of such a table sees a network that localises badly and has no way to see a selector that never localised at all. The remedy is cheap and we recommend it as a default: record the count of identically-zero maps and the spatial size of the resolved site alongside every CAM metric, and treat a $1\times1$ resolution or a non-zero zero-map count as a failed run rather than as a low score. A size check alone is not sufficient -- EfficientNet-B0 fails identically at a $4\times4$ site -- which is why the zero-map count is the load-bearing column and appears in Table~\ref{tab:joint}.
+
+\textbf{Two heuristics, two failure modes, one conclusion.} The canonical rule fails broadly and gracefully: it is best in only 4 of 12 backbones, it never selects the worst site either, and its deficit is a continuum that reaches 0.6333 in Inception-ResNet-v2. The band rule fails narrowly and catastrophically: where its band is populated it is a reasonable pick, and where it is not it can resolve to a site that emits nothing, costing 0.5000 in GoogLeNet. A practitioner cannot tell in advance which regime a given backbone at a given input size falls into, because the diagnostic quantity -- the set of feature-map heights the network actually emits -- is not something either rule reports. That is the argument for reporting a curve instead of a configuration. The sweep is not expensive: 86 sites over twelve backbones on 60 samples, at the per-sample costs in Section~\ref{sec:degenerate}, is a small fraction of the cost of training any one of the models. A curve also makes the shape visible, and the shape carries information a point estimate destroys: nine of twelve backbones peak in the middle, which is what one expects when localization is limited from one side by semantic abstraction and from the other by spatial resolution, and none peaks at the end, which the canonical default implicitly assumes.
+
+The resolution floor is the mechanism behind the two shallow peaks. On a 96\,px patch the mean lesion occupies 1.9\% of the frame. A $2\times2$ map divides that frame into four cells of 25\% each, so its argmax cannot land inside a 1.9\% mask except by coincidence -- and indeed all four backbones whose canonical site is $2\times2$ report exactly 0.0000. ResNet50 and VGG16 recover to 0.3833 and 0.4667 at their shallowest candidates, $32\times32$ and $64\times64$. For lesions this small relative to the field of view, the usual advice to prefer semantic depth over resolution inverts.
+
+\textbf{The protocol axis, and what it does not explain.} On optimizer4, the dominance of optimizer over weight decay by a factor of roughly 2400 in $\eta^2$ is consistent with a learning-rate mismatch rather than with an intrinsic property of SGD: SGD fine-tuning typically wants a learning rate one to two orders of magnitude above Adam or AdamW,\CITE{sumber praktik learning rate SGD vs Adam pada fine-tuning; belum ada citekey di refs.bib} and this sweep used a single learning rate common to all three. The deficits are exactly where that account predicts them -- 0.146 AUC for EfficientNet-B0 and 0.126 for ResNet50 against Adam, with Adam and AdamW indistinguishable -- so the honest reading is that the sweep measures a protocol interaction and not an optimizer ranking. An SGD-specific learning-rate sweep is implemented but not yet executed here, and is reported as planned follow-up rather than as a result. The same caution applies to the granularity axis, where an aggregate Friedman ranking and per-model paired DeLong tests disagree: the omnibus reflects a trend consistent across models and folds even where individual models do not individually cross a threshold, and collapsing the two into one headline would overstate the model-level evidence.
+
+Finally, the capacity axis is the one that behaves as the literature already led us to expect, and we treat it as a domain confirmation rather than as a contribution. A 9.7-fold parameter range buying 0.0144 AUC, with six of seven models showing more fold-to-fold variation than that, is the Transfusion result restated on a new cohort. What is worth carrying forward from it is not the correlation, which is not significant at $n=7$, but the Pareto structure: the two cheapest models in the set sit on the front, and the most expensive is dominated on every axis we measured.
 
 \section{Limitations}
 \label{sec:limits}
 
+\textbf{1. Sample size and study design.} Twelve backbones, seven cost-profiled models and four models on the optimizer grid are small samples. Every comparison here is observational, none is a controlled experiment over architectures, and the whole study is hypothesis-generating. No claim in this paper is established beyond the cohort, the tooling and the sample sizes reported with it.
+
+\textbf{2. Both capacity correlations are non-significant, in both directions.} Spearman $\rho=0.50$ at $n=7$ with $p=0.2532$ for parameters against AUC, and $\rho=0.13$ at $n=12$ with $p=0.6860$ for parameters against pointing accuracy. Neither result demonstrates a monotone association, and -- this is the part that is easy to get wrong -- neither is evidence that no association exists. At $n=7$ the study has very little power to detect a moderate correlation, so a null result is uninformative about the underlying effect. The capacity question is left open by these data in both directions, and we state it that way deliberately.
+
+\textbf{3. Three axes on three unequal, non-nested subsets.} localization12, efficiency7 and optimizer4 differ in size and membership; MobileNetV2 appears in optimizer4 and nowhere else, so optimizer4 is not a subset of localization12. Conclusions from one axis do not transfer to the models of another, and the subset column in Table~\ref{tab:joint} exists so that no reader has to reconstruct which models support which claim.
+
+\textbf{4. Family and input resolution are confounded across the twelve.} The five backbones reporting a pointing accuracy of 0.0000 -- MobileNetV3-Small, EfficientNet-B0, ResNet50 and VGG16 at 64\,px, and ViT-Base at 224\,px -- are exactly the five not evaluated at 96\,px. Nothing in the cross-backbone comparison can separate the effect of the architecture family from the effect of the input size, and we do not attempt to. The within-backbone depth sweep is untouched by this confound, because each curve holds the network, the weights, the input size and the 60 samples fixed and varies only the site; that is what keeps the headline claim standing while the cross-backbone reading of Table~\ref{tab:joint} remains ambiguous.
+
+\textbf{5. Localization is not faithfulness.} Overlap with a radiologist mask measures where a map is bright, not whether the network used that region. Our own sanity checks bound this. Under cascading randomisation of GoogLeNet at the recovered site, the map's rank correlation with the original stays at 0.8500, 0.8015, 0.7671 and 0.7087 as the classifier and the three deepest stages are randomised in turn, and only collapses -- to 0.0033, then to negative values as low as $-0.2967$ -- once the mid-level stages are destroyed. The map is thus insensitive to the parameters closest to the decision, which is the signature of an activation-driven rather than a decision-driven explanation. The class-flip probe agrees: explaining the non-predicted class yields a mean Spearman of 0.7712 with the original map, so the map is only weakly class-discriminative. A high pointing accuracy in this paper should be read as evidence about the explanation site, not as evidence that the model attends to the lesion.
+
+\textbf{6. The ViT CAM path is broken, not merely weak.} At its published site, \texttt{encoder\_layer\_11.ln\_1}, the map is identically zero on 53 of 60 samples, and the degeneracy worsens monotonically with depth across encoder layers 8, 10 and 11 (27, 50 and 53 zero maps). Layer-CAM on a token-grid architecture with pre-norm blocks is not a validated configuration and our result should not be read as a statement about ViT interpretability. The row is retained in Table~\ref{tab:joint} with that annotation rather than dropped, because a table from which the awkward row has been quietly removed is exactly what a reviewer would ask about. Repairing the path -- attention-aware CAM variants, or an alternative reshaping of the token sequence -- is future work.
+
+\textbf{7. One published localization row does not reproduce.} DenseNet121's checkpoint carries a modification time of 2026-08-04 16:42, six hours after the 2026-08-04 10:25 timestamp of the metrics published against it: the model was retrained after its numbers were written. Re-measuring at the same site under the current checkpoint gives pointing accuracy 0.5833 against a published 0.7167, a gap of 0.1333, with Dice 0.0622 against 0.1030 and size-matched Dice 0.3475 against 0.4703. The current numbers are the ones reported throughout this paper. All other eleven backbones have checkpoints predating their published metrics, and their differences from the published values are attributable to the site correction rather than to a weight change.
+
+\textbf{8. Single dataset, no external validation.} Everything here is LIDC-IDRI, one fold assignment, one preprocessing pipeline. Neither the localization result nor the efficiency result has been reproduced on an independent cohort, and the degenerate-site rate in particular is a joint property of these networks, these input sizes and this tooling.
+
+\textbf{9. Identical hyperparameters across architectures.} All twelve backbones share one training recipe. That is what makes the comparison controlled, and it is also what makes it unfair to any family the recipe suits badly -- the SGD deficit in Section~\ref{sec:optimizer} is a visible instance of the same problem on the protocol axis. A per-architecture tuning budget could reorder the backbones, and evidence that it does exists in the benchmarking literature already cited.
+
 \section{Conclusion}
+Across twelve backbones on LIDC-IDRI, the variable that governs class-activation-map localization is not the architecture family and not the parameter count. It is the layer at which the map is taken. Over 86 candidate explanation sites, pointing accuracy moves by up to 0.7333 within a single frozen network, the canonical last-spatial-layer default is optimal in only 4 of 12 backbones, and in none of the twelve is the deepest candidate the best one. Both automatic selectors we tested fail, in different ways: the canonical rule fails broadly and gracefully, and the band rule -- whose $[7,10]$ constant silently encodes a 224\,px input -- can resolve to a site with no spatial extent, which is what produced one of our own published rows of exactly 0.0000 pointing accuracy. That failure is silent by construction, because a constant map still yields a finite Dice of 0.0350; 17 of the 86 sites emit an identically-zero map on at least one sample and 12 do so on every sample, in all twelve backbones. Capacity and protocol are reported alongside and behave as domain expectation predicts: a 9.7-fold parameter range spans 0.0144 AUC, less than the fold-to-fold variation of six of seven models, while on a separate four-backbone grid optimizer choice accounts for roughly 2400 times more AUC variance than weight decay. The operational recommendation is narrow and cheap. Report the resolved site, its spatial size and its count of identically-zero maps with every CAM number, and report a depth curve rather than a single configuration; without that audit, a cross-architecture explainability table may be describing the tooling rather than the networks. A companion paper addresses radiomics-CNN fusion and per-arm explainability on the same cohort and the same fold assignment.
 
 \section*{Acknowledgment}
 The authors thank their supervisor and collaborators for guidance on this work.
