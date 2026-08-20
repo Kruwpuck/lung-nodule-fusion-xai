@@ -8,10 +8,12 @@ canonical rule that replaced it -- explain at the deepest layer that still has s
 -- degrades broadly instead of silently: at a 64 px input a stride-32 backbone's last spatial
 layer is 2x2. Comparing the two picks within this one run, the canonical rule scores worse on
 pointing accuracy than the band at six of the twelve backbones, better at one (GoogLeNet, the
-one where the band fell through to a 1x1 layer), and ties at five. A larger figure of nine
-appears elsewhere in this session's history; that one counts backbones whose numbers fell
-against the *published* values, which is a different comparison, because the published set also
-carries a stale densenet121 row whose checkpoint was retrained after its metrics were written.
+one where the band fell through to a 1x1 layer), and ties at five. Against the *published*
+values the split is seven down, one up and four unchanged -- a different comparison, because the
+published set also carries a stale densenet121 row whose checkpoint was retrained after its
+metrics were written. Both counts are recomputable from cam_12.csv and depth_sweep_12.csv;
+neither is nine, a figure that appeared in an earlier draft of this docstring and in one commit
+message, and was wrong.
 
 Two heuristics give two points per backbone, and two points cannot tell a monotone
 relationship from a peaked one from no relationship at all. The shape of that relationship is

@@ -6,7 +6,8 @@
 - **Repo**: `lung-nodule-fusion-xai`
 - **Tugas**: Track 1 dari pemisahan dua paper (lihat `docs/Review Revisi 1.md` §8)
 - **Dataset**: LIDC-IDRI
-- **Tanggal laporan**: 30 Juli 2026 (diperbarui 8 Agustus 2026 dengan hasil run `2026-08-04-run02`, lihat §6.3; diperbarui 19 Agustus 2026 dengan uji ekuivalensi run `2026-08-19-run03`, lihat §6.4)
+- **Tanggal laporan**: 30 Juli 2026 (diperbarui 8 Agustus 2026 dengan hasil run `2026-08-04-run02`, lihat §6.3; diperbarui 19 Agustus 2026 dengan uji ekuivalensi run `2026-08-19-run03`, lihat §6.4; diperbarui 20 Agustus 2026 dengan audit target layer run `2026-08-20-run04` — koreksi tabel §6.2, penarikan klaim ViT-Base, dan empat kegagalan senyap baru di §8.10)
+- **Catatan untuk pembaca 20 Agustus 2026**: manuskrip Track 1 sudah terbit dan ter-*commit*, dan audit ini **tidak menggoyahkan angka XAI-nya** — ketiga backbone Track 1 meresolusi ke target layer yang sama sebelum dan sesudah perubahan resolver, dan sidik jari CAM-nya identik bit demi bit (§6.2.1). Yang dikoreksi adalah tabel dua belas backbone §6.2, yang cakupannya lebih luas daripada kohort Track 1.
 
 ---
 
@@ -156,7 +157,7 @@ Satu batasan tafsir perlu disebut. Angka-angka ini adalah keputusan keras pada a
 
 ### 6.2 XAI
 
-Pointing accuracy per backbone, dari `artifacts/results/xai/xai_metrics.csv`:
+Pointing accuracy per backbone, dari `artifacts/results/xai/xai_metrics.csv`. **Tabel ini adalah angka terbitan lama; angka yang berlaku sekarang ada di blok koreksi tepat di bawahnya.** Ia dipertahankan utuh supaya perbandingan lama-lawan-baru bisa dilakukan pembaca tanpa menggali arsip.
 
 | Backbone | Pointing accuracy |
 |---|---|
@@ -174,6 +175,92 @@ Pointing accuracy per backbone, dari `artifacts/results/xai/xai_metrics.csv`:
 | GoogLeNet | 0.0000 |
 
 Pointing accuracy rendah tidak berarti AUC klasifikasi rendah; beberapa backbone dengan pointing mendekati nol tetap klasifikasi kompetitif. Ini konsisten dengan keterbatasan Grad-CAM yang sudah didokumentasikan pada literatur, khususnya untuk arsitektur vision transformer.
+
+#### Koreksi, 20 Agustus 2026: tujuh dari dua belas angka bergerak turun, satu naik, empat tetap
+
+Blok ini mengikuti preseden §8.10: diagnosis lama tidak dihapus, melainkan dinyatakan salah dengan tanggal, sehingga jejaknya tetap bisa diperiksa.
+
+Audit target layer pada run `2026-08-20-run04` menemukan bahwa sebagian besar angka pada tabel di atas diambil di *explanation site* yang berbeda dari yang dikira, dan satu angka diambil terhadap checkpoint yang sudah tidak ada lagi. Angka yang berlaku sekarang berasal dari `artifacts/results/track2rev/cam_12.csv` (kolom `pointing_acc`), dan angka terbitannya ada di kolom `pointing_acc_published` pada berkas yang sama, sehingga keduanya bisa dibaca berdampingan tanpa keluar dari satu baris CSV.
+
+| Backbone | Terbitan lama | **Berlaku sekarang** | Selisih | Site sekarang (spasial) | Sebab pergerakan |
+|---|---|---|---|---|---|
+| ConvNeXt-Tiny | 0.7167 | **0.7167** | 0.0000 | `features.0.7.2` (3x3) | Tidak bergerak. Resolver berpindah dari `features.0.7` ke anaknya `features.0.7.2`, ukuran spasial sama, peta CAM **bit-identik** (§6.2.1) |
+| DenseNet201 | 0.7000 | **0.7000** | 0.0000 | `features.0.norm5` (3x3) | Tidak bergerak. Site sama, peta bit-identik |
+| DenseNet121 | 0.7167 | **0.5833** | −0.1333 | `features.0.norm5` (3x3) | **Bukan site.** Site-nya tidak berubah dan petanya bit-identik terhadap checkpoint yang sekarang; yang berubah adalah checkpoint-nya sendiri (§6.2.2) |
+| GoogLeNet | 0.0000 | **0.5000** | **+0.5000** | `features.15` (3x3) | Angka lama diambil di `features.17`, sebuah `Dropout` 1x1 di belakang global average pool, yang memancarkan peta identik nol pada seluruh 60 sampel (§8.10 butir A) |
+| Inception-ResNet-v2 | 0.3833 | **0.1000** | −0.2833 | `features.repeat_1.19` (4x4) | Angka lama adalah pilihan *band* di `features.mixed_6a.branch1.1` (9x9); pilihan sekarang canonical 4x4, dan pada 4x4 lantai resolusi menggigit |
+| InceptionV3 | 0.2000 | **0.0333** | −0.1667 | `features.14` (4x4) | Sama: band 9x9 di `features.10.branch3x3dbl_2` diganti canonical 4x4 |
+| VGG16 | 0.2000 | **0.0000** | −0.2000 | `features.0.30` (2x2) | Band 8x8 di `features.0.22` diganti canonical 2x2. Pada 2x2 argmax tidak mungkin jatuh di mask 1,9 persen kecuali kebetulan |
+| Xception | 0.2000 | **0.0667** | −0.1333 | `features.act4` (3x3) | Band `features.conv4` (3x3) diganti canonical `features.act4` (3x3). Site lama itu sendiri cacat: identik nol pada 9 dari 60 sampel |
+| ResNet50 | 0.1167 | **0.0000** | −0.1167 | `features.7.2` (2x2) | Band 8x8 di `features.6.0.relu` diganti canonical 2x2. Lantai resolusi yang sama dengan VGG16 |
+| EfficientNet-B0 | 0.0833 | **0.0000** | −0.0833 | `features.0.8.2` (2x2) | Band 8x8 di `features.0.4.0.block.0` diganti canonical 2x2 |
+| MobileNetV3-Small | 0.0000 | **0.0000** | 0.0000 | `features.0.12.2` (2x2) | Nol di kedua site. Band 8x8-nya juga 0.0000, jadi tidak ada yang tersembunyi di sini |
+| ViT-Base | 0.0000 | **0.0000** | 0.0000 | `encoder_layer_11.ln_1` (grid token) | Angka tidak bergerak, tetapi **artinya berubah total**: jalur CAM-nya rusak, bukan lokalisasinya lemah (§6.2.3) |
+
+**Dua perbandingan berbeda, dan keduanya perlu dinyatakan terpisah.** Tabel di atas membandingkan angka sekarang terhadap **angka terbitan** — tujuh turun, satu naik, empat tetap. Perbandingan kedua, yang tidak sama, adalah angka sekarang terhadap **pilihan band di dalam satu run yang sama**, tanpa perbedaan checkpoint maupun tanggal: di situ **enam turun** (EfficientNet-B0 −0.0833, ResNet50 −0.1167, VGG16 −0.2000, InceptionV3 −0.1667, Xception −0.1333, Inception-ResNet-v2 −0.2833), satu naik (GoogLeNet +0.5000), dan lima tetap. Perbandingan pertama mencampur efek site dengan efek checkpoint dan tanggal; perbandingan kedua mengisolasi efek aturan pemilih saja. Sumber: kolom `band_score` pada `artifacts/results/track2rev/depth_curve_summary.csv`.
+
+Satu ketidakcocokan kecil antar berkas dicatat supaya tidak ditemukan orang lain sebagai kejutan: `target_layer_audit.csv` (commit `4f939a2`) mencatat `features.6.0.relu` pada ResNet50 sebagai 4x4, sedangkan `depth_sweep_12.csv` (commit `f81ba0d`) mencatatnya 8x8. Skor pointing-nya sama, 0.1167, di kedua berkas. Tidak berdampak pada angka mana pun di tabel ini, tetapi kolom ukuran spasial pada berkas yang lebih awal tidak boleh dikutip tanpa pemeriksaan.
+
+##### 6.2.1 Angka XAI Track 1 tidak bergeser oleh perubahan resolver
+
+Ini perlu dinyatakan tersurat dan lebih dulu, supaya pembaca tidak mengasumsikan yang terburuk. Manuskrip Track 1 sudah terbit dan ter-*commit*, dan sesi ini **membuktikan angka XAI-nya tidak bergerak** oleh perubahan resolver.
+
+Ketiga backbone Track 1 yang membawa metrik CAM meresolusi ke *target layer* dengan ukuran spasial yang sama sebelum dan sesudah perubahan, dan sidik jari SHA-1 atas seluruh 60 peta CAM fold 0 **identik bit demi bit**. Dari `artifacts/results/track2rev/track1_guard.csv`:
+
+| Backbone | Aturan sebelum | Site sebelum | Aturan sesudah | Site sesudah | Spasial | SHA-1 peta CAM |
+|---|---|---|---|---|---|---|
+| DenseNet121 | `band_7_10` (fallback) | `features.0.norm5` | `last_spatial` (auto) | `features.0.norm5` | 3x3 | `0862db594955b054afdc814b33fb00a021a92d21` — **sama** |
+| DenseNet201 | `band_7_10` (fallback) | `features.0.norm5` | `last_spatial` (auto) | `features.0.norm5` | 3x3 | `55b95ff031e9c5d8e1953caa6337845b6d637ab0` — **sama** |
+| ConvNeXt-Tiny | `band_7_10` (fallback) | `features.0.7` | `last_spatial` (auto) | `features.0.7.2` | 3x3 | `4356c4ad6a1efebb79983008cf1a128e3361fbce` — **sama** |
+
+ConvNeXt-Tiny adalah kasus yang paling meyakinkan: nama modulnya **berubah**, dari `Sequential` `features.0.7` menjadi anaknya `CNBlock` `features.0.7.2`, tetapi aktivasi yang di-*hook* sama dan petanya karena itu identik. Perubahan nama site tanpa perubahan peta persis situasi yang paling mudah salah dilaporkan sebagai regresi.
+
+Konsekuensinya: **seluruh angka XAI §6.3.4, tabel §6.3.1 baris pointing accuracy, dan Fig 14 tidak terpengaruh perubahan resolver.** Klaim "fusi tidak merusak lokalisasi" berdiri di tempatnya semula.
+
+Dua batasan pada guard ini, dinyatakan karena guard yang dilebihkan cakupannya lebih buruk daripada tidak ada guard. Pertama, guard menjamin **perubahan resolver** tidak menggeser peta; ia tidak menjamin apa pun tentang perubahan checkpoint, dan justru DenseNet121 bergerak karena sebab kedua itu (§6.2.2). Kedua, `track1_guard.csv` memuat satu kolom `cam_sha1` per baris tanpa kolom kelas keputusan, sehingga laporan ini hanya menyatakan apa yang tercetak di berkas itu: 60 sampel, satu sidik jari per kombinasi backbone dan tag. Klaim yang lebih kuat — bahwa sidik jarinya identik **untuk kedua kelas keputusan** — tidak dapat ditelusuri ke kolom mana pun di berkas ini dan karena itu tidak dituliskan di sini.
+
+##### 6.2.2 Baris DenseNet121 tidak bereproduksi karena checkpoint-nya dilatih ulang setelah angkanya ditulis
+
+Nilai 0.7167 pada tabel terbitan **tidak bereproduksi**, dan sebabnya bukan site. Dua *mtime* pada baris `densenet121` di `cam_12.csv` cukup untuk menetapkannya:
+
+| Kolom | Nilai |
+|---|---|
+| `checkpoint_mtime` | 2026-08-04 16:42 |
+| `published_mtime` | 2026-08-04 10:25 |
+
+Checkpoint-nya **enam jam lebih baru** daripada metrik yang mengklaim memerikannya. Metrik ditulis lebih dulu, model dilatih ulang sesudahnya. Pelatihan ulang itu bukan peristiwa misterius: ia sudah terdokumentasi di §8.6 laporan ini sebagai perbaikan checkpoint dua angkatan, yang menaikkan AUC DenseNet121 dari 0.8333 ke 0.8940. Yang tidak dilakukan waktu itu adalah menghitung ulang metrik XAI-nya, dan tidak ada apa pun yang memaksa hal itu terjadi.
+
+Besaran pergerakannya, seluruhnya dari `cam_12.csv` dan seluruhnya diukur di site yang sama `features.0.norm5` 3x3:
+
+| Metrik | Terbitan | Sekarang | Selisih |
+|---|---|---|---|
+| Pointing accuracy | 0.7166666666666667 | 0.5833333333333334 | −0.1333333333333333 |
+| Dice | 0.1030019494159562 | 0.062225181534756716 | −0.04077676788119948 |
+| IoU | 0.0629595705283734 | 0.03551002946199376 | −0.027449541066379632 |
+| Dice size-matched | 0.4702929836895999 | 0.34750336285343403 | −0.12278962083616585 |
+| Energy mean | 0.0309380842397605 | 0.0247508257802674 | −0.006187258459493101 |
+
+**Sebelas backbone lain punya `checkpoint_mtime` yang mendahului `published_mtime`-nya**, sehingga selisih mereka dapat diatribusikan ke koreksi site dan bukan ke perubahan bobot. DenseNet121 satu-satunya yang tidak. Angka yang sekarang adalah angka yang berlaku, dan angka lama tetap dicetak di sebelahnya di tabel §6.2 di atas.
+
+##### 6.2.3 Klaim ViT-Base ditarik: angkanya tidak bisa menanggung beban itu
+
+Draf laporan ini, dan `docs/laporan/RESEARCH_JOURNEY_REPORT.md` dalam bentuknya yang lebih tersurat, memakai ViT-Base sebagai bukti bahwa **interpretability tidak mengikuti kapasitas**: 85,8 juta parameter tetapi pointing accuracy nol. Inferensi itu **ditarik**.
+
+Angka 0.0000 pada baris ViT-Base tidak dapat ditafsirkan sebagai sifat arsitektural, karena **jalur CAM-nya sendiri yang gagal**. Dari `artifacts/results/track2rev/silent_failure_census.csv`, di site terbitannya `features.encoder.layers.encoder_layer_11.ln_1` peta CAM identik nol pada **53 dari 60 sampel**, dan degenerasinya **memburuk monoton dengan kedalaman**:
+
+| Site | Peta identik nol dari 60 | Fraksi | Pointing accuracy |
+|---|---|---|---|
+| `encoder_layer_8.ln_1` | 27 | 0.45 | 0.0000 |
+| `encoder_layer_10.ln_1` | 50 | 0.8333333333333334 | 0.0333333333333333 |
+| `encoder_layer_11.ln_1` (site terbitan) | 53 | 0.8833333333333333 | 0.0000 |
+
+Peta yang identik nol pada 53 dari 60 sampel bukan pengukuran lokalisasi yang buruk; ia bukan pengukuran lokalisasi sama sekali. Layer-CAM pada arsitektur grid token dengan blok pre-norm bukan konfigurasi yang tervalidasi, dan angka yang keluar darinya tidak boleh dibaca sebagai pernyataan tentang interpretability ViT.
+
+Yang menggantikan inferensi lama, dan tidak lebih dari ini: **jalur CAM ViT-Base gagal, sehingga angkanya tidak dapat ditafsirkan sebagai sifat arsitektur.** Pertanyaan apakah interpretability mengikuti kapasitas dibiarkan **terbuka**, bukan dijawab dengan tanda berlawanan — dan memang tidak dapat dijawab dari data ini: korelasi Spearman antara jumlah parameter dan pointing accuracy pada dua belas backbone adalah 0.1305 dengan $p=0.6860$ (`joint_correlations.csv`), tidak signifikan, yang **bukan** bukti bahwa asosiasinya tidak ada.
+
+Barisnya **tetap tampil** di tabel §6.2 dengan anotasi ini, bukan dihapus. Baris canggung yang hilang dari tabel adalah persis hal yang ditanyakan reviewer, dan menghapusnya akan menukar satu kelemahan yang tercatat dengan satu kelemahan yang tersembunyi.
+
+Bentuk klaim yang tersurat — "ViT-Base 85,8 juta parameter tetapi pointing accuracy-nya nol" — masih tercetak di `docs/laporan/RESEARCH_JOURNEY_REPORT.md` dan `RESEARCH_JOURNEY_REPORT_FILLED.md`. Kedua berkas itu **di luar cakupan pass ini** dan belum diperbaiki; dicatat di §8 butir 14 sebagai pekerjaan terbuka, bukan dianggap tidak ada.
 
 **Fig 12. Seperti apa pointing accuracy 0.7167 sebenarnya, pada DenseNet121.**
 
@@ -390,6 +477,14 @@ Bagian ini memuat dua jenis isi yang sengaja disatukan. Daftar bernomor di bawah
 10. **Tidak ada validasi eksternal.** Seluruh angka berasal dari satu dataset dengan satu split. LUNA16 bukan pengganti langsung: labelnya menandai nodul lawan bukan-nodul untuk tugas deteksi, bukan malignansi. Validasi eksternal menuntut kohort dengan ground truth malignansi.
 11. **Penjelasannya belum dinilai klinisi.** Protokolnya siap di `docs/laporan/PROTOKOL_READER_STUDY.md`, tapi nol data pembaca dikumpulkan.
 
+Butir 12 sampai 16 ditambahkan 20 Agustus 2026. Butir 1 sampai 11 di atas tidak berubah dan tidak dinomori ulang.
+
+12. **Tabel pointing accuracy §6.2 sudah diganti, dan dua perbandingan yang berbeda harus dibaca terpisah.** Terhadap **angka terbitan**, tujuh dari dua belas turun, satu naik, empat tetap. Terhadap **pilihan band di dalam satu run yang sama** — tanpa perbedaan checkpoint maupun tanggal, jadi murni efek aturan pemilih — enam turun, satu naik, lima tetap. Angka lama tetap dicetak berdampingan dengan angka baru di §6.2. Perbandingan pertama mencampur efek site, checkpoint, dan tanggal; hanya perbandingan kedua yang mengisolasi efek aturan pemilih.
+13. **`stage_07f_xai_comparability` dan ujinya belum diperbaiki.** Modul itu meng-*hardcode* nilai pointing accuracy stale-checkpoint, meresolusi target layer lewat fungsi yang sudah digantikan, dan captionnya masih memerikan band `[7,10]`; ujinya membekukan angka yang sama sekaligus membekukan tafsir yang sudah diketahui salah, dan **suite-nya lolos**. Rinciannya dan nomor barisnya di §8.2. Dicatat sebagai terbuka, bukan selesai.
+14. **Klaim ViT-Base yang ditarik masih tercetak di dua berkas lain.** Bentuk tersuratnya — "85,8 juta parameter tetapi pointing accuracy-nya nol" sebagai bukti bahwa interpretability tidak mengikuti kapasitas — masih ada di `docs/laporan/RESEARCH_JOURNEY_REPORT.md` dan `RESEARCH_JOURNEY_REPORT_FILLED.md`. Keduanya di luar cakupan pass ini. Penarikannya dan penggantinya ada di §6.2.3.
+15. **Kolom `latency_ms` pada `summary_binary.csv` tidak dapat dipakai**, sedangkan `params_M` dan `gflops` pada berkas yang sama sehat. Setiap klaim biaya harus diambil dari `artifacts/results/track2rev/efficiency_7.csv`. Mekanisme dan buktinya di §8.10 butir D.
+16. **Metrik XAI DenseNet121 di `artifacts/results/xai/xai_metrics.csv` belum dihitung ulang** terhadap checkpoint hasil pelatihan ulang §8.6, sehingga berkas itu masih memuat 0.7167 sementara nilai yang bereproduksi 0.5833. Nilai yang berlaku ada di `cam_12.csv` dan di tabel §6.2; berkas lamanya sengaja tidak disunting supaya jejaknya tetap ada, tetapi berkas itu **tidak boleh dikutip langsung** sampai dihitung ulang.
+
 ### 8.1 Temuan reproducibility: kegagalan yang diam
 
 `src/radiomics/feature_selection.py` mencoba mengimpor `pymrmr`, lalu menangkap `ImportError` dan beralih diam-diam ke `mutual_info_classif`. `pymrmr` butuh kompilasi C++ dan tidak terpasang di mesin remote, terverifikasi lewat `pip show pymrmr` yang mengembalikan `Package(s) not found`. Artinya cabang mRMR **tidak pernah sekali pun dieksekusi**, dan seluruh angka radiomics di laporan ini dihasilkan oleh mutual information.
@@ -408,7 +503,28 @@ Audit yang sama memunculkan dua cacat pada *test suite* itu sendiri. Keduanya le
 
 **Uji yang ada tetapi memeriksa hal yang keliru.** `test_registry_name_map_count` menegaskan `len(_NAME_MAP) == 8`. Angka itu dibekukan sebelum himpunan backbone Track 1 dan Track 2 ditambahkan, jadi ia gagal justru ketika registry benar, yaitu saat berisi 14 entri. Uji semacam ini lebih buruk daripada tidak ada uji sama sekali: ia berbunyi pada setiap penambahan yang disengaja sehingga melatih pembacanya mengabaikan kegagalan, sementara hal yang benar-benar berbahaya tidak pernah diperiksa, yakni apakah backbone yang diminta konfigurasi memang dapat dibangun. Penggantinya, `test_registry_covers_every_configured_backbone`, memeriksa invariannya secara langsung: setiap nama pada `configs/config.yaml` harus dapat diresolusi lewat `_NAME_MAP`. Registry sendiri ternyata sudah sinkron penuh, 13 dari 13 nama teresolusi, jadi tidak ada risiko tersisa untuk tahap berikutnya.
 
-Benang merah §8.1 dan §8.2 sama: angka yang dilaporkan hanya sekuat mekanisme yang memaksanya tetap jujur. Peringatan di log, hitungan ajaib, dan fungsi tak terpanggil sama-sama tampak seperti perlindungan, padahal tidak satu pun benar-benar memaksa apa pun.
+**Tambahan, 20 Agustus 2026: instansi ketiga dari pola yang sama — uji yang membekukan angka yang salah, sekaligus membekukan tafsir yang salah.**
+
+Bagian ini sudah menamai polanya sejak awal ("uji yang ada tetapi memeriksa hal yang keliru"). Yang ditambahkan di sini adalah satu instansi konkret yang ditemukan 20 Agustus 2026, dan instansi ini lebih berbahaya daripada `test_registry_name_map_count` karena arah kegagalannya terbalik.
+
+`tests/test_stage_07f_xai_comparability.py:18` menegaskan `POINTING_ACC["densenet121"] == POINTING_ACC["convnext_tiny"] == 0.7167`. Angka 0.7167 untuk `densenet121` adalah **nilai stale-checkpoint** (§6.2.2): checkpoint DenseNet121 dilatih ulang enam jam setelah metriknya ditulis, dan nilai yang bereproduksi terhadap checkpoint yang sekarang adalah **0.5833**. Uji itu membekukan 0.7167 dan karena itu akan **menolak angka yang benar** bila ada yang memperbaruinya. Nilai `convnext_tiny` 0.7167 kebetulan masih benar, yang justru memperburuk keadaan: satu `assert` mengikat satu angka yang benar dan satu angka yang salah menjadi satu pernyataan tunggal.
+
+`:26-27` menuntut caption memuat string `"0.7167"` dan frasa `"not evidence of a worse classifier"`. Yang pertama membekukan angka stale yang sama, kali ini di dalam teks yang akan tercetak di figur. Yang kedua lebih buruk, karena ia **menegaskan sebuah tafsir**, dan tafsir itu kini diketahui salah. Baris-baris bernilai nol yang dimaksud caption — `mobilenetv3_small`, `vit_base`, `googlenet` — bukan kegagalan lokalisasi melainkan **kegagalan jalur CAM**: GoogLeNet 0.0000 diambil di `Dropout` 1x1 dan sebenarnya 0.5000 di `features.15` (§8.10 butir A); ViT-Base identik nol pada 53 dari 60 sampel (§6.2.3 dan §8.10 butir B); MobileNetV3-Small 0.0000 di site 2x2 yang berada di bawah lantai resolusi. Uji itu memaksa laporan menyebut ketiganya "genuine localization failure mode", yang persis tafsir yang harus ditarik.
+
+**Ditemukan lewat audit, bukan karena suite memerah — suite-nya lolos.** Angka yang dibekukan uji dan angka yang di-*hardcode* di modulnya sama persis, sehingga uji dan kode saling mengonfirmasi tanpa satu pun dari keduanya pernah menyentuh CSV sumbernya. Inilah yang membedakannya dari `test_registry_name_map_count`: uji itu **memerah ketika registry benar**, sehingga pada akhirnya dibaca orang; uji ini **hijau ketika angkanya salah**, dan uji hijau tidak pernah membuat siapa pun melihat. Uji yang membekukan angka tanpa membandingkannya dengan sumber angkanya bukan perlindungan, melainkan pengawet.
+
+Cacat yang setara ada di modulnya sendiri, dan ketiganya sudah tidak akurat:
+
+| Lokasi | Isi | Kenapa salah |
+|---|---|---|
+| `src/stage_07f_xai_comparability.py:49-55` | Dict `POINTING_ACC` dengan `densenet121: 0.7167` | Nilai stale-checkpoint yang sama; nilai yang berlaku 0.5833 |
+| `src/stage_07f_xai_comparability.py:62-67` | Resolusi target layer lewat `_auto_target_layer` lalu `_get_target_layer` | Meresolusi lewat fungsi yang sudah digantikan, sehingga **melaporkan layer yang tidak lagi dipakai CAM** |
+| `src/stage_07f_xai_comparability.py:89-91` | Caption menyebut "deepest feature map with spatial height in [7, 10] px (nominally ~8x8)" | Band `[7,10]` adalah aturan yang sudah ditinggalkan, dan pada patch 96/64 px bandnya kosong (§8.10 butir A) |
+| `src/stage_07f_journey_report.py:318` | Prosa "Fix: Layer-CAM di stage ~8x8 (`_auto_target_layer`)" | Mengulang klaim band yang sama dalam bentuk narasi |
+
+**Modul dan ujinya tidak diperbaiki pada pass ini.** Dicatat sebagai pekerjaan terbuka di §8 butir 13 dan §9 butir 8, bukan dianggap selesai. Alasan mencatatnya alih-alih memperbaikinya diam-diam: perbaikan yang belum dilakukan dan tercatat masih bisa dikerjakan orang lain; perbaikan yang belum dilakukan dan tidak tercatat menjadi cacat baru.
+
+Benang merah §8.1 dan §8.2 sama: angka yang dilaporkan hanya sekuat mekanisme yang memaksanya tetap jujur. Peringatan di log, hitungan ajaib, dan fungsi tak terpanggil sama-sama tampak seperti perlindungan, padahal tidak satu pun benar-benar memaksa apa pun. Uji yang membekukan konstanta menyusul ke daftar yang sama.
 
 ### 8.3 Temuan reproducibility: proses latih yang mati bersama sesi SSH
 
@@ -567,6 +683,84 @@ Tabel §3.4 sekarang mencantumkan nama fungsi setiap arm. Deskripsi yang menyimp
 
 ---
 
+**Register, 20 Agustus 2026: empat kegagalan senyap baru.**
+
+Kata "terbaru" di paragraf pembuka bagian ini **tidak lagi berlaku** untuk insiden bibliografi; empat instansi di bawah datang sesudahnya. Konsisten dengan alasan yang sudah ditulis di bagian ini sendiri, ordinalnya tetap tidak disebut — penghitungan yang sanggup berubah tanpa fakta baru bukan penghitungan yang layak dikutip. Yang ditambahkan ke deret §8.7 adalah keempat butir ini, dengan label A sampai D supaya bisa dirujuk dari §6.2 dan §8.2.
+
+Keempatnya berbagi bentuk yang sama dan bentuk itu yang layak dikenali, bukan instansinya: **sebuah komponen menemui keadaan yang tidak dapat ia tangani, lalu mengembalikan nilai yang bentuknya sah alih-alih menaikkan error, dan seluruh tahap di hilirnya menerima nilai itu tanpa keberatan.**
+
+---
+
+**Butir A — pemilih target layer: instansi penentu.**
+
+Ini instansi yang paling murni dari seluruh proyek, dan layak dijadikan contoh kanonik.
+
+`_get_target_layer` mencari feature map dengan tinggi di dalam band `[7,10]`. Pada backbone yang **tidak pernah memancarkan tinggi seperti itu**, pencarian mengembalikan kosong, lalu jatuh ke tabel tangan. Untuk GoogLeNet tabel itu menunjuk `features[-2]`, sebuah `Dropout` yang duduk **di belakang** global average pool dan karena itu berkeluaran 1x1. Aktivasi 1x1 tidak punya struktur spasial untuk dibobot; Layer-CAM mengembalikan peta konstan; normalisasi min-max atas peta konstan menghasilkan peta **identik nol**.
+
+Rantai di hilirnya total pada masukan degenerate, dan di situlah kegagalannya menjadi diam. Ambang persentil ke-80 atas larik yang seluruh nilainya sama terdefinisi dan memilih **seluruh bingkai**. Dice antara seluruh bingkai dan mask kecil terdefinisi dan, pada himpunan 60 sampel tetap, konstan: **0.0349545091915225**, angka yang sama persis pada kesebelas kegagalan 1x1 di seluruh dua belas backbone. Pointing rate terdefinisi dan mengembalikan 0.0000. Tidak satu pun dari langkah itu punya masukan yang bisa ia tolak, sehingga pipeline mengubah kesalahan struktural menjadi **angka di rentang yang sama dengan penjelasan yang memang buruk**.
+
+Skalanya: dari 86 candidate site yang disapu, **17 terdampak** — memancarkan CAM identik nol pada sedikitnya satu dari 60 sampel — dan **12 pada seluruh 60**. Sedikitnya satu site terdampak muncul di **seluruh dua belas backbone**. Sumber: `artifacts/results/track2rev/silent_failure_census.csv`.
+
+Kenapa bandnya kosong, dan ini bagian yang harus dibawa pulang pembaca: **`[7,10]` bukan sifat jaringan, melainkan sifat input 224 px**, tempat backbone ImageNet berakhir di 7x7. Patch proyek ini 96 dan 64 px. GoogLeNet pada 96 px memancarkan tinggi `1|3|6|12|24|48` (kolom `heights_seen` pada `target_layer_audit.csv`); tidak satu pun masuk band. Heuristiknya tidak salah menimbang trade-off — ia **dievaluasi di luar rezim input yang konstantanya kodekan**. Sebuah heuristik target layer yang diimpor apa adanya dari pipeline 224 px membawa prasyarat yang tidak pernah dinyatakan, dan pipeline 96 px melanggarnya.
+
+Biayanya konkret: baris GoogLeNet yang terbit 0.0000 sebenarnya **0.5000** di `features.15` (3x3) dan **0.7666666666666667** di `features.13`, di jaringan dan bobot yang sama. Cross-check antar metode CAM di `features.13` menyingkirkan artefak khas rata-rata gradien: HiResCAM 0.4166666666666667, Grad-CAM 0.38333333333333336, dan Score-CAM yang bebas gradien 0.4166666666666667, seluruhnya jauh di atas laju kebetulan 0.0188720703125.
+
+Gerbang yang menutupnya, dan ongkosnya dua kolom: **catat cacah peta identik nol dan ukuran spasial site yang teresolusi di samping setiap metrik CAM, lalu perlakukan resolusi 1x1 atau cacah bukan-nol sebagai run yang gagal, bukan sebagai skor rendah.** Pemeriksaan ukuran saja **tidak cukup** — EfficientNet-B0 gagal identik di site `features.0.6.0.block.0.2` yang 4x4 dan punya extent spasial nyata — sehingga kolom yang menanggung beban adalah cacah peta nol, bukan ukurannya.
+
+---
+
+**Butir B — jalur CAM ViT-Base: kelas yang sama, sebab yang berbeda, belum diperbaiki.**
+
+Kelasnya identik dengan butir A: sebuah jalur mengembalikan peta yang bentuknya sah tetapi isinya kosong, dan metriknya tetap terhingga. Sebabnya **independen**, jadi memperbaiki butir A tidak menyentuhnya sama sekali.
+
+Di site terbitannya `features.encoder.layers.encoder_layer_11.ln_1`, peta identik nol pada **53 dari 60 sampel**, dan berbeda dari butir A, degenerasinya **memburuk monoton dengan kedalaman**: 27 dari 60 di `encoder_layer_8`, 50 di `encoder_layer_10`, 53 di `encoder_layer_11`. Gradasi itu sendiri sinyal bahwa ini bukan kegagalan on/off melainkan sesuatu yang terakumulasi di sepanjang blok pre-norm. Barisnya tetap melaporkan dice 0.0356918299619531 yang terhingga.
+
+Yang membuatnya masuk kelas yang sama: pembaca tabel tidak punya cara membedakan baris ini dari jaringan yang sekadar melokalisasi dengan buruk. Yang membuatnya lebih buruk daripada butir A: **butir A sudah diperbaiki dan bisa diverifikasi, butir B belum**. Layer-CAM pada arsitektur grid token dengan blok pre-norm bukan konfigurasi tervalidasi, dan perbaikannya — varian CAM yang sadar attention, atau *reshaping* alternatif atas barisan token — belum dikerjakan. Konsekuensi tafsirnya ada di §6.2.3.
+
+---
+
+**Butir C — checkpoint DenseNet121 yang basi: metrik ditulis sebelum bobot yang diklaimnya.**
+
+Kelas yang sama sekali lagi, tetapi kali ini yang gagal bukan sebuah fungsi melainkan **ketiadaan pengikat antara sebuah angka dan bobot yang menghasilkannya**.
+
+`cam_12.csv` mencetak dua *mtime* pada baris `densenet121`: `checkpoint_mtime` 2026-08-04 16:42 dan `published_mtime` 2026-08-04 10:25. Checkpoint-nya **enam jam lebih baru** daripada metrik yang mengklaim memerikannya. Pelatihan ulang itu sendiri sah dan sudah terdokumentasi di §8.6; yang tidak terjadi adalah menghitung ulang metrik XAI-nya, dan **tidak ada apa pun di pipeline yang memaksa hal itu terjadi**. Metrik lama tetap tersimpan, tetap terbaca, dan tetap dikutip.
+
+Besaran pergerakannya ada di §6.2.2: pointing accuracy 0.7166666666666667 menjadi 0.5833333333333334, dice 0.1030019494159562 menjadi 0.062225181534756716, dice size-matched 0.4702929836895999 menjadi 0.34750336285343403. **Sebelas backbone lain punya `checkpoint_mtime` yang mendahului `published_mtime`-nya**, sehingga hanya baris ini yang terdampak, dan hanya baris ini yang selisihnya tidak boleh diatribusikan ke koreksi site.
+
+Ini pengulangan langsung pelajaran §8.6 dan §8.8 — checkpoint tidak menyimpan konfigurasi yang melahirkannya — dengan satu putaran tambahan: kali ini yang tidak melekat bukan konfigurasi ke bobot, melainkan **bobot ke metrik**. Perbaikan strukturalnya sebentuk dengan kolom `fs_method` di §8.1: simpan sidik jari checkpoint di dalam setiap baris metrik, lalu tolak baris yang sidik jarinya tidak cocok dengan checkpoint di disk. Bahwa dua *mtime* itu sudah cukup untuk mendeteksinya dalam satu pemindaian adalah bentuk yang persis sama dengan `best_auc` di §8.6: datanya sudah ada sejak awal, hanya tidak pernah dibandingkan.
+
+---
+
+**Butir D — `measure_latency` tanpa sinkronisasi CUDA, dan satu kolom yang tidak dapat dipakai.**
+
+`measure_latency` (`src/evaluation/efficiency.py`) tidak memasang `torch.cuda.synchronize()` di sekeliling wilayah terukurnya. Peluncuran kernel CUDA bersifat **asinkron**, sehingga setiap pemanggil dengan `device="cuda"` mengukur waktu **mengantre pekerjaan**, bukan waktu mengeksekusinya. Tidak ada error, tidak ada peringatan; yang keluar hanyalah angka yang terlalu kecil, dan angka yang terlalu kecil tidak terlihat salah. Diperbaiki pada commit `2f7cea5` di dalam fungsi yang sama; tanda tangan dan jalur CPU tidak berubah, sehingga kedua pemanggil di training dan evaluasi tidak terpengaruh.
+
+Cacat kedua menumpuk di atasnya, dan yang inilah yang merusak data. Angka pada kolom `latency_ms` di `artifacts/results/summary_binary.csv` berasal dari **satu panggilan tunggal tanpa repeat**, dijalankan inline saat evaluasi sementara pekerjaan lain sedang berjalan. Buktinya bahwa kolom itu tidak dapat dipakai ada tiga, dan ketiganya berdiri sendiri:
+
+1. **Bertentangan dengan laporan lain untuk model dan jalur kode yang sama.** DenseNet201 tercatat 118.02826999919489 ms di `summary_binary.csv` dan 90,5 ms di `docs/laporan/RESEARCH_JOURNEY_REPORT.md`.
+2. **Bahkan tidak benar secara peringkat.** `summary_binary.csv` menempatkan DenseNet201 lebih lambat daripada Inception-ResNet-v2 (118.03 lawan 65.81970400060527 ms); pengukuran tenang atas tujuh repeat berisi 50 forward pass di `artifacts/results/track2rev/efficiency_7.csv` membalikkannya, 33.462 lawan 34.383 ms, dengan IQR 0.5 dan 0.265 ms. Kolom yang urutannya salah lebih buruk daripada kolom yang skalanya salah, karena skala yang salah masih bisa dinormalkan.
+3. **`params_M` dan `gflops` pada berkas yang sama justru cocok persis** dengan `efficiency_7.csv` untuk ketujuh backbone. Itulah yang **melokalisasi cacatnya** pada pengukuran waktu di bawah kontensi, bukan pada berkasnya secara keseluruhan — dan sekaligus menjelaskan kenapa cacat ini bisa bertahan: dua dari tiga kolom biaya benar, sehingga berkasnya secara keseluruhan tampak sehat.
+
+Angka biaya yang berlaku sekarang seluruhnya dari `efficiency_7.csv`, yang mencatat median dan IQR atas tujuh repeat berikut identitas perangkat keras di setiap baris:
+
+| Backbone | Params (M) | GFLOPs | Latency CPU median (IQR) ms | Latency GPU median ms | Peak mem GPU (MB) |
+|---|---|---|---|---|---|
+| GoogLeNet | 5.602 | 0.5558 | 8.315 (0.061) | 3.065 | 159.20 |
+| DenseNet121 | 6.956 | 1.0649 | 17.344 (0.173) | 6.718 | 164.78 |
+| DenseNet201 | 18.097 | 1.6132 | 33.462 (0.500) | 11.324 | 207.90 |
+| Xception | 20.811 | 1.6683 | 14.769 (0.242) | 2.596 | 93.50 |
+| InceptionV3 | 21.790 | 0.6828 | 12.054 (0.072) | 5.021 | 222.14 |
+| ConvNeXt-Tiny | 27.820 | 1.6486 | 12.703 (0.077) | 2.518 | 125.53 |
+| Inception-ResNet-v2 | 54.310 | 1.4733 | 34.383 (0.265) | 14.023 | 346.78 |
+
+Pelajaran yang menyambung ke §8.10 paragraf terakhir: **perbaikan yang tidak diverifikasi berjalan bukan perbaikan**, dan pengukuran yang tidak diulang bukan pengukuran. Gerbang yang benar di sini juga cuma satu baris — laporkan IQR di samping median, dan IQR yang besar akan mengaku sendiri.
+
+---
+
+**Apa yang keempatnya tambahkan ke tabel §8.7.** Pola "buktinya selalu sudah ada" berlaku pada tiga dari empat butir. Cacah peta identik nol sudah dapat dihitung dari peta yang sudah tersimpan (butir A dan B); kedua *mtime* sudah tercetak di berkas checkpoint dan berkas metrik (butir C). Butir D adalah **pengecualiannya**, dan pengecualian itu informatif: buktinya **tidak** ada sebelumnya, karena pengukuran tunggal tanpa repeat tidak menghasilkan sebaran yang bisa dibaca. Di situ yang hilang bukan pembandingnya, melainkan datanya — dan itu satu-satunya dari empat butir ini yang menuntut pengukuran ulang alih-alih pembacaan ulang.
+
+---
+
 ## 9. Rencana lanjutan
 
 1. Jalankan ulang ablasi fusi dengan perbaikan `input_size` (`python -m src.stage_03b_fusion --config configs/config.yaml`), verifikasi `cnn_only` densenet201 kembali mendekati 0.8988.
@@ -576,6 +770,14 @@ Tabel §3.4 sekarang mencantumkan nama fungsi setiap arm. Deskripsi yang menyimp
 5. Tulis uji asap untuk `_trim_white` (§8.10) begitu `tests/` bisa disentuh lagi.
 6. Jalankan metrik faithfulness — ROAD dan kurva deletion/insertion — plus HiResCAM sebagai pembanding, dan perluas jalur CAM ke `fusion_intermediate` serta `fusion_early`. Ditulis sebagai GOAL terpisah di `handoff/GOAL3.md` karena beban GPU-nya besar dan hasilnya bisa mengubah pembingkaian §8 (batasan 8 dan 9).
 7. Jalankan reader study bila klinisi tersedia. Protokolnya siap di `docs/laporan/PROTOKOL_READER_STUDY.md`.
+
+Butir 8 sampai 12 ditambahkan 20 Agustus 2026, diurutkan dari yang paling murah.
+
+8. **Perbaiki `src/stage_07f_xai_comparability.py` beserta `tests/test_stage_07f_xai_comparability.py`** (§8.2 butir 13): ganti dict `POINTING_ACC` yang di-*hardcode* dengan pembacaan langsung dari CSV, ganti resolusi target layer ke fungsi yang berlaku, buang klaim band `[7,10]` dari caption, dan ganti `assert` yang membekukan konstanta dengan `assert` yang membandingkan caption terhadap sumber angkanya. Buang juga frasa "not evidence of a worse classifier" — tafsir yang dipaksakan uji itu sudah ditarik. Perbaiki pula prosa band di `src/stage_07f_journey_report.py:318`.
+9. **Hitung ulang metrik XAI DenseNet121** terhadap checkpoint hasil pelatihan ulang §8.6 lalu tulis ke `artifacts/results/xai/xai_metrics.csv`, sehingga berkas itu berhenti memuat 0.7167. Sekaligus tambahkan sidik jari checkpoint sebagai kolom di setiap baris metrik, supaya bobot melekat pada angkanya (§8.10 butir C).
+10. **Jadikan `n_zero_cam` dan ukuran spasial site kolom wajib** pada setiap keluaran metrik CAM, lalu perlakukan resolusi 1x1 atau `n_zero_cam` bukan-nol sebagai run gagal (§8.10 butir A). Ini gerbang termurah yang menutup seluruh kelas kegagalan tersebut.
+11. **Perbaiki jalur CAM ViT-Base** — varian CAM yang sadar attention, atau *reshaping* alternatif atas barisan token (§8.10 butir B). Selama belum, baris ViT-Base tetap tampil dengan anotasinya.
+12. **Koreksi klaim ViT-Base yang ditarik** di `docs/laporan/RESEARCH_JOURNEY_REPORT.md` dan `RESEARCH_JOURNEY_REPORT_FILLED.md` (§8 butir 14), mengikuti bentuk pengganti di §6.2.3.
 
 ### 9.1 Sitasi yang dibutuhkan manuskrip Track 1
 
@@ -615,6 +817,18 @@ Semua angka pada laporan ini ditelusuri ke baris CSV nyata yang ditarik dari mes
 
 Untuk angka §6.3, setiap baris CSV sumber menyimpan `run_id` dan `commit_sha`-nya sendiri, dan setiap perbandingan AUC menyimpan kolom `ckpt_kind` sehingga rezim checkpoint tidak pernah terpisah dari angkanya — penerapan langsung dari prinsip §8.1. Dua hasil yang tidak menguntungkan klaim penelitian ini dilaporkan apa adanya di titik angkanya muncul: runtuhnya kesetaraan dengan radiomics pada dua backbone tanpa seleksi checkpoint (§8.9), dan pointing accuracy `fusion_late` yang sedikit di bawah `cnn_only` alih-alih di atasnya (§6.3.4).
 
+**Tambahan 20 Agustus 2026.** Prinsip yang dipakai pada pass ini dinyatakan tersurat, karena manuskrip Track 1 sudah terbit dan godaan untuk menahan koreksi paling besar justru pada keadaan seperti itu.
+
+**Manuskrip yang stabil bukan alasan menahan kualifikasi yang sudah diketahui.** Tiga hal di laporan ini kini salah atau tidak berkualifikasi, dan ketiganya dikoreksi di tempat angkanya muncul, bukan diselipkan ke daftar batasan: tabel dua belas baris §6.2 (tujuh angka turun terhadap terbitan, satu naik, empat tetap), klaim ViT-Base sebagai bukti bahwa interpretability tidak mengikuti kapasitas (**ditarik**, §6.2.3), dan baris DenseNet121 yang tidak bereproduksi karena checkpoint-nya dilatih ulang setelah metriknya ditulis (§6.2.2).
+
+**Angka lama tidak dihapus.** Setiap angka yang diganti tetap tercetak di sebelah penggantinya. Tabel terbitan §6.2 dipertahankan utuh di atas blok koreksinya. Baris ViT-Base **tetap tampil** dengan anotasi bahwa jalur CAM-nya rusak, bukan dibuang — tabel yang baris canggungnya hilang diam-diam adalah persis hal yang ditanyakan reviewer.
+
+**Ketidaksignifikanan tidak dipakai sebagai bukti ketiadaan efek.** Penarikan klaim ViT-Base **tidak** diganti dengan klaim berlawanan. Korelasi Spearman antara kapasitas dan pointing accuracy adalah 0.1305 dengan $p=0.6860$ pada n=12, tidak signifikan, dan itu meninggalkan pertanyaan kapasitas **terbuka ke dua arah**. Ini kekeliruan yang sama persis dengan yang sudah diperbaiki §6.4 laporan ini pada kasus DeLong, dan tidak boleh masuk lagi lewat pintu lain.
+
+**Yang tidak dapat ditelusuri dinyatakan begitu.** `track1_guard.csv` tidak memuat kolom kelas keputusan, sehingga klaim bahwa sidik jari CAM identik untuk **kedua** kelas keputusan tidak dituliskan di §6.2.1 — yang dituliskan hanya apa yang tercetak di berkas itu. Batas guard-nya juga dinyatakan: ia menjamin perubahan resolver tidak menggeser peta, dan tidak menjamin apa pun tentang perubahan checkpoint.
+
+**Yang belum diperbaiki dicatat sebagai terbuka.** `stage_07f_xai_comparability` beserta ujinya, jalur CAM ViT-Base, metrik XAI DenseNet121 di `xai_metrics.csv`, dan klaim ViT-Base di kedua laporan *journey* — keempatnya tidak dikerjakan pada pass ini dan tercatat di §8 butir 13 sampai 16 serta §9 butir 8 sampai 12. Perbaikan yang belum dilakukan dan tercatat masih bisa dikerjakan orang lain; yang belum dilakukan dan tidak tercatat menjadi cacat baru.
+
 ---
 
 ## Lampiran: berkas hasil
@@ -629,3 +843,16 @@ Untuk angka §6.3, setiap baris CSV sumber menyimpan `run_id` dan `commit_sha`-n
 | `artifacts/results/run02/xai_fusion_vs_cnn.csv` | 24 baris, selisih metrik XAI per backbone per himpunan sampel |
 | `artifacts/results/run02/combined_advantage_table.md` | tabel utama §6.3.1 |
 | `artifacts/results/run02/shap_provenance.csv` | 3 baris, provenance figur SHAP termasuk `identical_across_backbones` |
+
+Berkas run `2026-08-20-run04` yang dipakai koreksi 20 Agustus 2026, seluruhnya di `artifacts/results/track2rev/` dan seluruhnya ter-*track* git:
+
+| Berkas | Isi | Dipakai di |
+|---|---|---|
+| `cam_12.csv` | 12 baris, metrik Layer-CAM per backbone berikut kolom `_published`, `_delta`, `checkpoint_mtime`, `published_mtime`, dan `n_zero_cam` | §6.2, §6.2.2, §8.10 butir A dan C |
+| `track1_guard.csv` | 6 baris, sidik jari SHA-1 peta CAM tiga backbone Track 1 sebelum dan sesudah perubahan resolver | §6.2.1 |
+| `silent_failure_census.csv` | 17 baris, satu per site bermuatan CAM nol, dengan `failure_class` dan `dice_emitted` | §6.2.3, §8.10 butir A dan B |
+| `depth_curve_summary.csv` | 12 baris, kolom `band_score` yang menjadi dasar perbandingan kedua di §6.2 | §6.2, §8 butir 12 |
+| `target_layer_audit.csv` | 12 baris, `path_taken` dan `heights_seen` per backbone | §8.10 butir A |
+| `googlenet_layer_sweep.csv`, `googlenet_cam_methods.csv` | Sweep diagnosis GoogLeNet dan cross-check antar metode CAM | §8.10 butir A |
+| `joint_correlations.csv` | 2 baris, Spearman kapasitas lawan AUC dan kapasitas lawan pointing accuracy | §6.2.3, §10 |
+| `efficiency_7.csv` | 7 baris, angka biaya yang menggantikan kolom `latency_ms` pada `summary_binary.csv` | §8.10 butir D, §8 butir 15 |
