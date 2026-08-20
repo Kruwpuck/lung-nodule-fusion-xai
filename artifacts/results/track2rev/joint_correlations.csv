@@ -1,0 +1,3 @@
+run_id,commit_sha,subset,question,x,y,n,spearman_rho,p_value,alpha,significant,verdict,interpretation_note
+2026-08-20-run04,2f7cea5,efficiency7 (96 px input),"capacity against classification accuracy, input size held constant",params_M,auc_mean,7,0.5,0.25316999510032273,0.05,False,not significant at alpha=0.05 with n=7; no monotone association is demonstrated,"descriptive, not inferential; n is small"
+2026-08-20-run04,2f7cea5,localization12,"capacity against localization quality, input size free to vary",params_M_any_res,pointing_acc,12,0.1305204810861667,0.6859821382014442,0.05,False,not significant at alpha=0.05 with n=12; no monotone association is demonstrated,"descriptive, not inferential; n is small"

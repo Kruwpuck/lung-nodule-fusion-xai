@@ -6,7 +6,12 @@ into a hand-written table that pointed GoogLeNet at a Dropout after the global a
 (a 1x1 map, identically zero after normalisation, published as pointing accuracy 0.0). The
 canonical rule that replaced it -- explain at the deepest layer that still has spatial extent
 -- degrades broadly instead of silently: at a 64 px input a stride-32 backbone's last spatial
-layer is 2x2, and nine of the twelve backbones scored worse under it than under the band.
+layer is 2x2. Comparing the two picks within this one run, the canonical rule scores worse on
+pointing accuracy than the band at six of the twelve backbones, better at one (GoogLeNet, the
+one where the band fell through to a 1x1 layer), and ties at five. A larger figure of nine
+appears elsewhere in this session's history; that one counts backbones whose numbers fell
+against the *published* values, which is a different comparison, because the published set also
+carries a stale densenet121 row whose checkpoint was retrained after its metrics were written.
 
 Two heuristics give two points per backbone, and two points cannot tell a monotone
 relationship from a peaked one from no relationship at all. The shape of that relationship is
