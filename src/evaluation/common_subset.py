@@ -200,7 +200,8 @@ def ordinal_native_summary(preds_dir: str, models: list[str] | None = None,
 def run_task3(preds_dir: str = "artifacts/results/preds",
               common_subset_csv: str = "artifacts/results/common_subset_auc.csv",
               out_arm_auc: str = "artifacts/results/arm_auc_summary.csv",
-              out_ordinal: str = "artifacts/results/ordinal_native_metrics.csv") -> None:
+              out_ordinal: str = "artifacts/results/ordinal_native_metrics.csv",
+              models: list[str] | None = None) -> None:
     """Rev1 task 3: per-arm collapsed-binary AUC mean/std, plus QWK/MAE/one-off
     accuracy for the ordinal arm. Reads the task-2 CSV rather than rescoring."""
     df = pd.read_csv(common_subset_csv)
@@ -209,14 +210,15 @@ def run_task3(preds_dir: str = "artifacts/results/preds",
     arm_summary.to_csv(out_arm_auc, index=False)
     print(f"[DONE] {out_arm_auc}\n{arm_summary}")
 
-    per_run, ord_summary = ordinal_native_summary(preds_dir)
+    per_run, ord_summary = ordinal_native_summary(preds_dir, models)
     per_run.to_csv(out_ordinal, index=False)
     print(f"[DONE] {out_ordinal} ({len(per_run)} rows)\n{ord_summary}")
 
 
 def run(preds_dir: str = "artifacts/results/preds",
-        out_csv: str = "artifacts/results/common_subset_auc.csv") -> pd.DataFrame:
-    df = score_common_subset(preds_dir)
+        out_csv: str = "artifacts/results/common_subset_auc.csv",
+        models: list[str] | None = None) -> pd.DataFrame:
+    df = score_common_subset(preds_dir, models)
 
     # every arm must have scored the identical number of nodules per
     # model/fold, or the "common subset" claim is void.
@@ -239,10 +241,17 @@ def main() -> None:
     p.add_argument("--out", default="artifacts/results/common_subset_auc.csv")
     p.add_argument("--task3", action="store_true",
                     help="also emit arm_auc_summary.csv and ordinal_native_metrics.csv")
+    # discover_models() finds every model with an arm-A file, but only the six
+    # legacy models were ever trained on the ordinal/grade3/grade4 arms, so the
+    # bare default raises FileNotFoundError on the other six. The original run
+    # passed a list that the CLI never exposed; this is that list, made reachable.
+    p.add_argument("--models", nargs="+", default=None,
+                    help="restrict to these models (default: every model in --preds-dir, "
+                         "which requires all four arms to exist for each)")
     args = p.parse_args()
-    run(args.preds_dir, args.out)
+    run(args.preds_dir, args.out, args.models)
     if args.task3:
-        run_task3(args.preds_dir, args.out)
+        run_task3(args.preds_dir, args.out, models=args.models)
 
 
 if __name__ == "__main__":

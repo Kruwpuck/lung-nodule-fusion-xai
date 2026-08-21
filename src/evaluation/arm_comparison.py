@@ -127,10 +127,11 @@ def nemenyi_posthoc(ranks_df: pd.DataFrame, n_blocks: int) -> pd.DataFrame:
 
 def run(auc_csv: str = "artifacts/results/common_subset_auc.csv",
         preds_dir: str = "artifacts/results/preds",
-        out_dir: str = "artifacts/results") -> dict:
+        out_dir: str = "artifacts/results",
+        models: list[str] | None = None) -> dict:
     df = pd.read_csv(auc_csv)
 
-    delong_df, skipped = delong_by_model(preds_dir)
+    delong_df, skipped = delong_by_model(preds_dir, models)
     chi2, p_friedman, ranks_df = friedman_omnibus(df)
     nemenyi_df = nemenyi_posthoc(ranks_df, n_blocks=ranks_df.attrs["n_blocks"])
 
@@ -158,8 +159,13 @@ def main() -> None:
     p.add_argument("--auc-csv", default="artifacts/results/common_subset_auc.csv")
     p.add_argument("--preds-dir", default="artifacts/results/preds")
     p.add_argument("--out-dir", default="artifacts/results")
+    # Same restriction as common_subset.py: only the six legacy models carry all
+    # four arms, and delong_by_model's skip list covers count mismatches, not
+    # missing files, so an unrestricted run dies rather than skipping.
+    p.add_argument("--models", nargs="+", default=None,
+                    help="restrict to these models (must match the list used for --auc-csv)")
     args = p.parse_args()
-    run(args.auc_csv, args.preds_dir, args.out_dir)
+    run(args.auc_csv, args.preds_dir, args.out_dir, args.models)
 
 
 if __name__ == "__main__":
