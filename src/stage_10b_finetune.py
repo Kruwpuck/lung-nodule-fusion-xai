@@ -166,7 +166,12 @@ def _train_stage(model, loader, inner_val_df, cfg, device, param_groups, epochs,
         train_loss = total_loss / len(loader.dataset)
 
         inner_auc, _, _ = _score(model, inner_val_df, cfg, device)
-        lr_epoch = scheduler.get_last_lr()[0]
+        # Log the head and the top body group separately. get_last_lr()[0] is
+        # the head group alone, so logging only that would show a flat 1e-4 in
+        # both stages and hide the discriminative rate entirely.
+        lrs = scheduler.get_last_lr()
+        lr_head = lrs[0]
+        lr_body_top = lrs[1] if len(lrs) > 1 else ""
         scheduler.step()
         epochs_ran = epoch + 1
 
@@ -177,7 +182,8 @@ def _train_stage(model, loader, inner_val_df, cfg, device, param_groups, epochs,
             save_ckpt(best_pt, model, optimizer, epoch, best_auc)
 
         csv_log.log({**row_id, "stage": stage_name, "epoch": epoch,
-                     "lr_epoch": lr_epoch, "n_bn_eval": n_bn,
+                     "lr_head": lr_head, "lr_body_top": lr_body_top,
+                     "n_norm_eval": n_bn,
                      "train_loss": round(train_loss, 6),
                      "inner_val_auc": round(inner_auc, 6),
                      "is_best": is_best,
@@ -201,8 +207,8 @@ def run(cfg: dict, backbone: str, fold: int, unfreeze_pct: int) -> None:
     from src.stage_03_train import _filter_for_task
     from src.stage_03b_fusion import _load_merged
     from src.training.dataset import NoduleDataset2_5D
-    from src.training.finetune import (build_param_groups, count_trainable,
-                                        freeze_all, unfreeze_top_modules)
+    from src.training.finetune import (apply_bn_eval, build_param_groups,
+                                        count_trainable, freeze_all, unfreeze_top_modules)
     from src.utils.logger import CSVLogger, append_row
     from src.utils.seed import fix_seed
     from src.utils.tracks import track_input_size
@@ -261,10 +267,19 @@ def run(cfg: dict, backbone: str, fold: int, unfreeze_pct: int) -> None:
                 len(outer_merged_df), len(outer_full_df))
 
     model = build_model(backbone, cfg).to(device)
+    # Recorded per cell because it is not the same across backbones:
+    # convnext_tiny is LayerNorm throughout and returns 0, so it never receives
+    # the frozen-BatchNorm treatment that densenet121/201 do. A reader comparing
+    # the three cells has to be able to see that from the results table.
+    n_batchnorm = apply_bn_eval(model)
 
+    # n_norm_eval, not n_bn_eval: convnext_tiny is LayerNorm throughout and has
+    # zero BatchNorm modules, so the frozen-BN treatment is a no-op there while
+    # densenet121/201 get it in full. The column records that per epoch instead
+    # of leaving it to be rediscovered from the architecture.
     epoch_fields = ["run_id", "backbone", "unfreeze_pct", "fold", "stage", "epoch",
-                    "lr_epoch", "n_bn_eval", "train_loss", "inner_val_auc", "is_best",
-                    "epoch_time_sec", "timestamp"]
+                    "lr_head", "lr_body_top", "n_norm_eval", "train_loss",
+                    "inner_val_auc", "is_best", "epoch_time_sec", "timestamp"]
     epoch_log = os.path.join(cfg["paths"]["logs"], "epochs", "run03", f"{cell}_fold{fold}.csv")
     csv_log = CSVLogger(epoch_log, epoch_fields)
     row_id = {"run_id": RUN_ID, "backbone": backbone, "unfreeze_pct": unfreeze_pct, "fold": fold}
@@ -318,7 +333,7 @@ def run(cfg: dict, backbone: str, fold: int, unfreeze_pct: int) -> None:
         "checkpoint_mtime": _iso_mtime(best_pt),
         "backbone": backbone, "unfreeze_pct": unfreeze_pct, "fold": fold,
         "n_child_open": n_open, "n_child_total": n_child,
-        "n_trainable": n_trainable, "n_total": n_total,
+        "n_trainable": n_trainable, "n_total": n_total, "n_batchnorm": n_batchnorm,
         "inner_val_auc": round(best_auc, 6),
         "outer_auc_merged": round(auc_merged, 6), "outer_auc_full": round(auc_full, 6),
         "n_val_merged": len(outer_merged_df), "n_val_full": len(outer_full_df),

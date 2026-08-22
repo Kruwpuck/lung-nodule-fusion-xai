@@ -92,6 +92,24 @@ Granularitas per child module dipertahankan meski labelnya kasar, karena alterna
 — membuka sebagian isi satu grup untuk mengejar pangsa bobot tertentu — persis
 kegagalan yang brief larang: membuka weight tanpa bias, atau separuh lapisan norm.
 
+### 2b. Pembekuan BatchNorm tidak berlaku sama di ketiga backbone
+
+Diukur pada sel percontohan sebelum run penuh dimulai: **`convnext_tiny` memuat nol
+modul BatchNorm.** Arsitekturnya memakai LayerNorm sepanjang jaringan, jadi
+`apply_bn_eval` menyentuh 0 modul di sana. Perlakuan "BatchNorm dibekukan" yang jadi
+salah satu dari dua mekanisme run ini **hanya benar-benar berlaku pada densenet121
+dan densenet201** (121 modul BN pada densenet121).
+
+Konsekuensinya untuk penafsiran, ditetapkan sekarang:
+
+- Sel `convnext_tiny` menguji **staged unfreezing saja**, bukan staged unfreezing
+  plus pembekuan BN. Ia bukan replikasi ketiga dari perlakuan yang sama.
+- Kolom `n_batchnorm` dicatat di tiap baris hasil supaya perbedaan ini terlihat di
+  tabel, bukan harus disimpulkan ulang dari arsitektur.
+- Kalau densenet naik dan convnext tidak (atau sebaliknya), penjelasan "efek
+  pembekuan BN" **boleh** diajukan; kalau ketiganya bergerak searah, penjelasan itu
+  tidak didukung karena satu backbone tidak menerima perlakuannya.
+
 **Seluruh konfigurasi dilaporkan**, termasuk yang kalah. Varian yang kalah adalah
 bagian dari temuan.
 
