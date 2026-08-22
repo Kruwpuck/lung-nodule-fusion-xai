@@ -47,7 +47,7 @@ Konsekuensi praktis yang layak dikutip: **setiap angka explainability lintas ars
 | Diagnosis GoogLeNet (layer sweep, cross-method, sanity) | Selesai | `googlenet_layer_sweep.csv`, `googlenet_cam_methods.csv`, `googlenet_sanity.csv`, `googlenet_head_structure.txt` |
 | Tabel gabungan tiga sumbu + korelasi | Selesai | `joint_master_table.{csv,md}`, `joint_correlations.csv` |
 | Guard: angka XAI Track 1 tidak bergeser | Selesai | `track1_guard.csv` |
-| Friedman/Nemenyi dan DeLong per-arm yang dikutip manuskrip | **Tanpa CSV di disk**, dibawa dari draf sebelumnya tanpa verifikasi | lihat §8 butir 12 |
+| Friedman/Nemenyi dan DeLong per-arm yang dikutip manuskrip | **Ditutup 22 Agustus 2026**: kelima CSV diregenerasi, tiga dari empat kelompok angka lama tidak reproduksi, asal-usulnya direkonstruksi | lihat §6.3 dan §8 butir 12 |
 
 ---
 
@@ -179,19 +179,50 @@ Sumber celah SGD, dikutip manuskrip dan dicatat di sini supaya laporan tidak leb
 
 ### 6.3 Perbandingan granularitas label
 
-Uji Friedman omnibus lintas 4 arm (`friedman_ranks_common_subset.csv`) signifikan: $\chi^2=43.96$, $p=1.5\times10^{-9}$. Peringkat rata-rata: 4-kelas 1.33 (terbaik), biner 2.40, 3-kelas 2.77, ordinal 3.50 (terburuk). Post-hoc Nemenyi (`nemenyi_arms_common_subset.csv`): semua pasangan signifikan kecuali biner vs 3-kelas ($p=0.69$).
+Uji Friedman omnibus lintas 4 arm (`friedman_ranks_common_subset.csv`) signifikan: $\chi^2=44.52$, $p=1.17\times10^{-9}$. Peringkat rata-rata: 4-kelas 1.3667 (terbaik), biner 2.2667, 3-kelas 2.8667, ordinal 3.5000 (terburuk).
+
+Post-hoc Nemenyi (`nemenyi_arms_common_subset.csv`) memberi **dua** pasangan yang tidak terpisah signifikan, bukan satu:
+
+| pasangan | selisih peringkat | $p$ | signifikan |
+|---|---|---|---|
+| biner vs ordinal | 1.2333 | 0.0012 | ya |
+| **biner vs 3-kelas** | 0.6000 | **0.2733** | **tidak** |
+| biner vs 4-kelas | 0.9000 | 0.0350 | ya |
+| **ordinal vs 3-kelas** | 0.6333 | **0.2280** | **tidak** |
+| ordinal vs 4-kelas | 2.1333 | $<0.0001$ | ya |
+| 3-kelas vs 4-kelas | 1.5000 | $<0.0001$ | ya |
+
+**Ini temuan, bukan sekadar koreksi.** Arm 3-kelas adalah satu-satunya arm yang tidak terpisah dari kedua tetangganya: ia duduk di tengah tanpa jarak yang bisa dideteksi desain ini ke arah mana pun. Menambah kelas dari dua ke tiga tidak membeli keterpisahan; melompat ke empat membelinya. Itu informasi tentang granularitas label, bukan aib.
 
 #### Batasan pada klaim granularitas per model
 
-Pada level model individual, uji DeLong berpasangan biner-vs-4-kelas (`delong_arms_common_subset.csv`) hanya signifikan pada **3 dari 6** model legacy (MobileNetV3-Small, VGG16, ViT-Base), tidak signifikan untuk DenseNet121, EfficientNet-B0, ResNet50 ($p=0.055$–$0.17$). Klaim "granularitas label memengaruhi performa" berlaku agregat lintas model dan fold, **tidak** seragam per model individual.
+Pada level model individual, uji DeLong berpasangan biner-vs-4-kelas (`delong_arms_common_subset.csv`) hanya signifikan pada **3 dari 6** model legacy (MobileNetV3-Small, VGG16, ViT-Base), tidak signifikan untuk DenseNet121 ($p=0.6846$), EfficientNet-B0 ($p=0.0644$), ResNet50 ($p=0.1745$). Klaim "granularitas label memengaruhi performa" berlaku agregat lintas model dan fold, **tidak** seragam per model individual.
 
-Metrik ordinal-native (`ordinal_native_metrics.csv`): QWK 0.5451, MAE 0.6433, akurasi one-off 0.9155.
+DenseNet121 bergerak paling jauh dari rentang yang dulu tercetak ($p=0.055$–$0.17$), dan alasannya diketahui: lihat blok provenance di bawah.
 
-#### Celah provenance pada §6.3, dicatat 20 Agustus 2026
+Metrik ordinal-native (`ordinal_native_metrics.csv`): QWK 0.5451, MAE 0.6433, akurasi one-off 0.9155. **Tidak berubah** dari nilai yang dulu tercetak, dan alasannya juga diketahui — lihat di bawah.
 
-Seluruh angka §6.3 — Friedman $\chi^2=43.96$, peringkat 1.33/2.40/2.77/3.50, Nemenyi $p=0.69$, DeLong per-arm 3 dari 6 dengan $p=0.055$–$0.17$, dan trio ordinal-native 0.5451/0.6433/0.9155 — **tidak punya CSV di disk**. Diperiksa langsung: `common_subset_auc.csv`, `delong_arms_common_subset.csv`, `friedman_ranks_common_subset.csv`, `nemenyi_arms_common_subset.csv`, dan `ordinal_native_metrics.csv` tidak ada satu pun di `artifacts/results/`. Yang ada di sana hanyalah `delong_matrix.csv`, `summary_ordinal.csv`, dan `efficiency_table_ordinal.{csv,md}`, yang bukan berkas-berkas itu.
+#### Celah provenance pada §6.3: dibuka 20 Agustus 2026, **ditutup 22 Agustus 2026**
 
-Angka-angka tersebut **dibawa ke `paper/track2/main.tex` tanpa verifikasi**, diwarisi dari draf sebelumnya. Angkanya tidak dihapus dan tidak diubah di sini — tidak ada bukti angkanya salah, hanya tidak ada bukti angkanya benar. Statusnya dicatat sebagai celah provenance terbuka di §8 butir 12, dan cara menutupnya ada di §9 butir 6. Prinsipnya sama dengan §10: angka yang tidak bisa ditelusuri ke baris CSV harus dinyatakan begitu di tempat angkanya muncul, bukan dibiarkan tampak sekelas dengan angka yang bisa.
+Kelima CSV yang dulu tidak ada di disk kini ada, diregenerasi CPU-saja dari 120 berkas `artifacts/results/preds/*.npz` yang tidak pernah disentuh (commit `fd4e50a`). Celahnya tertutup. Tapi regenerasinya menyandung gate-nya sendiri, dan itu yang jadi isi bagian ini.
+
+**Tiga dari empat kelompok angka tidak reproduksi.** Yang lama: $\chi^2=43.96$, peringkat 1.33/2.40/2.77/3.50, Nemenyi biner-vs-3-kelas $p=0.69$, DeLong tak signifikan $p=0.055$–$0.17$. Yang baru ada di atas. Yang cocok persis hanya trio ordinal-native.
+
+**Asal-usulnya berhasil direkonstruksi.** Diagnostik dijalankan pada `artifacts/results/_baseline_pre_rev2/preds` (baca-saja, nol tulisan ke direktori terlindung itu):
+
+- Dari 120 berkas prediksi, **hanya lima yang berbeda** antara baseline dan sekarang: kelima fold arm biner `densenet121`. Arm ordinal, 3-kelas dan 4-kelas **bit-identik 30/30 masing-masing**. Itu sebabnya trio ordinal-native cocok sampai empat desimal sementara Friedman tidak — trio itu dihitung dari arm yang tidak pernah berubah.
+- $\chi^2$ baseline 41.48, sekarang 44.52, yang tercetak 43.96 — **di antara keduanya, sama dengan tidak satu pun**. Hipotesis "angka lama berasal dari baseline pra-rev2" karena itu **tidak terkonfirmasi**.
+- Jumlah peringkat atas 30 blok: baseline D 40 / A 74 / C 83 / B 103; tercetak D 40 / A 72 / C 83 / B 105; sekarang D 41 / A 68 / C 86 / B 105. Seluruh selisih baseline→sekarang ada di blok `densenet121`. Vektor tercetak menyiratkan blok `densenet121` bernilai A 14 · B 15 · C 13 · D 8 — jumlah 50 = 5 fold × 10, valid secara aritmetika, dan duduk **di antara** baseline (A 16) dan sekarang (A 10). $\chi^2$ ikut monoton 41.48 → 43.96 → 44.52; DeLong `densenet121` monoton 0.0038 → $\approx$0.055 → 0.6846, yang persis menjelaskan batas bawah "0.055" pada rentang lama.
+
+**Kesimpulan: angka lama dihitung dari satu keadaan prediksi biner `densenet121` antara baseline dan sekarang, yang sudah ditimpa di tempat oleh pelatihan ulang 2026-08-04 16:42 dan tidak ada lagi di disk.** Bukan angka tanpa asal — asalnya terekonstruksi, artefaknya yang musnah.
+
+**Yang masuk register kegagalan senyap adalah mekanismenya, bukan nilainya.** Nemenyi $p=0.69$ **bukan** angka tanpa asal: menjalankan `nemenyi_posthoc` pada vektor peringkat yang ikut tercetak menghasilkan 0.6895, yaitu 0.69 persis, dihitung benar. Nol statistik pernah salah hitung; masukannya yang basi, tanpa artefak apa pun yang mencatat bahwa ia basi. Penyebab yang bisa dikendalikan: prediksi ditulis ke satu jalur tanpa versi, jadi pelatihan ulang diam-diam mengganti bukti untuk angka yang sudah masuk naskah. Aturan provenansi run03 (`handoff/PREREG_run03.md` §8) lahir dari sini.
+
+**Klaim keterpisahan salah sejak awal, terpisah dari drift.** Menjalankan Nemenyi pada vektor peringkat **yang tercetak sendiri** juga menghasilkan dua pasangan tidak signifikan (biner-vs-3-kelas $p=0.6895$, 3-kelas-vs-ordinal $p=0.1232$). Jadi kalimat "semua pasangan signifikan kecuali biner vs 3-kelas" tidak didukung oleh angkanya sendiri, di ketiga himpunan: baseline 2 pasang tak signifikan, sekarang 2, dan pada angka naskah lama juga 2. Ini kesalahan pelaporan yang berdiri sendiri, bukan akibat pergeseran angka.
+
+**Arah temuan tidak berubah.** 4-kelas peringkat terbaik, ordinal terburuk, omnibus signifikan kuat, dan ketidakcocokan agregat-lawan-per-model berdiri. Yang runtuh adalah presisi angkanya dan satu klaim keterpisahan, bukan kesimpulannya.
+
+**Cakupan audit lanjutan: terbatas, bukan menyeluruh.** Mekanismenya spesifik — satu tahap menimpa prediksi di tempat, angka terbitan tidak pernah diturunkan ulang sesudahnya. Yang berisiko hanya angka `densenet121` yang dihitung sebelum 2026-08-04 16:42. Himpunan terbatas dan bisa diperiksa, bukan audit terbuka atas seluruh naskah.
 
 ---
 
@@ -467,7 +498,7 @@ Butir 6 sampai 14 ditambahkan 20 Agustus 2026 dan menyangkut ketiga sumbu rev2. 
 9. **Jalur CAM ViT-Base rusak, bukan sekadar lemah, dan belum diperbaiki.** Di site terbitannya `encoder_layer_11.ln_1`, petanya identik nol pada 53 dari 60 sampel, dan degenerasinya **memburuk monoton dengan kedalaman** lintas encoder layer 8, 10, dan 11 (27, 50, dan 53 peta nol). Layer-CAM pada arsitektur grid token dengan blok pre-norm bukan konfigurasi tervalidasi, dan hasil kami tidak boleh dibaca sebagai pernyataan tentang interpretability ViT. Barisnya dipertahankan dengan anotasi, bukan dibuang: tabel yang baris canggungnya dihapus diam-diam adalah persis yang akan ditanyakan reviewer.
 10. **Family dan resolusi input terkonfound lintas dua belas backbone.** Lima backbone yang skor pointing-nya 0.0000 adalah persis lima yang tidak dievaluasi pada 96 px. Tidak ada apa pun dalam perbandingan lintas-backbone yang bisa memisahkan efek keluarga dari efek ukuran input. Sweep kedalaman §6.6 **tidak** terkena karena tiap kurva adalah kontrolnya sendiri.
 11. **Sanity check hanya lolos sebagian, dan itu membatasi klaimnya.** Korelasi peringkat masih sekitar 0,8 setelah classifier dan tiga blok terdalam diacak (0.8499714022929861, 0.801457498193512, 0.7670552285932886, 0.7087250582683798), dan class-flip probe 0.7712092188454759. Peta ini digerakkan aktivasi lebih daripada digerakkan keputusan. Pointing accuracy tinggi adalah bukti tentang explanation site, bukan bukti bahwa model memperhatikan lesi (§6.9). Metrik faithfulness berbasis perturbasi belum dijalankan.
-12. **Celah provenance: Friedman/Nemenyi dan DeLong per-arm tidak punya CSV di disk.** Angka-angka §6.3 dibawa ke `paper/track2/main.tex` dari draf sebelumnya **tanpa verifikasi**, dan berkas sumbernya tidak ada di `artifacts/results/`. Angkanya tidak dihapus; statusnya dinyatakan. Ini celah terbuka, bukan cacat yang sudah diketahui salah.
+12. **Celah provenance §6.3 ditutup, dan yang keluar dari penutupannya adalah cacat pelaporan.** Kelima CSV diregenerasi 22 Agustus 2026 dari 120 prediksi yang tidak disentuh. Tiga dari empat kelompok angka lama tidak reproduksi. Asalnya direkonstruksi: seluruh selisihnya berasal dari lima berkas prediksi biner `densenet121` yang ditimpa di tempat oleh pelatihan ulang 2026-08-04 16:42, dan angka terbitan tidak pernah diturunkan ulang sesudahnya. Nol statistik pernah salah hitung — masukannya yang basi tanpa artefak yang mencatatnya. Terpisah dari itu, klaim "semua pasangan arm signifikan kecuali satu" **salah bahkan pada angkanya sendiri**: vektor peringkat yang ikut tercetak menghasilkan dua pasangan tidak signifikan, bukan satu. Rincian lengkap di §6.3.
 13. **Kolom latency pada `summary_binary.csv` tidak dapat dipakai.** Dua cacat, dan keduanya perlu dipisahkan. Cacat pertama ada di fungsinya: `measure_latency` dahulu tidak melakukan sinkronisasi CUDA di sekeliling wilayah terukurnya, sehingga **setiap** pemanggil dengan `device="cuda"` mengukur waktu mengantre kernel, bukan mengeksekusinya (diperbaiki pada commit `2f7cea5`; tanda tangan fungsi dan jalur CPU tidak berubah). Cacat kedua ada di datanya: angka pada `summary_binary.csv` berasal dari **satu panggilan tunggal tanpa repeat** yang dijalankan inline saat evaluasi sementara pekerjaan lain berjalan. Akibatnya kolom itu bertentangan dengan laporan *journey* untuk model dan jalur kode yang sama — DenseNet201 118.02826999919489 ms lawan 90,5 ms — dan **bahkan tidak benar secara peringkat**: `summary_binary.csv` menempatkan DenseNet201 lebih lambat daripada Inception-ResNet-v2, sementara pengukuran tenang atas tujuh repeat di `efficiency_7.csv` membalikkannya (33.462 lawan 34.383 ms, IQR di bawah setengah milidetik). Kolom `params_M` dan `gflops` pada berkas yang sama **cocok persis** dengan `efficiency_7.csv`, yang melokalisasi cacatnya pada pengukuran waktu di bawah kontensi, bukan pada berkasnya secara keseluruhan. Seluruh angka biaya §6.4 diambil dari `efficiency_7.csv`. Rinciannya sebagai kegagalan diam dicatat di §8.10 laporan Track 1.
 14. **Satu baris lokalisasi terbitan tidak bereproduksi karena checkpoint-nya, bukan karena site-nya.** `checkpoint_mtime` DenseNet121 adalah 2026-08-04 16:42, enam jam **sesudah** `published_mtime` 2026-08-04 10:25 metrik yang mengklaimnya: modelnya dilatih ulang setelah angkanya ditulis. Sebelas backbone lain punya checkpoint yang mendahului metrik terbitannya, sehingga selisih mereka dapat diatribusikan ke koreksi site. Rinciannya di §6.2 laporan Track 1.
 
@@ -483,7 +514,7 @@ Butir 6 sampai 14 ditambahkan 20 Agustus 2026 dan menyangkut ketiga sumbu rev2. 
 Butir 5 sampai 11 ditambahkan 20 Agustus 2026, diurutkan dari yang paling murah.
 
 5. **Jadikan `n_zero_cam` dan ukuran spasial site kolom wajib** pada setiap keluaran metrik CAM, lalu perlakukan resolusi 1x1 atau `n_zero_cam` bukan-nol sebagai run gagal alih-alih skor rendah. Ini gerbang termurah yang menutup seluruh kelas kegagalan §6.7, dan ongkosnya dua kolom.
-6. **Tutup celah provenance §6.3** dengan menjalankan ulang evaluasi common-subset sehingga `common_subset_auc.csv`, `delong_arms_common_subset.csv`, `friedman_ranks_common_subset.csv`, `nemenyi_arms_common_subset.csv`, dan `ordinal_native_metrics.csv` benar-benar ada di disk. Sampai itu terjadi, angka §6.3 di manuskrip berdiri tanpa sumber.
+6. ~~**Tutup celah provenance §6.3**~~ **Selesai 22 Agustus 2026.** Kelima CSV ada di disk (commit `fd4e50a`), angka §6.3 dan `paper/track2/main.tex` sudah ditulis ulang dari CSV itu, dan hasil rekonsiliasinya dicatat di §6.3. Tindak lanjut yang tersisa dan berbatas: periksa angka `densenet121` lain yang dihitung sebelum 2026-08-04 16:42. Itu himpunan tertutup, bukan audit terbuka.
 7. **Perbaiki modul `stage_07f_xai_comparability`** beserta ujinya: nilai `POINTING_ACC` yang di-*hardcode* sudah usang, resolusi target layer-nya memakai fungsi yang sudah digantikan, dan captionnya masih memerikan band `[7,10]`. Belum dikerjakan pada pass ini; rinciannya di §8.2 laporan Track 1.
 8. **Perbaiki jalur CAM ViT-Base** — varian CAM yang sadar attention, atau *reshaping* alternatif atas barisan token. Selama belum, baris ViT-Base tetap tampil dengan anotasi.
 9. **Jalankan metrik faithfulness berbasis perturbasi** (ROAD, kurva deletion/insertion) supaya §6.9 tidak berhenti pada sanity check yang lolos sebagian.
@@ -498,7 +529,7 @@ Semua angka pada laporan ini ditelusuri ke baris CSV nyata yang ditarik dari mes
 
 Untuk angka rev2 tertanggal 20 Agustus 2026, prinsip yang sama diterapkan dengan tiga tambahan yang layak dinyatakan tersurat.
 
-**Pertama, angka yang tidak bisa ditelusuri dinyatakan begitu di tempat angkanya muncul.** Celah provenance §6.3 dicetak di dalam §6.3, bukan hanya di daftar batasan, karena pembaca yang mengutip $\chi^2=43.96$ akan membacanya di sana dan bukan di §8.
+**Pertama, angka yang tidak bisa ditelusuri dinyatakan begitu di tempat angkanya muncul.** Celah provenance §6.3 dicetak di dalam §6.3, bukan hanya di daftar batasan, karena pembaca yang mengutip $\chi^2$ akan membacanya di sana dan bukan di §8. Prinsip itu terbukti berguna: ketika celahnya ditutup 22 Agustus 2026, catatan yang duduk tepat di sebelah angkanya membuat rekonsiliasinya bisa ditulis di tempat yang sama, dan pembaca yang mengutip angka lama menemukan penjelasannya tanpa harus mencari.
 
 **Kedua, di mana laporan dan manuskrip berbeda, CSV yang menang, dan selisihnya dicetak.** Tiga ketidakcocokan tercatat: peringkat AUC Inception-ResNet-v2 (§6.4, manuskrip menulis kelima, CSV memberi keempat), cacah backbone ber-`AdaptiveAvgPool2d` di antara kegagalan 1x1 (§6.7, manuskrip menulis delapan, `silent_failure_census.csv` memberi sembilan), dan rasio eta-squared optimizer terhadap weight decay (§6.2, laporan lama menulis "lebih dari 200 kali", nilai tersimpan memberi 2401). Tidak satu pun dari ketiganya mengubah kesimpulan mana pun; ketiganya dicetak justru karena itu — koreksi yang tidak mengubah kesimpulan adalah koreksi yang paling mudah tidak dilaporkan.
 
@@ -520,7 +551,7 @@ Untuk angka rev2 tertanggal 20 Agustus 2026, prinsip yang sama diterapkan dengan
 | `artifacts/results/nemenyi_arms_common_subset.csv` | Post-hoc Nemenyi berpasangan |
 | `artifacts/results/ordinal_native_metrics.csv` | QWK, MAE, akurasi one-off arm ordinal |
 
-Lima baris di atas — `common_subset_auc.csv`, `delong_arms_common_subset.csv`, `friedman_ranks_common_subset.csv`, `nemenyi_arms_common_subset.csv`, dan `ordinal_native_metrics.csv` — **tidak ada di disk per 20 Agustus 2026**. Barisnya dipertahankan sebagai catatan tentang berkas apa yang seharusnya ada, bukan sebagai klaim bahwa berkasnya ada. Lihat §6.3 dan §8 butir 12.
+Lima baris di atas — `common_subset_auc.csv`, `delong_arms_common_subset.csv`, `friedman_ranks_common_subset.csv`, `nemenyi_arms_common_subset.csv`, dan `ordinal_native_metrics.csv` — tidak ada di disk per 20 Agustus 2026, dan **ada sejak 22 Agustus 2026** (commit `fd4e50a`, diregenerasi CPU-saja dari 120 `preds/*.npz` yang tidak disentuh). Catatan lamanya dipertahankan di sini karena riwayatnya bagian dari temuan: lihat §6.3 dan §8 butir 12.
 
 ### Lampiran B: berkas hasil rev2 (`artifacts/results/track2rev/`)
 

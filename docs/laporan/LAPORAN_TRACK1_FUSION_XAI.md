@@ -6,7 +6,7 @@
 - **Repo**: `lung-nodule-fusion-xai`
 - **Tugas**: Track 1 dari pemisahan dua paper (lihat `docs/Review Revisi 1.md` §8)
 - **Dataset**: LIDC-IDRI
-- **Tanggal laporan**: 30 Juli 2026 (diperbarui 8 Agustus 2026 dengan hasil run `2026-08-04-run02`, lihat §6.3; diperbarui 19 Agustus 2026 dengan uji ekuivalensi run `2026-08-19-run03`, lihat §6.4; diperbarui 20 Agustus 2026 dengan audit target layer run `2026-08-20-run04` — koreksi tabel §6.2, penarikan klaim ViT-Base, dan empat kegagalan senyap baru di §8.10)
+- **Tanggal laporan**: 30 Juli 2026 (diperbarui 8 Agustus 2026 dengan hasil run `2026-08-04-run02`, lihat §6.3; diperbarui 19 Agustus 2026 dengan uji ekuivalensi run `2026-08-19-run03`, lihat §6.4; diperbarui 20 Agustus 2026 dengan audit target layer run `2026-08-20-run04` — koreksi tabel §6.2, penarikan klaim ViT-Base, dan empat kegagalan senyap baru di §8.10; diperbarui 22 Agustus 2026 dengan §8.10 butir E — pelatihan ulang DenseNet121 menimpa prediksinya di tempat dan memusnahkan keadaan yang jadi dasar statistik per-arm yang terbit)
 - **Catatan untuk pembaca 20 Agustus 2026**: manuskrip Track 1 sudah terbit dan ter-*commit*, dan audit ini **tidak menggoyahkan angka XAI-nya** — ketiga backbone Track 1 meresolusi ke target layer yang sama sebelum dan sesudah perubahan resolver, dan sidik jari CAM-nya identik bit demi bit (§6.2.1). Yang dikoreksi adalah tabel dua belas backbone §6.2, yang cakupannya lebih luas daripada kohort Track 1.
 
 ---
@@ -757,7 +757,27 @@ Pelajaran yang menyambung ke §8.10 paragraf terakhir: **perbaikan yang tidak di
 
 ---
 
-**Apa yang keempatnya tambahkan ke tabel §8.7.** Pola "buktinya selalu sudah ada" berlaku pada tiga dari empat butir. Cacah peta identik nol sudah dapat dihitung dari peta yang sudah tersimpan (butir A dan B); kedua *mtime* sudah tercetak di berkas checkpoint dan berkas metrik (butir C). Butir D adalah **pengecualiannya**, dan pengecualian itu informatif: buktinya **tidak** ada sebelumnya, karena pengukuran tunggal tanpa repeat tidak menghasilkan sebaran yang bisa dibaca. Di situ yang hilang bukan pembandingnya, melainkan datanya — dan itu satu-satunya dari empat butir ini yang menuntut pengukuran ulang alih-alih pembacaan ulang.
+**Butir E — pelatihan ulang yang sama menimpa prediksinya di tempat, dan memusnahkan keadaan yang jadi dasar angka terbitan.** *(dicatat 22 Agustus 2026)*
+
+Butir C mencatat bahwa metrik XAI DenseNet121 tidak dihitung ulang setelah pelatihan ulang 2026-08-04 16:42. Butir ini mencatat kerusakan kedua dari pelatihan ulang yang sama, yang baru ketahuan ketika celah provenance statistik per-arm Track 2 ditutup — dan bentuknya **lebih buruk**, karena buktinya tidak sekadar tidak dibandingkan: buktinya **hilang**.
+
+Regenerasi kelima CSV statistik per-arm (§6.3 laporan Track 2) memberi $\chi^2=44.52$, sementara naskah mencetak 43.96. Diagnostik pada `artifacts/results/_baseline_pre_rev2/preds` menemukan:
+
+- Dari 120 berkas prediksi, **hanya lima yang berbeda** antara baseline pra-rev2 dan sekarang: kelima fold arm biner `densenet121`. Ketiga arm lain **bit-identik 30/30 masing-masing**, yang menjelaskan kenapa trio ordinal-native cocok sampai empat desimal sementara Friedman tidak.
+- $\chi^2$ baseline 41.48, sekarang 44.52, tercetak 43.96 — **di antara keduanya, cocok dengan tidak satu pun**.
+- Vektor peringkat yang ikut tercetak menyiratkan blok `densenet121` yang juga duduk di antara baseline dan sekarang, dan valid secara aritmetika (jumlah 50 = 5 fold × 10). $\chi^2$ dan DeLong `densenet121` sama-sama monoton lintas ketiga keadaan.
+
+Jadi angka terbitan **punya asal**: satu keadaan prediksi biner `densenet121` antara baseline dan sekarang. Yang tidak ada lagi adalah artefaknya. Prediksi ditulis ke `artifacts/results/preds/{model}_fold{f}.npz`, satu jalur tanpa versi, jadi pelatihan ulang menimpanya di tempat.
+
+Ini bentuk kegagalan yang berbeda dari butir A–D, dan itu sebabnya ia berdiri sendiri. Pada butir A, B dan C "buktinya selalu sudah ada" — tinggal dibandingkan. Pada butir D buktinya tidak pernah ada karena tidak pernah diukur. Di sini **buktinya pernah ada lalu ditimpa**, sehingga tidak ada pemeriksaan mana pun yang bisa memulihkannya; asal-usulnya hanya bisa direkonstruksi lewat penalaran aritmetika atas jumlah peringkat, dan itu berhasil kali ini hanya karena strukturnya kebetulan kecil.
+
+Perlu ditekankan apa yang **bukan** kegagalannya. Nol statistik pernah salah hitung. Nemenyi $p=0.69$ yang dulu tercetak dapat direproduksi persis (0.6895) dari vektor peringkat yang tercetak di sebelahnya — ia hasil yang benar dari masukan yang basi. Yang gagal adalah pengikatan antara angka dan bukti, bukan aritmetikanya.
+
+Perbaikan strukturalnya seragam dengan butir C tapi satu tingkat lebih hulu: **prediksi ditulis ke direktori ber-versi per run, bukan ke satu jalur bersama**, dan tiap baris hasil membawa `run_id`, `commit_sha`, `input_size`, `checkpoint_mtime`. Keduanya sudah berlaku di run03 (`handoff/PREREG_run03.md` §8), dan `src/stage_10b_finetune.py` menulis ke `artifacts/results/run03/preds/` tanpa menyentuh jalur lama. Cakupan audit lanjutannya berbatas: hanya angka `densenet121` yang dihitung sebelum 2026-08-04 16:42.
+
+---
+
+**Apa yang kelimanya tambahkan ke tabel §8.7.** Pola "buktinya selalu sudah ada" berlaku pada tiga dari lima butir. Cacah peta identik nol sudah dapat dihitung dari peta yang sudah tersimpan (butir A dan B); kedua *mtime* sudah tercetak di berkas checkpoint dan berkas metrik (butir C). Butir D dan E adalah **dua pengecualiannya, dan keduanya gagal ke arah yang berlawanan**. Pada butir D bukti tidak pernah ada, karena pengukuran tunggal tanpa repeat tidak menghasilkan sebaran yang bisa dibaca — yang hilang datanya, bukan pembandingnya, dan itu menuntut pengukuran ulang alih-alih pembacaan ulang. Pada butir E bukti pernah ada lalu **dihancurkan penimpaan**, jadi baik pembacaan ulang maupun pengukuran ulang tidak bisa memulihkannya; yang tersisa hanya rekonstruksi. Dua mode kegagalan itu menuntut gerbang yang berbeda: butir D butuh sebaran dilaporkan, butir E butuh keluaran tidak pernah ditimpa.
 
 ---
 
