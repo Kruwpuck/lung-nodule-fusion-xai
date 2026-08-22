@@ -64,6 +64,34 @@ kalah terhadapnya.
 Total: 3 backbone × 5 fold × 4 sel = **60 run**. Tidak ada sel kelima. Penambahan
 varian di tengah jalan dilarang.
 
+### 2a. Granularitas nyata tiap sel — diukur, bukan diasumsikan
+
+Fraksi dihitung atas **grup lapisan** (child module badan backbone), bukan atas
+bobot. Karena bobot tidak tersebar rata antar grup, pangsa parameter yang benar-benar
+terbuka jauh berbeda dari angka pada nama sel. Diukur pada 22 Agustus 2026 sebelum
+run dimulai:
+
+| backbone | jumlah child | uf 0% | uf 10% | uf 20% | uf 100% |
+|---|---|---|---|---|---|
+| convnext_tiny | 8 | 0 modul · 0,0% param | 1 modul · **51,4%** param | 2 modul · **55,6%** param | 8 modul · 100% |
+| densenet121 | 12 | 0 modul · 0,0% param | 2 modul · 31,1% param | 3 modul · 38,7% param | 12 modul · 100% |
+| densenet201 | 12 | 0 modul · 0,0% param | 2 modul · 38,6% param | 3 modul · 47,5% param | 12 modul · 100% |
+
+Dua konsekuensi yang wajib dibawa ke pelaporan:
+
+1. **Nama sel tidak boleh dibaca sebagai pangsa bobot.** "unfreeze 10%" berarti 10%
+   grup lapisan terakhir dibulatkan ke atas, yang pada convnext_tiny berarti separuh
+   jaringan. `n_trainable`/`n_total` dicatat per baris supaya pangsa sebenarnya
+   selalu terlihat di samping angka AUC-nya.
+2. **Pada convnext_tiny, sel 10% dan 20% nyaris model yang sama** (51,4% lawan
+   55,6% bobot). Selisih AUC antar keduanya di backbone itu karena itu **tidak
+   informatif** dan tidak boleh ditafsirkan sebagai efek besaran unfreeze. Kedua sel
+   tetap dijalankan dan dilaporkan; batasannya yang dinyatakan.
+
+Granularitas per child module dipertahankan meski labelnya kasar, karena alternatifnya
+— membuka sebagian isi satu grup untuk mengejar pangsa bobot tertentu — persis
+kegagalan yang brief larang: membuka weight tanpa bias, atau separuh lapisan norm.
+
 **Seluruh konfigurasi dilaporkan**, termasuk yang kalah. Varian yang kalah adalah
 bagian dari temuan.
 
