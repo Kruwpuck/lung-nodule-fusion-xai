@@ -85,6 +85,18 @@ def _select_fold_features(train_df: pd.DataFrame, val_df: pd.DataFrame, feat_col
     return X_train_sel, X_val_sel, selected, fs_method
 
 
+def _cnn_ckpt_subdir(cfg: dict, model_name: str) -> str:
+    """Which checkpoint subdirectory holds this backbone's arm A weights.
+
+    Defaults to `model_name`, i.e. `checkpoints/{model}/`, which is where every
+    published number came from. run03 F-2 points it at `run03/{model}_uf100/`
+    through `track1_fusion.cnn_ckpt_subdir` in configs/config_run03.yaml, so the
+    fusion ablation can be re-derived from nested-CV checkpoints as a sensitivity
+    analysis without touching the legacy checkpoints or the default path.
+    """
+    return cfg.get("track1_fusion", {}).get("cnn_ckpt_subdir", {}).get(model_name, model_name)
+
+
 def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: int,
                      df_fold: pd.DataFrame, device, ckpt_kind: str = "best") -> np.ndarray:
     """Re-run the existing arm A checkpoint on df_fold's own patches (fusion-eligible subset).
@@ -104,7 +116,8 @@ def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: in
     patch_xy = cfg["data"].get("patch_xy", 64)
     batch_size = cfg["train"].get("batch_size", 16)
 
-    ckpt = os.path.join(cfg["paths"]["checkpoints"], model_name, f"fold{fold}_{ckpt_kind}.pt")
+    ckpt = os.path.join(cfg["paths"]["checkpoints"], _cnn_ckpt_subdir(cfg, model_name),
+                        f"fold{fold}_{ckpt_kind}.pt")
     model = build_model(model_name, cfg).to(device)
     state = torch.load(ckpt, weights_only=True, map_location="cpu")
     model.load_state_dict(state["model_state"] if isinstance(state, dict) and "model_state" in state else state)
@@ -298,7 +311,8 @@ def run(cfg: dict) -> None:
 
     for model_name in track1_backbones:
         backbone_internal = _NAME_MAP.get(model_name, model_name)
-        ckpt_subdir_check = os.path.join(cfg["paths"]["checkpoints"], model_name, "fold0_best.pt")
+        ckpt_subdir_check = os.path.join(cfg["paths"]["checkpoints"],
+                                          _cnn_ckpt_subdir(cfg, model_name), "fold0_best.pt")
         if not os.path.exists(ckpt_subdir_check):
             logger.warning("Skipping Track 1 backbone %r — no checkpoint at %s "
                             "(run stage_03_train for this backbone first)", model_name, ckpt_subdir_check)
@@ -378,7 +392,8 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
         n_slices = cfg["data"].get("n_slices", 3)
         patch_xy = cfg["data"].get("patch_xy", 64)
         batch_size = cfg["train"].get("batch_size", 16)
-        ckpt = os.path.join(cfg["paths"]["checkpoints"], model_name, f"fold{fold}_best.pt")
+        ckpt = os.path.join(cfg["paths"]["checkpoints"], _cnn_ckpt_subdir(cfg, model_name),
+                            f"fold{fold}_best.pt")
         cnn_model = build_model(model_name, cfg).to(device)
         state = torch.load(ckpt, weights_only=True, map_location="cpu")
         cnn_model.load_state_dict(state["model_state"] if isinstance(state, dict) and "model_state" in state else state)

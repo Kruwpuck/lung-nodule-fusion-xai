@@ -50,21 +50,35 @@ BACKBONES = ["convnext_tiny", "densenet201", "densenet121"]
 OUT_DIR = os.path.join("artifacts", "results", "run02", "probs")
 
 
-def run(cfg: dict) -> None:
+def _last_ckpt_path(cfg: dict, model_name: str, fold: int) -> str:
+    from src.stage_03b_fusion import _cnn_ckpt_subdir
+    return os.path.join(cfg["paths"]["checkpoints"], _cnn_ckpt_subdir(cfg, model_name),
+                        f"fold{fold}_last.pt")
+
+
+def run(cfg: dict, out_dir: str | None = None) -> None:
     import torch
+
+    # out_dir is a parameter rather than a cfg lookup because OUT_DIR is run02's
+    # own path and every existing caller depends on it. run03 F-2 passes
+    # artifacts/results/run03/probs to get the same probability arrays from the
+    # nested-CV checkpoints -- the cheap half of the sensitivity analysis, since
+    # no FusionNet is trained here, only CNN inference plus the radiomics
+    # XGBoost, and the CNN checkpoint path follows cfg's cnn_ckpt_subdir.
+    out_dir = out_dir or OUT_DIR
 
     from src.fusion.early_fusion import train_early_fusion_xgboost
     from src.fusion.late_fusion import average_fusion
     from src.models.registry import _NAME_MAP
     from src.stage_03b_fusion import _cnn_only_preds, _load_merged, _select_fold_features
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(out_dir, exist_ok=True)
     merged, feat_cols = _load_merged(cfg)
     n_folds = cfg["data"].get("n_folds", 5)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     for model_name in BACKBONES:
-        out = os.path.join(OUT_DIR, f"{model_name}.npz")
+        out = os.path.join(out_dir, f"{model_name}.npz")
         if os.path.exists(out):
             print(f"[LEWAT] {out} sudah ada")
             continue
@@ -87,8 +101,15 @@ def run(cfg: dict) -> None:
             cols["rad"].append(clf.predict_proba(X_val_sel)[:, 1])
             cols["cnn_best"].append(
                 _cnn_only_preds(model_name, internal, cfg, fold, val_df, device, "best"))
-            cols["cnn_last"].append(
-                _cnn_only_preds(model_name, internal, cfg, fold, val_df, device, "last"))
+            # `last` only exists for the single-stage run02 recipe. run03's
+            # nested-CV cells save the inner-val-selected checkpoint alone, and
+            # an "unselected final epoch" has no counterpart there anyway --
+            # stage 2 ends on early stopping. Absent means NaN, not an error.
+            if os.path.exists(_last_ckpt_path(cfg, model_name, fold)):
+                cols["cnn_last"].append(
+                    _cnn_only_preds(model_name, internal, cfg, fold, val_df, device, "last"))
+            else:
+                cols["cnn_last"].append(np.full(len(val_df), np.nan))
             cols["y_true"].append(val_df["label"].values)
             cols["fold"].append(np.full(len(val_df), fold))
             cols["patient_id"].append(val_df["patient_id"].values.astype(str))
@@ -107,8 +128,10 @@ def run(cfg: dict) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--config", default="configs/config.yaml")
+    p.add_argument("--out-dir", default=None,
+                    help=f"tempat menyimpan {{backbone}}.npz; default {OUT_DIR}")
     args = p.parse_args()
-    run(yaml.safe_load(open(args.config)))
+    run(yaml.safe_load(open(args.config)), args.out_dir)
 
 
 if __name__ == "__main__":

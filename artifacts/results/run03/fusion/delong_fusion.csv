@@ -1,0 +1,10 @@
+run_id,commit_sha,input_size,condition,checkpoint_mtime,backbone,fusion_arm,fusion_auc,best_single_arm,best_single_auc,delong_p,fusion_significantly_better
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T17:06:48,convnext_tiny,fusion_intermediate,0.9128655920327508,radiomics,0.9336201976066762,0.0003105912125629,False
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T17:06:48,convnext_tiny,fusion_early,0.9081935915603844,radiomics,0.9336201976066762,4.073627572598326e-05,False
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T17:06:48,convnext_tiny,fusion_late,0.9195254684301684,radiomics,0.9336201976066762,0.0013290001881909,False
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T17:43:27,densenet201,fusion_intermediate,0.9095319634703196,radiomics,0.9336201976066762,0.0007328184846235,False
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T17:43:27,densenet201,fusion_early,0.9103758266414738,radiomics,0.9336201976066762,7.936570446376301e-05,False
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T17:43:27,densenet201,fusion_late,0.917136572980633,radiomics,0.9336201976066762,0.0002732738476369,False
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T18:20:29,densenet121,fusion_intermediate,0.9189866753267202,radiomics,0.9336201976066762,0.0221154134223855,False
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T18:20:29,densenet121,fusion_early,0.9219315855770744,radiomics,0.9336201976066762,0.0436537032689676,False
+2026-08-22-run03,ebc1fa1,96,honest_nested_cv_sensitivity,2026-08-22T18:20:29,densenet121,fusion_late,0.9278706109274132,radiomics,0.9336201976066762,0.1557614920983523,False

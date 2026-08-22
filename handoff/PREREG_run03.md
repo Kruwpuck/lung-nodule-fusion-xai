@@ -186,9 +186,10 @@ agregasinya sama, tidak pernah dicampur.
    Fold luar hanya dilaporkan.
 3. **Fusi dinyatakan menang atas radiomics HANYA kalau DeLong p<0,05.** Tidak ada
    pelonggaran, tidak ada "mendekati signifikan".
-4. **Kontrol negatif F-2:** `radiomics_only` harus tetap dalam **±0,005** dari nilai
-   per-backbone di tabel 4b. Di luar itu, berhenti — artinya ada yang berubah di
-   pipeline yang seharusnya tidak. Alasan angka 0,005 ada di bagian 7 butir 3.
+4. **Kontrol negatif F-2:** `radiomics_only` harus tetap dalam **±0,0036 dari 0,9318**
+   — toleransi asli brief, dipulihkan 22 Agustus 2026 setelah pelonggaran ke ±0,005
+   ditarik sebagai keliru; lihat bagian 7 butir 3. Di luar pita itu, berhenti: artinya
+   ada yang berubah di pipeline yang seharusnya tidak.
 5. **Prasyarat F-3:** urutan kasus antar backbone dalam fold yang sama wajib
    diverifikasi identik dan buktinya dicetak sebelum satu pun probabilitas dirata.
 6. **Kalau setelah fine-tuning dan ensembling fusi tetap tidak mengalahkan
@@ -223,13 +224,23 @@ yang brief berikan untuk densenet121 adalah nilai densenet201 di disk. Membandin
 gate terhadap angka yang tidak bisa direproduksi adalah persis insiden densenet121
 terulang, jadi tabel 4 yang dipakai.
 
-**3. Toleransi kontrol negatif dilonggarkan dari ±0,0036 menjadi ±0,005.**
-`radiomics_only` tidak menyentuh checkpoint CNN sama sekali, tapi tetap bervariasi
-0,9301–0,9343 antar backbone di `ablation_summary.csv` — rentang 0,0042, sudah
-melebihi toleransi yang brief tetapkan. Sumbernya `mutual_info_classif` di
-`_select_fold_features` yang jalan tanpa `random_state`. Menyetel seed di situ
-ditolak karena akan mengubah angka `radiomics_only` yang sudah terbit; yang dilakukan
-adalah menyetel toleransi ke sedikit di atas sebaran teramati dan mencatat alasannya.
+**3. ~~Toleransi kontrol negatif dilonggarkan dari ±0,0036 menjadi ±0,005.~~
+DITARIK 22 Agustus 2026 — penyimpangan ini keliru, toleransi asli brief dipulihkan.**
+
+Yang benar tetap perlu dicatat: `radiomics_only` **tidak** menyentuh checkpoint CNN
+sama sekali, tapi tetap bervariasi 0,9301–0,9343 antar backbone di
+`ablation_summary.csv`. Karena perhitungannya identik lintas backbone, sebaran itu
+murni derau run-ke-run, sumbernya `mutual_info_classif` di `_select_fold_features`
+yang jalan tanpa `random_state`. Menyetel seed di situ ditolak: akan mengubah angka
+`radiomics_only` yang sudah terbit.
+
+Kesalahan penalaran yang ditarik: aku membandingkan **rentang** sebaran (0,9343 −
+0,9301 = 0,0042) terhadap **setengah-lebar** pita (0,0036) dan menyimpulkan pita itu
+sudah dilanggar. Pemeriksaan yang benar adalah apakah nilai teramati jatuh di dalam
+0,9318 ± 0,0036 = [0,9282; 0,9354]. Ketiganya jatuh di dalam, dan simpangan terbesar
+dari pusat hanya 0,0025. Pita brief karena itu **tidak** dilanggar dan pelonggarannya
+tidak berdasar. Toleransi kembali ke **±0,0036 dari 0,9318**, yang juga lebih ketat
+daripada derau teramati dan karena itu gate yang lebih berguna.
 
 **4. Regenerasi statistik empat-arm Track 2 dibatalkan.** Brief menuntutnya di F-4,
 tapi checkpoint legacy `artifacts/checkpoints/densenet121/` tidak disentuh run ini —
