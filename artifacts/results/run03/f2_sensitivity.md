@@ -159,3 +159,91 @@ angka terbit menuntut estimasi, bukan batas bawah.
 - Sebaran `radiomics_only` antar backbone (0,9301–0,9343 pada run terbit) berasal
   dari `mutual_info_classif` yang jalan tanpa `random_state`. Tidak diseed di sini
   karena akan mengubah angka `radiomics_only` yang sudah terbit.
+
+---
+
+## 7. Disosiasi: fusi terlatih tahan, rerata probabilitas tidak
+
+§2 mencatat polanya sebagai pengamatan. Dinyatakan sebagai temuan:
+
+> **Mekanisme fusi yang melatih ulang di atas cabang CNN tahan terhadap degradasi
+> cabang itu; mekanisme yang sekadar merata-rata probabilitas tidak.**
+
+Ini pernyataan tentang **ketahanan mekanisme fusi terhadap mutu cabangnya**, dan
+disosiasinya bersih:
+
+| kelompok | mekanisme | Δ cabang CNN | Δ arm fusi | rasio |
+|---|---|---|---|---|
+| terlatih | `fusion_early` (XGBoost di atas embedding) | −0,0340 … −0,0635 | −0,0040 … +0,0083 | ≈0 |
+| terlatih | `fusion_intermediate` (FusionNet ujung-ke-ujung) | −0,0340 … −0,0635 | −0,0091 … +0,0079 | ≈0 |
+| tak terlatih | `fusion_late` (`average_fusion`, bobot 0,5 tetap) | −0,0340 … −0,0635 | −0,0070 … −0,0180 | ≈0,5 |
+
+Enam sel arm terlatih menyerap kehilangan 3,4–6,4 poin di cabang CNN dan **naik di
+empat dari enam**. Tiga sel `fusion_late` mewarisi tepat setengahnya.
+
+Mekanismenya beda, bukan besarannya. Arm terlatih menyesuaikan bobot ke masukan
+yang mereka terima: cabang CNN yang lebih lemah membuat pengklasifikasi bergeser
+ke sisi radiomik, dan sisi itu tidak bergerak sama sekali (§1). Arm rerata
+probabilitas tidak punya parameter untuk digeser — bobotnya 0,5 ditetapkan di
+muka, jadi setiap pergerakan sisi CNN masuk utuh dengan faktor 0,5.
+
+**Nilainya: ini penjelasan mekanistik untuk pengamatan lama.** `fusion_late`
+selama ini arm fusi terkuat di ketiga backbone, dan alasannya belum pernah
+dinyatakan. Alasannya sekarang terlihat — ia satu-satunya arm yang mewarisi
+keuntungan seleksi checkpoint cabang CNN secara utuh; arm terlatih tidak
+bergantung padanya, karena mereka mengompensasi cabang CNN apa pun yang mereka
+dapat. Keunggulan tipis `fusion_late` sebagian adalah keuntungan seleksi yang
+diteruskan, bukan mekanisme fusi yang lebih baik.
+
+Konsekuensinya sudah teruji ke arah sebaliknya di `f3_ensemble.md` §7: ketika
+ensembling **menaikkan** cabang CNN +0,0175, `fusion_late` juga tidak ikut naik
+berarti (+0,0025, p=0,36). Aturan yang sama, dua arah.
+
+**Batas.** Tiga backbone, satu dataset, dua mekanisme fusi terlatih. Yang
+mendorong disosiasi ini adalah ada-tidaknya parameter yang dilatih ulang di atas
+cabang CNN, dan kedua arm terlatih di sini berbagi sifat itu — tapi keduanya juga
+berbagi sisi radiomik yang sama, jadi "melatih ulang" dan "punya sisi radiomik
+yang bisa dijadikan sandaran" tidak terpisah di rancangan ini.
+
+---
+
+## 8. Uji yang sebenarnya dipakai naskah: TOST, bukan DeLong
+
+§4a menjawab pertanyaan seperti yang diajukan, memakai DeLong. Tapi klaim Track 1
+yang terbit **bukan** "DeLong gagal menolak" — itu justru yang sudah ditolak
+sebagai tidak sah. Klaim yang terbit adalah **ekuivalensi TOST pada margin
+δ=0,02 AUC**, jadi menurunkan bobotnya harus lewat uji yang sama. Sumber
+`run03/tost_run03.csv`, jalur varians identik (`tost_auc`), margin tidak diubah.
+
+`fusion_late` lawan `radiomics_only`, checkpoint jujur:
+
+| backbone | Δ | CI 90% | p_TOST | ekuivalen | p DeLong |
+|---|---|---|---|---|---|
+| densenet121 | −0,0057 | (−0,0124; +0,0009) | 0,0002 | **ya** | 0,1558 |
+| convnext_tiny | −0,0141 | (−0,0213; −0,0069) | 0,0894 | tidak | 0,0013 |
+| densenet201 | −0,0165 | (−0,0239; −0,0090) | 0,2188 | tidak | 0,0003 |
+
+Bandingkan rezim terbit, di mana ekuivalensi bertahan **6 dari 6** (dua rezim
+run02, Δ terbesar 0,0095): di bawah checkpoint jujur ia bertahan **1 dari 3**.
+
+Dua hal harus dinyatakan bersamaan, karena masing-masing sendirian menyesatkan:
+
+1. **Kegagalannya tipis.** Batas bawah CI mencapai −0,0213 dan −0,0239 terhadap
+   margin −0,02. Selisih titiknya 0,0141 dan 0,0165 AUC — masih di bawah margin;
+   yang keluar margin ujung intervalnya, bukan estimasinya.
+2. **Yang gagal justru model utama.** densenet201 paling jauh keluar, dan
+   densenet201 adalah model utama naskah. Satu-satunya yang bertahan densenet121,
+   backbone dengan denda protokol terkecil (−0,0340).
+
+Kontrol negatif tetap bekerja: `fusion_late` lawan `cnn_only` menolak ekuivalensi
+di ketiga baris (p_TOST = 1, Δ +0,0659 … +0,0811). Ujinya masih bisa membedakan.
+
+Non-inferioritas — bentuk satu arah uji yang sama — bertahan 1 dari 3 lawan
+radiomics, turun dari 6 dari 6 di rezim terbit.
+
+**Batas §6 tetap berlaku penuh di sini.** Checkpoint run03 batas bawah, bukan
+estimasi. Retrain nested-CV satu tahap tanpa pembekuan BN akan mendarat di antara
+0,8360 dan 0,8959, dan interval ini bisa kembali masuk margin. Yang tabel ini
+tegakkan: **klaim ekuivalensi rapuh terhadap protokol seleksi checkpoint**, dan
+kerapuhan itu harus dinyatakan di tempat klaimnya muncul, bukan hanya di
+Limitations.

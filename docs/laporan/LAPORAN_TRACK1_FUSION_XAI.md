@@ -17,7 +17,9 @@ Track 1 membandingkan lima *arm* representasi (CNN-only, radiomics-only, early f
 
 **Klaim final** (menggantikan kesimpulan lama "radiomics-only mengungguli semua varian fusi", yang sudah tidak akurat setelah perbaikan bug resolusi dan kuantifikasi run `2026-08-04-run02`):
 
-> `fusion_late` mengalahkan CNN-sendirian secara signifikan tanpa syarat seleksi *checkpoint* (p < 1e-9 pada ketiga backbone di kedua rezim checkpoint; p < 1e-11 bila hanya rezim tanpa seleksi yang dikutip), **ekuivalen dengan radiomics dalam margin 0.02 AUC pada ketiga backbone di kedua rezim** (p_TOST < 0.004, §6.4), mempertahankan penjelasan spasial pada tingkat yang praktis sama (selisih pointing accuracy ≤0.05, identik persis pada himpunan enam nodul tetap), dan satu-satunya arm yang menyediakan penjelasan spasial dan penjelasan fitur sekaligus.
+> `fusion_late` mengalahkan CNN-sendirian secara signifikan tanpa syarat seleksi *checkpoint* (p < 1e-9 pada ketiga backbone di kedua rezim checkpoint; p < 1e-11 bila hanya rezim tanpa seleksi yang dikutip), **ekuivalen dengan radiomics dalam margin 0.02 AUC pada ketiga backbone di kedua rezim protokol ini** (p_TOST < 0.004, §6.4), mempertahankan penjelasan spasial pada tingkat yang praktis sama (selisih pointing accuracy ≤0.05, identik persis pada himpunan enam nodul tetap), dan satu-satunya arm yang menyediakan penjelasan spasial dan penjelasan fitur sekaligus.
+
+**Syarat yang melekat pada klaim ekuivalensi, dinyatakan di sini dan bukan hanya di §8.** Kedua rezim di atas sama-sama memuat seleksi *checkpoint* pada fold luar; yang berbeda cuma checkpoint mana yang dimuat. Ketika seleksinya dicabut dari prosedur latih — pelatihan ulang nested CV, run `2026-08-22-run03` — ekuivalensi bertahan pada **satu backbone dari tiga**, dan yang gagal termasuk DenseNet201, model utama. Kegagalannya tipis (ujung interval melewati margin sejauh 0,0013 dan 0,0039 AUC; estimasi titiknya masih di dalam margin) dan checkpoint-nya batas bawah, bukan estimasi, karena empat perbedaan protokol bergerak bersamaan. Rincian di §6.5. Arah kesimpulan Track 1 tidak berbalik — di rezim itu setiap arm fusi justru lebih kalah terhadap radiomics, bukan lebih menang.
 
 Kata "ekuivalen" di atas menggantikan "setara" yang dipakai draf sebelumnya, dan pergantiannya bukan kosmetik. Draf lama menyimpulkan kesetaraan dari uji DeLong yang **gagal menolak** hipotesis nol kesamaan AUC. Itu penalaran yang tidak sah: tidak adanya bukti perbedaan bukan bukti tidak adanya perbedaan. Sejak 19 Agustus 2026 klaimnya bertumpu pada uji yang hipotesis nolnya justru "keduanya berbeda sedikitnya sebesar margin", lalu ditolak. Rinciannya di §6.4.
 
@@ -435,6 +437,87 @@ Non-inferioritas, bentuk satu arah dari uji yang sama, berlaku pada **keduabelas
 Probabilitasnya diambil ulang dari `artifacts/results/run02/probs/{backbone}.npz` milik run02; **nol pelatihan ulang, nol GPU, nol eksperimen baru**. Karena ujinya dijalankan belakangan, CSV-nya membawa dua kolom run: `run_id = 2026-08-19-run03` untuk ujinya, `source_run_id = 2026-08-04-run02` untuk asal probabilitasnya. Mencampur keduanya akan membuat provenance-nya berbohong.
 
 Pemeriksaan silang yang menjamin angka ini: pada margin 0, kedua uji satu arah TOST runtuh menjadi uji dua arah yang sama dengan DeLong. `python -m src.stage_08f_run02_tost --self-check` menurunkan ulang p DeLong dari sisi TOST untuk keduabelas baris dan menuntut kecocokan sampai 1e-12. Kalau varians keduanya pernah menyimpang, pemeriksaan ini gagal sebelum angkanya sempat terbit.
+
+---
+
+## 6.5 Biaya protokol checkpoint, disosiasi mekanisme fusi, dan ensembling (run `2026-08-22-run03`)
+
+Sumber: `artifacts/results/run03/f1_summary.md`, `f2_sensitivity.md`, `f3_ensemble.md`; CSV `finetune_cnn_only.csv` (60 baris), `fusion/ablation_summary.csv` (75 baris), `tost_run03.csv` (6 baris), `ensemble.csv` (24 baris). Pra-registrasi ditulis sebelum satu pun GPU jalan: `handoff/PREREG_run03.md`.
+
+**Seluruh angka Track 1 yang terbit tidak berubah karena seksi ini.** Ini analisis sensitivitas. Yang diukur: seberapa besar hasil di §6.1–§6.4 bergantung pada cabang CNN yang epoch-nya dipilih pada fold luar yang sama yang dipakai menilainya.
+
+### 6.5.1 Fine-tuning bertahap tidak diadopsi — keempat varian dilaporkan
+
+Tiga backbone × empat fraksi unfreeze {0%, 10%, 20%, 100%} × lima fold luar = 60 sel, inner split `GroupShuffleSplit` per pasien 15% dengan `random_state=fold` (identik cabang fusi), epoch dipilih **hanya** di inner-val, fold luar dinilai tepat sekali di akhir.
+
+| backbone | uf 0% | uf 10% | uf 20% | uf 100% (kontrol) |
+|---|---|---|---|---|
+| convnext_tiny | 0,7554 | 0,8272 | 0,8346 | **0,8455** |
+| densenet201 | 0,7546 | 0,8240 | 0,8416 | **0,8420** |
+| densenet121 | 0,7785 | 0,8528 | 0,8564 | **0,8649** |
+
+Rerata-fold, subset labels ∩ radiomics. Pemenang menurut inner-val adalah sel 100% pada ketiga backbone, dan urutan inner-val naik monoton terhadap cakupan unfreeze tanpa kecuali.
+
+**Fine-tuning tidak diadopsi karena tidak mengungguli kontrolnya**: sembilan sel kandidat kalah 0,0004–0,0902 AUC, sembilan dari sembilan. Baseline yang terbit sudah 100% unfreeze, jadi ini hipotesis **regularisasi**, dan pada n≈1400 kapasitas yang hilang lebih mahal daripada overfitting yang dicegah.
+
+### 6.5.2 Harga protokol seleksi checkpoint: 3,4–6,4 poin sebagai batas atas
+
+Sel 100% jatuh 0,0340–0,0636 AUC di bawah `cnn_only` yang terbit — tiga sampai enam kali lipat 0,0071–0,0240 yang diberi rezim `cnn_last` pada model terlatih yang sama (§6.3).
+
+Kedua angka mengurung besaran yang sama dari dua sisi, dan **tidak satu pun boleh dikutip sendirian**. Sel 100% berbeda dari resep terbit dalam empat hal sekaligus: epoch dipilih di inner-val (yang memang ingin diukur), data latih berkurang 15%, jadwalnya dua tahap, dan BatchNorm dibekukan pada densenet. Jadi 0,0340–0,0636 harga **seluruh paket**, dan komponen seleksinya lebih kecil.
+
+Satu dari empat sudah bisa dipersempit: `convnext_tiny` memuat **nol** modul BatchNorm (LayerNorm sepenuhnya), namun dendanya (−0,0636) justru di antara kedua densenet (−0,0340 dan −0,0603). Pembekuan BN tidak menjelaskan polanya.
+
+Layak dilaporkan sebagai temuan, bukan catatan kaki: dugaan awal keuntungan seleksi checkpoint bernilai 1–2,4 poin AUC; batas atasnya ternyata 3,4–6,4 poin.
+
+### 6.5.3 Disosiasi: mekanisme fusi terlatih tahan, rerata probabilitas tidak
+
+> **Mekanisme fusi yang melatih ulang di atas cabang CNN tahan terhadap degradasi cabang itu; mekanisme yang sekadar merata-rata probabilitas tidak.**
+
+| mekanisme | Δ cabang CNN | Δ arm fusi |
+|---|---|---|
+| `fusion_early` (XGBoost atas embedding) | −0,0340 … −0,0635 | −0,0040 … +0,0083 |
+| `fusion_intermediate` (FusionNet ujung-ke-ujung) | −0,0340 … −0,0635 | −0,0091 … +0,0079 |
+| `fusion_late` (`average_fusion`, bobot 0,5 tetap) | −0,0340 … −0,0635 | −0,0070 … −0,0180 |
+
+Enam sel arm terlatih menyerap kehilangan 3,4–6,4 poin dan **naik di empat dari enam**; tiga sel `fusion_late` mewarisi tepat setengahnya. Faktor setengah itu aritmetika, bukan temuan — sisi radiomiknya beku. Yang jadi temuan kontrasnya: arm terlatih menggeser bobot ke cabang yang tidak bergerak, arm bobot-tetap tidak punya apa pun untuk digeser.
+
+**Nilainya: penjelasan mekanistik untuk pengamatan lama.** `fusion_late` selama ini arm fusi terkuat di ketiga backbone, dan alasannya belum pernah dinyatakan. Ia satu-satunya arm yang mewarisi keuntungan seleksi checkpoint cabang CNN secara utuh; arm terlatih tidak bergantung padanya. Sebagian margin `fusion_late` atas arm fusi lain adalah keuntungan seleksi yang diteruskan, bukan mekanisme fusi yang lebih baik.
+
+### 6.5.4 Ekuivalensi TOST di rezim nested CV
+
+Margin tidak diubah (δ=0,02), jalur varians identik (`tost_auc`). Kontrol negatif `radiomics_only` **bit-identik** dengan run02 (delta +0,0000 di ketiga backbone) — ia XGBoost tanpa `eval_set` dan tidak pernah menikmati seleksi checkpoint.
+
+| backbone | Δ | CI 90% | p_TOST | ekuivalen | p DeLong |
+|---|---|---|---|---|---|
+| densenet121 | −0,0057 | (−0,0124; +0,0009) | 0,0002 | **ya** | 0,1558 |
+| convnext_tiny | −0,0141 | (−0,0213; −0,0069) | 0,0894 | tidak | 0,0013 |
+| densenet201 | −0,0165 | (−0,0239; −0,0090) | 0,2188 | tidak | 0,0003 |
+
+Rezim terbit: ekuivalen 6/6. Rezim nested: 1/3. Kegagalannya tipis — estimasi titik masih di dalam margin, yang keluar ujung intervalnya (0,0013 dan 0,0039 AUC). Yang gagal termasuk DenseNet201, model utama; yang bertahan DenseNet121, backbone dengan denda protokol terkecil.
+
+Kontrol negatif uji tetap bekerja: ekuivalensi lawan `cnn_only` ditolak di ketiga baris (p_TOST = 1, Δ +0,0659 … +0,0811).
+
+### 6.5.5 Ensembling tiga backbone dalam fold luar yang sama
+
+Ensembling antar-fold tidak sah (tiap fold menahan pasien berbeda). Yang sah antar-backbone dalam satu fold. Urutan kasus diverifikasi identik dan buktinya dicetak — satu sha1 per fold, sama pada ketiga backbone, 1366 nodul; `--self-check` membuktikan penjaganya menyala ketika dua kasus sengaja ditukar.
+
+| rezim | arm | AUC ensemble | Δ vs backbone terbaik | p | Δ vs radiomics | p |
+|---|---|---|---|---|---|---|
+| terbit | cnn_only | 0,9140 | **+0,0175** | **0,0016** | −0,0196 | 0,0129 |
+| terbit | fusion_late | 0,9388 | +0,0025 | 0,3552 | +0,0051 | 0,2101 |
+| nested | cnn_only | 0,8693 | +0,0073 | 0,1922 | −0,0643 | 4,0e−12 |
+| nested | fusion_late | 0,9269 | −0,0010 | 0,6821 | −0,0067 | 0,0769 |
+
+Ensembling menaikkan cabang CNN mentah +0,0175 AUC secara signifikan — di dalam rentang +1..+2 poin yang dipra-registrasi. Kenaikan itu **tidak menembus** ke `fusion_late` (+0,0025, p=0,36), dan nol ensemble mengalahkan `radiomics_only` di sel mana pun. Aturan §6.5 pra-registrasi menuntut DeLong p<0,05 untuk menyatakan fusi menang; p=0,21 bukan kemenangan.
+
+Ini aturan §6.5.3 yang sama bekerja ke arah sebaliknya: menaikkan cabang CNN tanpa melewati radiomics tidak menaikkan fusi rerata-probabilitas.
+
+### 6.5.6 Konsekuensi
+
+**Pencarian performa ditutup.** Pra-registrasi §5: kalau setelah F-1 dan F-3 fusi tetap tidak menang, pencarian ditutup permanen. Dua mekanisme terakhir yang belum dicoba — fine-tuning bertahap dan ensembling — sudah dicoba, dan keduanya tidak membalikkan kesimpulan. Itu **memperkuat** klaim "radiomics setara atau mengungguli fusi pada n≈1400", karena menunjukkan kesimpulannya bertahan setelah upaya perbaikan yang wajar habis.
+
+**Yang tidak boleh dikutip dari seksi ini:** checkpoint run03 batas bawah cabang CNN jujur, bukan estimasinya. Retrain nested-CV satu tahap tanpa pembekuan BN akan mendarat di antara 0,8360 dan 0,8959, dan interval §6.5.4 bisa kembali masuk margin. Seksi ini menegakkan bahwa **klaim ekuivalensi rapuh terhadap protokol**, bukan bahwa klaimnya salah.
 
 ---
 

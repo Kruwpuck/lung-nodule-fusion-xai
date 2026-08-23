@@ -89,7 +89,7 @@ p_\text{late} = 0.5 \, p_\text{CNN} + 0.5 \, p_\text{radiomics},
 and adds no trained parameters. Fig.~\ref{fig:arch} shows all five arms and marks late fusion as the arm this paper measures. We deliberately do not search over fusion architectures: the object of study is what a fixed, minimal fusion rule buys, not which of many rules scores highest on this cohort.
 
 \subsection{Checkpoint regimes}
-Every AUC and every DeLong test is computed twice. The \emph{selected} regime loads the epoch chosen by validation AUC on the same fold that is later reported. The \emph{unselected} regime loads the final training epoch, which carries no selection advantage. The radiomics-only arm is fitted without any validation set and is therefore identical under both regimes; it is the only arm whose number does not move, which is precisely why it is the comparison the regime affects. The unselected regime is a lower-bound sensitivity check, not a nested cross-validation. A nested inner split is in fact used for the parameterised intermediate-fusion arm, which is trained in its own stage; it cannot be extended to the arms reported here without retraining all three backbones over all five folds, because the CNN probabilities consumed by both the CNN-only and late-fusion arms come from backbone checkpoints frozen upstream of the fusion stage.
+Every AUC and every DeLong test is computed twice. The \emph{selected} regime loads the epoch chosen by validation AUC on the same fold that is later reported. The \emph{unselected} regime loads the final training epoch, which carries no selection advantage. The radiomics-only arm is fitted without any validation set and is therefore identical under both regimes; it is the only arm whose number does not move, which is precisely why it is the comparison the regime affects. The unselected regime is a lower-bound sensitivity check, not a nested cross-validation. A nested inner split is in fact used for the parameterised intermediate-fusion arm, which is trained in its own stage; it cannot be extended to the arms reported here without retraining all three backbones over all five folds, because the CNN probabilities consumed by both the CNN-only and late-fusion arms come from backbone checkpoints frozen upstream of the fusion stage. That retraining was subsequently carried out, and Section~\ref{sec:protocol-cost} reports it as a third, \emph{nested} regime. Every table in this paper is computed from the original checkpoints; the third regime is used to bound what the selection protocol is worth and to state which claims depend on it, not to replace them.
 
 \subsection{Statistical protocol}
 Probabilities from the five disjoint validation folds are concatenated into a single vector per arm, from which one AUC and one DeLong test\CITE{DeLong et al. 1988} per arm pair are computed. Pooling rather than averaging per-fold statistics keeps every nodule in the test exactly once and avoids combining correlated per-fold $p$-values.
@@ -113,7 +113,7 @@ For the image branch, Layer-CAM maps\CITE{Layer-CAM; Grad-CAM sebagai pendahulun
 Table~\ref{tab:combined} summarizes what each arm delivers, in accuracy and in explanation, on the same cohort and the same folds. Ranges in parentheses span the three backbones.
 
 \begin{table}[htbp]
-\caption{What each arm delivers, pooled over 5 folds; ranges span 3 backbones}
+\caption{What each arm delivers, pooled over 5 folds; ranges span 3 backbones. The equivalence row gives the two checkpoint regimes of this paper's protocol first, then the nested-cross-validation regime of Section~\ref{sec:protocol-cost}}
 \begin{center}
 \footnotesize
 \begin{tabular}{p{1.85cm}p{1.6cm}p{1.6cm}p{1.6cm}}
@@ -123,7 +123,7 @@ Table~\ref{tab:combined} summarizes what each arm delivers, in accuracy and in e
 AUC, selected checkpoint & 0.8944 (0.8907--0.8965) & 0.9336 & 0.9327 (0.9300--0.9363) \\
 AUC, unselected checkpoint & 0.8806 (0.8725--0.8888) & 0.9336 (unaffected) & 0.9290 (0.9241--0.9360) \\
 DeLong vs.\ late fusion, selected & significant 3/3 & significant 0/3 & --- \\
-Equivalent to late fusion within 0.02 AUC & no, 0/6 & yes, 6/6 & --- \\
+Equivalent to late fusion within 0.02 AUC & no, 0/6 & yes, 6/6; 1/3 nested & --- \\
 Spatial saliency map & yes & structurally impossible & yes (inherited) \\
 Pointing accuracy, 60 nodules & 0.6667 (0.5763--0.7288) & undefined & 0.6384 (0.5593--0.6780) \\
 Radiomic feature SHAP & no & yes & yes \\
@@ -171,6 +171,8 @@ Non-inferiority, the one-sided form of the same test, holds on all twelve compar
 
 We retain DenseNet201 as the primary model, now on a narrower ground than before: it is the backbone on which the stronger claim of statistical indistinguishability also survives both regimes, and it is the only one whose point estimate favours fusion under both. The equivalence claim itself does not depend on that choice. The magnitude of the selection advantage is small in absolute terms, at most 0.0078 AUC, and it reverses no arm ordering.
 
+\textbf{The condition this claim carries.} Equivalence holds on all six comparisons under the checkpoint-selection protocol these tables use, and it does not survive intact when that protocol is removed. Retraining the three backbones under nested cross-validation (Section~\ref{sec:protocol-cost}) and repeating the same test at the same margin leaves equivalence standing on one backbone of three: DenseNet121 ($\Delta=-0.0057$, 90\% CI $(-0.0124, 0.0009)$, $p_\text{TOST}=2\times10^{-4}$), and failing on ConvNeXt-Tiny ($\Delta=-0.0141$, CI $(-0.0213, -0.0069)$) and on DenseNet201 ($\Delta=-0.0165$, CI $(-0.0239, -0.0090)$), which is the primary model. Two things about that failure have to be stated together, because either alone misleads. It is narrow: both point estimates remain inside the margin, and it is the far end of the interval that crosses it, by 0.0013 and 0.0039 AUC. And it is a lower bound rather than an estimate: the nested checkpoints differ from the published recipe in four ways at once --- epoch selection moved to an inner split, 15\% less training data, a two-stage schedule, and frozen batch normalization on the DenseNets --- so they bound how far the comparison can move, not where it lands. A minimal single-stage nested retraining would sit between the two, and the intervals could re-enter the margin. The negative control behaves under the nested regime exactly as it does here: equivalence against CNN-only is refused on all three backbones ($p_\text{TOST}=1$, $\Delta$ from $+0.0659$ to $+0.0811$). We report the equivalence claim as conditional on the selection protocol, and Section~\ref{sec:limits} does not carry that condition alone.
+
 \begin{table}[htbp]
 \caption{Equivalence tests against radiomics-only, margin $\delta=0.02$ AUC. $\Delta$ is late fusion minus radiomics-only; the interval is the 90\% confidence interval on $\Delta$. All six are equivalent; none is merely non-significant}
 \begin{center}
@@ -196,6 +198,48 @@ DenseNet121   & unselected & $-0.0095$ & $(-0.0160, -0.0031)$ & $3.7\times10^{-3
 \caption{All twelve equivalence tests. Every interval against radiomics-only lies inside the $\pm0.02$ margin band; every interval against CNN-only lies outside it, which is the negative control the test has to fail.}
 \label{fig:fig16}
 \end{figure}
+
+\subsection{What the checkpoint protocol is worth, and which fusion rules depend on it}
+\label{sec:protocol-cost}
+The unselected regime bounds checkpoint selection from below without retraining anything. To bound it from above we retrained all three backbones under nested cross-validation: 60 cells, three backbones $\times$ four unfreezing fractions $\times$ five outer folds, with the inner split drawn from the training folds by patient (15\%, seeded by fold) and the epoch chosen on that inner split alone. The outer fold is scored exactly once, at the end. The four fractions were fixed in advance and are all reported in Table~\ref{tab:finetune}; the 100\% cell is the control, since the published recipe never freezes anything, so the other three cells test whether \emph{restricting} adaptation helps rather than whether adaptation helps.
+
+\begin{table}[htbp]
+\caption{Nested-cross-validation retraining, all four pre-specified unfreezing fractions. AUC is the fold mean on the labels $\cap$ radiomics subset. The 100\% cell is the control, not a candidate}
+\begin{center}
+\footnotesize
+\begin{tabular}{llccc}
+\toprule
+\textbf{Backbone} & \textbf{Unfrozen} & \textbf{Weights} & \textbf{Inner-val} & \textbf{Outer} \\
+\midrule
+ConvNeXt-Tiny & 0\%   & 0.01\%  & 0.7498 & 0.7554 \\
+ConvNeXt-Tiny & 10\%  & 51.4\%  & 0.8509 & 0.8272 \\
+ConvNeXt-Tiny & 20\%  & 55.6\%  & 0.8516 & 0.8346 \\
+ConvNeXt-Tiny & 100\% & 100\%   & \textbf{0.8645} & \textbf{0.8455} \\
+\midrule
+DenseNet201   & 0\%   & 0.02\%  & 0.7585 & 0.7546 \\
+DenseNet201   & 10\%  & 38.6\%  & 0.8468 & 0.8240 \\
+DenseNet201   & 20\%  & 47.5\%  & 0.8564 & 0.8416 \\
+DenseNet201   & 100\% & 100\%   & \textbf{0.8679} & \textbf{0.8420} \\
+\midrule
+DenseNet121   & 0\%   & 0.03\%  & 0.7801 & 0.7785 \\
+DenseNet121   & 10\%  & 31.1\%  & 0.8666 & 0.8528 \\
+DenseNet121   & 20\%  & 38.7\%  & 0.8701 & 0.8564 \\
+DenseNet121   & 100\% & 100\%   & \textbf{0.8781} & \textbf{0.8649} \\
+\bottomrule
+\end{tabular}
+\label{tab:finetune}
+\end{center}
+\end{table}
+
+Staged fine-tuning is not adopted, because it did not beat its control. Selecting on the inner split picks the 100\% cell on all three backbones, and the inner-val ordering rises monotonically with unfreezing coverage without exception. Against that control the nine candidate cells lose by 0.0004 to 0.0902 AUC, nine times out of nine. On this cohort the capacity given up costs more than the overfitting it prevents; we report the negative result rather than the best-looking cell.
+
+The retraining does, however, price the protocol. The 100\% cell falls 0.0340 to 0.0636 AUC below the CNN-only numbers in Table~\ref{tab:combined}, three to six times the 0.0071--0.0240 that the unselected regime showed on the same trained models. The two figures bound the same quantity from opposite sides, and neither is the answer on its own: the nested cell differs from the published recipe in four ways at once --- inner-split epoch selection, 15\% less training data, a two-stage schedule, and frozen batch normalization on the DenseNets --- so 0.0340--0.0636 is the cost of the whole protocol package and the selection component alone is smaller. One of the four can be partly excluded: ConvNeXt-Tiny contains no batch-normalization layers at all, yet its penalty (0.0636) falls \emph{between} the two DenseNets' (0.0340 and 0.0603), so frozen normalization does not explain the pattern. We state the interval rather than a point estimate, and note that it is well above the one to two points such an effect is usually assumed to be worth.
+
+\textbf{Which fusion rules absorb it.} Re-deriving the full ablation from these checkpoints separates the fusion arms cleanly. The two arms that retrain on top of the CNN branch --- early fusion, an XGBoost on the concatenated embedding, and intermediate fusion, an end-to-end fused network --- move by $-0.0091$ to $+0.0083$ AUC, and \emph{rise} in four of the six cells, while their image branch loses three to six points. Late fusion, which has no trainable parameters, moves by $-0.0070$ to $-0.0180$, close to half of its own CNN branch's loss. That factor of one half is not an empirical finding but the arithmetic of (\ref{eq:late}): the radiomics half is held fixed, so a probability average inherits exactly half of any movement on the image side. The finding is the contrast. \emph{A fusion mechanism that retrains on top of the CNN branch is robust to degradation of that branch; a mechanism that only averages probabilities is not.} The trained arms re-weight towards the branch that did not move; the fixed-weight rule has nothing to re-weight.
+
+This also explains an observation the earlier tables left unexplained. Late fusion is the strongest fusion arm on all three backbones, and the reason is now visible: it is the one arm that inherits the CNN branch's checkpoint-selection advantage undiluted, whereas the trained arms never depended on it. Part of late fusion's margin over the other fusion arms is a passed-through selection advantage rather than a better fusion rule.
+
+The same rule holds when the CNN branch is improved instead of degraded. Averaging the three backbones' probabilities within each outer fold --- the only ensemble the split permits, since each fold holds out different patients --- raises CNN-only by 0.0175 AUC over the best single backbone ($p=0.0016$). Almost none of that reaches late fusion, which gains 0.0025 ($p=0.36$), and the ensemble does not overtake radiomics-only ($+0.0051$, $p=0.21$). Raising the image branch without carrying it past the radiomics branch does not raise a probability-averaging fusion.
 
 \subsection{Explainability}
 Table~\ref{tab:xai} reports pointing accuracy for the CNN-only and late-fusion arms on both sample sets. On the fixed six-nodule set the two arms are identical to the last digit, because the arms agree on the predicted class for all six nodules. On the 60-nodule set they differ by at most 0.0508, and the number of disagreeing nodules is 5, 6, and 2 out of 59.
@@ -238,7 +282,9 @@ The SHAP panel is presented once rather than once per backbone. The radiomics br
 \section{Discussion}
 The result that survives every robustness check in this study is the weakest-sounding one: decision-level fusion beats the image modality alone, decisively and independently of checkpoint selection. That it holds under both regimes is structural rather than lucky, since both arms share the same CNN checkpoint. Claims comparing a selected arm against an unselected one, as the comparison against radiomics does, are the ones needing a stated regime, and we report both columns rather than the flattering one.
 
-The equivalence result changes what the checkpoint regime means for this paper. Under a significance test the regime appears to decide the outcome, since two backbones cross $\alpha$ when the selection advantage is withdrawn. Under an equivalence test it decides nothing: all six comparisons clear the margin either way. Both readings come from one variance estimate on one set of probabilities, so the difference is not in the data but in the question. It is worth being explicit that this is the more demanding claim, not a softer one. Failing to reject equality is compatible with any true difference the sample is too small to see; rejecting the composite null of a difference of at least 0.02 excludes that possibility at the stated level, and would have failed had the differences been three times larger.
+The equivalence result changes what the checkpoint regime means for this paper. Under a significance test the regime appears to decide the outcome, since two backbones cross $\alpha$ when the selection advantage is withdrawn. Under an equivalence test it decides nothing \emph{within this protocol}: all six comparisons clear the margin either way. Both readings come from one variance estimate on one set of probabilities, so the difference is not in the data but in the question. It is worth being explicit that this is the more demanding claim, not a softer one. Failing to reject equality is compatible with any true difference the sample is too small to see; rejecting the composite null of a difference of at least 0.02 excludes that possibility at the stated level, and would have failed had the differences been three times larger.
+
+Removing selection from the training procedure, rather than from the checkpoint load, does reach the equivalence claim: under the nested retraining it holds on one backbone of three, and the two failures are by 0.0013 and 0.0039 AUC at the far end of the interval. We read that as a statement about how much this claim rests on the protocol rather than as a refutation of it, for the reason given in Section~\ref{sec:protocol-cost}: those checkpoints bound the comparison from one side and four protocol changes move together in them. The direction of the paper's central finding is unaffected --- every fusion arm is at best level with radiomics-only and never above it, and the nested regime makes that comparison less favourable to fusion, not more.
 
 An honest reading of the accuracy result is that fusion earns no accuracy argument here, and we do not construct one. The literature is split on whether it should: several studies report clear fusion gains on lung nodules, and we do not claim they are wrong.\CITE{2--3 studi fusi yang melaporkan keunggulan} What we can say is bounded by this cohort and this fusion rule. The case for the fused arm rests instead on what it can be asked, which is the axis on which the single-modality arms are not merely worse but silent.
 
@@ -248,11 +294,11 @@ What this buys clinically is a report that can be interrogated on two axes at on
 
 \section{Limitations}
 \label{sec:limits}
-Statistical indistinguishability from radiomics-only is checkpoint-dependent on two of three backbones. Under the unselected checkpoint, DeLong rejects equality on ConvNeXt-Tiny ($p=0.0246$) and DenseNet121 ($p=0.0144$), with late fusion the lower arm in both. Equivalence within the 0.02 margin is not affected, and the two claims are compatible; but a reader who wants the stronger statement that no difference is detectable at all should attach either DenseNet201 or the selected regime to it. This does not touch the comparison against CNN-only, for the structural reason given above.
+Statistical indistinguishability from radiomics-only is checkpoint-dependent on two of three backbones. Under the unselected checkpoint, DeLong rejects equality on ConvNeXt-Tiny ($p=0.0246$) and DenseNet121 ($p=0.0144$), with late fusion the lower arm in both. Equivalence within the 0.02 margin is not affected within this protocol, and the two claims are compatible; but a reader who wants the stronger statement that no difference is detectable at all should attach either DenseNet201 or the selected regime to it. This does not touch the comparison against CNN-only, for the structural reason given above. The equivalence claim's dependence on the selection protocol is stated where the claim is made, in Section~\ref{sec:protocol-cost} and in the equivalence subsection, rather than only here.
 
 The equivalence margin is a judgement, not a measurement. A reader who considers 0.02 AUC clinically meaningful in this setting should read Table~\ref{tab:tost} as reporting intervals rather than verdicts; the intervals are given so that a different margin can be applied to them without re-running anything. We fixed $\delta$ before the analysis and did not revise it afterwards, but no procedure can make the choice itself objective.
 
-The unselected-checkpoint analysis is a sensitivity check that bounds the effect of selection; it is not a nested cross-validation and does not remove selection from the training procedure itself.
+The unselected-checkpoint analysis is a sensitivity check that bounds the effect of selection from below; it is not a nested cross-validation and does not remove selection from the training procedure itself. The nested retraining of Section~\ref{sec:protocol-cost} does remove it, but bounds the same quantity only from above, because four protocol changes are applied together and the analysis does not separate them. A single-stage nested retraining on the full training fold, which would isolate epoch selection alone, is not reported here.
 
 Late fusion's pointing accuracy is nominally at or below CNN-only's on the 60-nodule set for every backbone. We report this alongside the fixed six-nodule set, where the two arms coincide exactly, rather than the latter alone. The explanation comparison also covers two arms, not five: the early- and intermediate-fusion arms are evaluated on AUC only, and no class-activation maps were computed for them, so this paper says nothing about what parameterised fusion does to localization.
 
@@ -267,7 +313,7 @@ The radiomics feature selection uses a mutual-information filter followed by LAS
 Reporting follows the CLAIM checklist for AI in medical imaging\CITE{CLAIM checklist, Mongan et al. 2020 / Tejani et al. 2024} and the TRIPOD+AI statement for prediction-model reporting.\CITE{TRIPOD+AI, Collins et al. 2024} The small-sample evaluation pitfalls catalogued for medical imaging machine learning\CITE{Varoquaux \& Cheplygina 2022} informed the frozen patient-level split, the pooled rather than averaged statistics, and the checkpoint-regime analysis.
 
 \section{Conclusion}
-On this cohort, decision-level fusion of a radiomics branch with a CNN branch significantly outperforms the CNN alone on every backbone tested and under both checkpoint regimes, and is equivalent to the stronger single modality within a pre-specified margin of 0.02 AUC on every backbone and under both regimes. That equivalence is established by a test whose null is a difference, not by a significance test that failed to find one. It preserves the image branch's spatial explanations at practically the same quality, differing only on the few nodules where the fused decision differs from the CNN decision, and it is the only arm supplying spatial and feature-level evidence for the same prediction. The contribution is therefore not a higher accuracy number but a model that matches the strongest single modality while remaining interrogable on both axes. A companion paper addresses backbone comparison, hyperparameter stability, and label granularity on the same dataset and split.
+On this cohort, decision-level fusion of a radiomics branch with a CNN branch significantly outperforms the CNN alone on every backbone tested and under both checkpoint regimes, and is equivalent to the stronger single modality within a pre-specified margin of 0.02 AUC on every backbone and under both checkpoint regimes of that protocol. That equivalence is established by a test whose null is a difference, not by a significance test that failed to find one. It is conditional on the protocol: retraining the backbones under nested cross-validation leaves it standing on one backbone of three, narrowly, and we report that condition where the claim is made rather than only among the limitations. It preserves the image branch's spatial explanations at practically the same quality, differing only on the few nodules where the fused decision differs from the CNN decision, and it is the only arm supplying spatial and feature-level evidence for the same prediction. The contribution is therefore not a higher accuracy number but a model that matches the strongest single modality while remaining interrogable on both axes. A companion paper addresses backbone comparison, hyperparameter stability, and label granularity on the same dataset and split.
 
 \section*{Acknowledgment}
 The authors thank their supervisor and collaborators for guidance on this work.

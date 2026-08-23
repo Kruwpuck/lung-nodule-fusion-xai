@@ -74,25 +74,38 @@ C_BAD = "#c53030"   # tidak ekuivalen
 C_BAND = "#68d391"  # pita margin
 
 
-def _probs(backbone: str) -> dict:
-    path = os.path.join(PROBS_DIR, f"{backbone}.npz")
+def _probs(backbone: str, probs_dir: str = PROBS_DIR) -> dict:
+    path = os.path.join(probs_dir, f"{backbone}.npz")
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"{path} belum ada. Jalankan: python -m src.stage_08a_run02_probs")
     return dict(np.load(path, allow_pickle=True))
 
 
-def compute(margin: float = MARGIN, alpha: float = ALPHA) -> pd.DataFrame:
-    """Satu baris per (backbone, rezim checkpoint, perbandingan) -- 12 baris."""
-    delong = pd.read_csv(DELONG_CSV) if os.path.exists(DELONG_CSV) else None
+def compute(margin: float = MARGIN, alpha: float = ALPHA,
+            probs_dir: str = PROBS_DIR, kinds: list[str] | None = None,
+            delong_csv: str | None = DELONG_CSV,
+            run_id: str = RUN_ID, source_run_id: str = SOURCE_RUN_ID) -> pd.DataFrame:
+    """Satu baris per (backbone, rezim checkpoint, perbandingan) -- 12 baris.
+
+    The five keyword arguments exist for run03 F-2, which asks the same
+    equivalence question of the nested-CV probabilities. Their defaults
+    reproduce the published run02 table exactly. run03 saves no unselected
+    final epoch, so it passes ``kinds=["best"]`` and gets 6 rows, and it
+    passes ``delong_csv=None`` so the DeLong column is recomputed through the
+    same variance path rather than looked up in run02's table.
+    """
+    kinds = kinds or CKPT_KINDS
+    delong = (pd.read_csv(delong_csv)
+              if delong_csv and os.path.exists(delong_csv) else None)
     sha = _commit_sha()
     rows = []
 
     for backbone in BACKBONES:
-        d = _probs(backbone)
+        d = _probs(backbone, probs_dir)
         y = d["y_true"]
         for comp, _label, arm_a, arm_b, key_a, key_b in COMPARISONS:
-            for k in CKPT_KINDS:
+            for k in kinds:
                 a = d[key_a.format(k=k)]
                 b = d[key_b.format(k=k)]
                 r = tost_auc(y, a, b, margin=margin, alpha=alpha)
@@ -109,8 +122,8 @@ def compute(margin: float = MARGIN, alpha: float = ALPHA) -> pd.DataFrame:
                     _, p_delong, _ = delong_test(y, a, b)
 
                 rows.append({
-                    "run_id": RUN_ID,
-                    "source_run_id": SOURCE_RUN_ID,
+                    "run_id": run_id,
+                    "source_run_id": source_run_id,
                     "commit_sha": sha,
                     "backbone": backbone,
                     "ckpt_kind": k,
@@ -136,14 +149,14 @@ def compute(margin: float = MARGIN, alpha: float = ALPHA) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _check(df: pd.DataFrame) -> None:
+def _check(df: pd.DataFrame, n_expected: int = 12) -> None:
     """Gerbang murah supaya CSV cacat tidak pernah terbit.
 
     Kegagalan senyap di proyek ini (sec 8.7 laporan) selalu berbentuk keluaran yang
     sah bentuknya tapi kosong atau tak lengkap isinya.
     """
-    assert len(df) == 12, \
-        f"harus 12 baris (3 backbone x 2 rezim x 2 perbandingan), dapat {len(df)}"
+    assert len(df) == n_expected, \
+        f"harus {n_expected} baris (3 backbone x rezim x 2 perbandingan), dapat {len(df)}"
     assert df["margin"].eq(MARGIN).all(), "ada baris dengan margin berbeda"
     assert df["se"].gt(0).all(), "ada se nol -- prediktor identik atau kelas terlalu sedikit"
     assert df["p_tost"].between(0, 1).all(), "ada p_tost di luar [0, 1]"
@@ -282,35 +295,57 @@ def _plot(df: pd.DataFrame) -> None:
     print(f"[SELESAI] {OUT_PNG}  (ekuivalen {n_eq}/12)")
 
 
-def run(force: bool = False) -> None:
-    if os.path.exists(OUT_CSV) and not force:
-        print(f"[LEWAT] {OUT_CSV}")
+def run(force: bool = False, probs_dir: str = PROBS_DIR, out_csv: str = OUT_CSV,
+        kinds: list[str] | None = None, run_id: str = RUN_ID,
+        source_run_id: str = SOURCE_RUN_ID, plot: bool = True) -> None:
+    if os.path.exists(out_csv) and not force:
+        print(f"[LEWAT] {out_csv}")
         return
 
-    df = compute()
-    _check(df)
-    os.makedirs(OUT_DIR, exist_ok=True)
-    df.to_csv(OUT_CSV, index=False)
-    print(f"[SELESAI] {OUT_CSV}  ({len(df)} baris, margin {MARGIN}, "
+    kinds = kinds or CKPT_KINDS
+    df = compute(probs_dir=probs_dir, kinds=kinds, run_id=run_id,
+                 source_run_id=source_run_id,
+                 delong_csv=DELONG_CSV if probs_dir == PROBS_DIR else None)
+    _check(df, n_expected=len(BACKBONES) * len(kinds) * len(COMPARISONS))
+    os.makedirs(os.path.dirname(out_csv) or ".", exist_ok=True)
+    df.to_csv(out_csv, index=False)
+    print(f"[SELESAI] {out_csv}  ({len(df)} baris, margin {MARGIN}, "
           f"commit {_commit_sha()})")
 
     for comp, label, *_ in COMPARISONS:
         g = df[df["comparison"] == comp]
         print(f"  {label}: ekuivalen {int(g['equivalent'].sum())}/{len(g)}, "
               f"non-inferior {int(g['noninferior'].sum())}/{len(g)}")
+        for _, r in g.iterrows():
+            print(f"    {r['backbone']:<14} {r['ckpt_kind']:<5} "
+                  f"delta {r['delta']:+.4f}  CI90 ({r['ci90_low']:+.4f}, "
+                  f"{r['ci90_high']:+.4f})  p_tost {r['p_tost']:.4g}  "
+                  f"delong {r['delong_p']:.4g}  "
+                  f"{'EKUIVALEN' if r['equivalent'] else 'TIDAK'}")
 
-    _plot(df)
+    # Fig 16 is laid out for the two run02 regimes; a 6-row table would need a
+    # different figure, and F-2 reports its numbers as a table.
+    if plot:
+        _plot(df)
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--force", action="store_true", help="tulis ulang keluaran yang sudah ada")
     p.add_argument("--self-check", action="store_true", help="jalankan assert saja, tanpa menulis")
+    p.add_argument("--probs-dir", default=PROBS_DIR)
+    p.add_argument("--out-csv", default=OUT_CSV)
+    p.add_argument("--kinds", nargs="+", default=None, choices=CKPT_KINDS)
+    p.add_argument("--run-id", default=RUN_ID)
+    p.add_argument("--source-run-id", default=SOURCE_RUN_ID)
+    p.add_argument("--no-plot", action="store_true")
     args = p.parse_args()
     if args.self_check:
         self_check()
         return
-    run(force=args.force)
+    run(force=args.force, probs_dir=args.probs_dir, out_csv=args.out_csv,
+        kinds=args.kinds, run_id=args.run_id, source_run_id=args.source_run_id,
+        plot=not args.no_plot)
 
 
 if __name__ == "__main__":
