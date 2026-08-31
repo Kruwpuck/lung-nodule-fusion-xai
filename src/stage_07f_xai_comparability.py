@@ -41,28 +41,39 @@ logger = logging.getLogger(__name__)
 BACKBONES = ["densenet121", "convnext_tiny", "mobilenetv3_small", "vit_base", "googlenet"]
 CAM_METHOD = "layercam"
 
-# fold-0 pointing accuracy from artifacts/results/xai/xai_metrics.csv, as given by
-# the Rev1 task spec. Recorded here only for the caption text -- not recomputed,
-# since checkpoints are not available on this machine (see module docstring / task
-# board Findings for the remote command that regenerates this figure with fresh
-# metrics).
-POINTING_ACC = {
-    "densenet121": 0.7167,
-    "convnext_tiny": 0.7167,
-    "mobilenetv3_small": 0.0,
-    "vit_base": 0.0,
-    "googlenet": 0.0,
-}
+# Fold-0 pointing accuracy read from artifacts/results/track2rev/cam_12.csv, the table
+# measured under the same resolver the maps in this figure are drawn with. Deliberately
+# not artifacts/results/xai/xai_metrics.csv: that table predates commit f81ba0d and
+# reports the band rule's sites, so quoting it beside maps drawn at the canonical sites
+# would caption the figure with numbers from a different layer.
+CAM_12_CSV = os.path.join("artifacts", "results", "track2rev", "cam_12.csv")
+
+
+def _pointing_acc() -> dict:
+    import pandas as pd
+
+    if not os.path.exists(CAM_12_CSV):
+        return {}
+    col = pd.read_csv(CAM_12_CSV).set_index("backbone")["pointing_acc"]
+    return {b: float(col[b]) for b in BACKBONES if b in col.index}
 
 
 def _target_layer_spatial_size(model, backbone_internal: str, dummy) -> tuple[int, int] | None:
-    """Forward-hook the CAM target layer once to report its (H, W) for the caption."""
+    """Forward-hook the CAM target layer once to report its (H, W) for the caption.
+
+    Resolved exactly as `compute_gradcam` resolves it, so the caption names the layer the
+    figure was actually drawn from. Before this, the size came from `_auto_target_layer`,
+    the band rule that commit f81ba0d replaced, while the maps came from the canonical
+    rule -- so the caption reported GoogLeNet at 1x1 beside a map that is visibly
+    localized, which is the tooling-not-the-network failure this project reports on
+    others.
+    """
     import torch
 
-    from src.xai.gradcam_utils import _auto_target_layer, _get_target_layer
+    from src.xai.gradcam_utils import _get_target_layer, _last_spatial_target_layer
 
     is_vit = "vit" in backbone_internal.lower()
-    layer = None if is_vit else _auto_target_layer(model, dummy)
+    layer = None if is_vit else _last_spatial_target_layer(model, dummy)
     if layer is None:
         layer = _get_target_layer(model, backbone_internal)
 
@@ -85,14 +96,15 @@ def _caption(spatial_sizes: dict) -> str:
     size_bits = ", ".join(
         f"{b}={s[0]}x{s[1]}" if s else f"{b}=n/a" for b, s in spatial_sizes.items()
     )
+    acc = _pointing_acc()
+    acc_bits = ", ".join(f"{b}={acc[b]:.4f}" for b in BACKBONES if b in acc) or "unavailable"
     return (
-        f"CAM method: {CAM_METHOD} (Layer-CAM), target layer auto-selected per backbone as the "
-        "deepest feature map with spatial height in [7, 10] px (nominally ~8x8), upsampled to the "
-        "model's input resolution via pytorch-grad-cam's bilinear interpolation. Chosen stage sizes: "
-        f"{size_bits}. Fold-0 pointing accuracy (artifacts/results/xai/xai_metrics.csv): "
-        f"densenet121/convnext_tiny={POINTING_ACC['densenet121']:.4f}, "
-        f"mobilenetv3_small/vit_base/googlenet=0.0 -- the null rows are a genuine localization "
-        "failure mode, not evidence of a worse classifier."
+        f"CAM method: {CAM_METHOD} (Layer-CAM), target layer resolved per backbone as the deepest "
+        "feature map that still has spatial extent, upsampled to the model's input resolution via "
+        "pytorch-grad-cam's bilinear interpolation. ViT-Base has no 4-D intermediate and is "
+        f"explained through a reshape transform instead. Resolved stage sizes: {size_bits}. "
+        f"Fold-0 pointing accuracy ({CAM_12_CSV}): {acc_bits}. A low row is a localization failure "
+        "mode at the explanation site, not evidence of a worse classifier."
     )
 
 

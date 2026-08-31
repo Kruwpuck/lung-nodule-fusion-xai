@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from src.stage_07f_xai_comparability import (
     BACKBONES,
-    POINTING_ACC,
+    CAM_12_CSV,
     _caption,
     _target_layer_spatial_size,
 )
@@ -15,20 +15,22 @@ def test_backbone_rows_match_rev1_spec():
     assert set(BACKBONES) == {
         "densenet121", "convnext_tiny", "mobilenetv3_small", "vit_base", "googlenet",
     }
-    assert POINTING_ACC["densenet121"] == POINTING_ACC["convnext_tiny"] == 0.7167
-    assert POINTING_ACC["mobilenetv3_small"] == POINTING_ACC["vit_base"] == POINTING_ACC["googlenet"] == 0.0
 
 
 def test_caption_states_method_and_spatial_size():
     caption = _caption({"densenet121": (8, 8), "vit_base": None})
     assert "layercam" in caption.lower()
     assert "8x8" in caption
-    assert "0.7167" in caption
+    assert "vit_base=n/a" in caption
     assert "not evidence of a worse classifier" in caption
+    # Assert the caption names the table it quotes rather than a specific figure. The
+    # pointing values are read from that CSV at call time; pinning a digit here is what
+    # let the caption drift away from the resolver in the first place.
+    assert CAM_12_CSV in caption
 
 
 class _DummySpatialModel(nn.Module):
-    """Deep-enough stack that _auto_target_layer can find an 8x8-ish map."""
+    """Stack whose stages separate the canonical rule from the retired band rule."""
 
     def __init__(self):
         super().__init__()
@@ -42,8 +44,12 @@ class _DummySpatialModel(nn.Module):
         return self.features(x)
 
 
-def test_target_layer_spatial_size_finds_8x8_stage():
+def test_target_layer_spatial_size_is_the_deepest_spatial_stage():
+    # 4x4, not 8x8. Commit f81ba0d replaced the band rule -- deepest module whose feature
+    # height lies in [7, 10], which would stop at the middle conv -- with the canonical
+    # rule, the deepest module that still has spatial extent. The caption has to report
+    # the site `compute_gradcam` actually draws from, so this expects the final conv.
     model = _DummySpatialModel()
     dummy = torch.zeros(1, 3, 32, 32)
     size = _target_layer_spatial_size(model, backbone_internal="densenet121", dummy=dummy)
-    assert size == (8, 8)
+    assert size == (4, 4)

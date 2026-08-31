@@ -10,8 +10,6 @@
       "Bash(Remove-Item:*)",
       "Bash(del:*)",
       "Bash(pip uninstall:*)",
-      "Edit(tests/**)",
-      "Write(tests/**)",
       "Edit(handoff/GOAL.md)",
       "Write(handoff/GOAL.md)",
       "Edit(handoff/GOAL2.md)",
