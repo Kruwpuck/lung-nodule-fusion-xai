@@ -40,15 +40,19 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
+import yaml
 from sklearn.metrics import roc_auc_score
 
 from src.evaluation.statistical_tests import delong_test
 from src.stage_08b_run02_xai import _commit_sha
+from src.utils.tracks import track_input_size
 
 RUN_ID = "2026-08-22-run03"
+CONFIG_PATH = os.path.join("configs", "config.yaml")
 
 BACKBONES = ["convnext_tiny", "densenet201", "densenet121"]
 
@@ -65,13 +69,29 @@ ARMS = {"cnn_only": "cnn_{k}", "fusion_late": "late_{k}"}
 OUT_CSV = os.path.join("artifacts", "results", "run03", "ensemble.csv")
 
 
+def _probs_path(probs_dir: str, backbone: str) -> str:
+    return os.path.join(probs_dir, f"{backbone}.npz")
+
+
 def _probs(probs_dir: str, backbone: str) -> dict:
-    path = os.path.join(probs_dir, f"{backbone}.npz")
+    path = _probs_path(probs_dir, backbone)
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"{path} belum ada. Jalankan: python -m src.stage_08a_run02_probs "
             f"--out-dir {probs_dir}")
     return dict(np.load(path, allow_pickle=True))
+
+
+def _mtime(path: str) -> str:
+    """Timestamp of an input file, so a stale row is detectable rather than plausible.
+
+    Recorded per backbone rather than aggregated: the three npz files are written by
+    separate runs, and a `max()` over them would hide exactly the mismatch this column
+    exists to surface. Same format as `stage_09d_cam_12._mtime`.
+    """
+    if not os.path.exists(path):
+        return ""
+    return datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M")
 
 
 def _order_key(d: dict, mask: np.ndarray) -> list[str]:
@@ -135,9 +155,21 @@ def compute(n_folds: int = 5) -> pd.DataFrame:
     sha = _commit_sha()
     rows: list[dict] = []
 
+    with open(CONFIG_PATH, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    sizes = {b: track_input_size(cfg, b) for b in BACKBONES}
+    # One scalar column only if the three genuinely share an input size, which they do
+    # as Track 1 backbones. Writing one of three differing values under a singular name
+    # is the kind of provenance that reads as complete and is not.
+    assert len(set(sizes.values())) == 1, f"input_size tidak seragam: {sizes}"
+    input_size = next(iter(sizes.values()))
+
     for condition, probs_dir, kind in REGIMES:
         loaded = {b: _probs(probs_dir, b) for b in BACKBONES}
         verify_alignment(loaded, n_folds, label=condition)
+        provenance = {"input_size": input_size}
+        provenance.update({f"probs_mtime_{b}": _mtime(_probs_path(probs_dir, b))
+                           for b in BACKBONES})
 
         ref = loaded[BACKBONES[0]]
         y, fold = ref["y_true"], ref["fold"]
@@ -163,6 +195,7 @@ def compute(n_folds: int = 5) -> pd.DataFrame:
                 row = {
                     "run_id": RUN_ID,
                     "commit_sha": sha,
+                    **provenance,
                     "condition": condition,
                     "arm": arm,
                     "scope": scope,
@@ -202,6 +235,10 @@ def _check(df: pd.DataFrame, n_folds: int = 5) -> None:
     assert pooled["p_vs_best_single"].notna().all(), "baris pooled kehilangan p DeLong"
     assert df[df["scope"] != "pooled"]["p_vs_best_single"].isna().all(), \
         "baris per fold tidak boleh membawa p DeLong"
+    prov = ["input_size"] + [f"probs_mtime_{b}" for b in BACKBONES]
+    missing = [c for c in prov if c not in df.columns]
+    assert not missing, f"kolom provenance hilang: {missing}"
+    assert (df[prov].astype(str) != "").all().all(), "ada kolom provenance kosong"
 
 
 def self_check() -> None:
