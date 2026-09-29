@@ -1,5 +1,4 @@
 \documentclass[conference]{IEEEtran}
-\IEEEoverridecommandlockouts
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
@@ -7,322 +6,364 @@
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{booktabs}
-% figur bersama kedua track ada di paper/figures/; TEXINPUTS tidak dipakai
-% graphicx, jadi jalur relatifnya harus disebut eksplisit di sini.
-\graphicspath{{figures/}{../figures/}}
+\usepackage{multirow}
 \def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
     T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
-
-% ---------------------------------------------------------------------------
-% CATATAN DRAF -- HARUS DIMATIKAN SEBELUM SUBMIT.
-% Ganti \draftnotestrue menjadi \draftnotesfalse; seluruh penanda merah hilang
-% dalam satu langkah. Jangan menghapusnya satu per satu.
-%
-% Status refs.bib per 19 Agustus 2026: hanya berisi satu citekey yang relevan
-% (prabhavalkarHybridPETCTRadiomics2026). Entri lain adalah sisa Zotero yang
-% tidak berhubungan. Setiap \CITE di bawah menandai klaim yang membutuhkan
-% sitasi dan belum punya kuncinya. Jangan mengarang citekey: kalau kuncinya
-% belum ada di refs.bib, penanda tetap dibiarkan sampai ekspor Zotero berikutnya.
-% ---------------------------------------------------------------------------
-\newif\ifdraftnotes
-\draftnotestrue
-\newcommand{\CITE}[1]{\ifdraftnotes\textcolor{red}{\,[SITASI: #1]}\fi}
-
 \begin{document}
 
-\title{Radiomics-CNN Fusion and Per-Arm Explainability for Lung Nodule Malignancy Classification on LIDC-IDRI}
+\title{Per-Arm Significance Testing of Radiomics--CNN Fusion for Lung Nodule Malignancy Classification: A Complementarity and Explainability Analysis on LIDC-IDRI}
 
-\author{\IEEEauthorblockN{1\textsuperscript{st} Habb}
-\IEEEauthorblockA{\textit{Department of ...} \\
-\textit{University}\\
+\author{\IEEEauthorblockN{1\textsuperscript{st} Ihab Hasanain Akmal}
+\IEEEauthorblockA{\textit{Department of Informatics} \\
+\textit{[Institution name]}\\
 City, Country \\
-email@domain.com}
+email address or ORCID}
 \and
-\IEEEauthorblockN{2\textsuperscript{nd} Kolaborator}
-\IEEEauthorblockA{\textit{Department of ...} \\
-\textit{University}\\
+\IEEEauthorblockN{2\textsuperscript{nd} Siti Nurhayati Syafaningrum}
+\IEEEauthorblockA{\textit{Department of Informatics} \\
+\textit{[Institution name]}\\
 City, Country \\
-email@domain.com}
+ssyafaningrum@gmail.com}
+\and
+\IEEEauthorblockN{3\textsuperscript{rd} Felix Corputty}
+\IEEEauthorblockA{\textit{Department of Informatics} \\
+\textit{[Institution name]}\\
+City, Country \\
+email address or ORCID}
 }
 
 \maketitle
 
 \begin{abstract}
-Fusing handcrafted radiomics with convolutional neural network (CNN) features is a common strategy for lung nodule malignancy classification, but its benefit over either modality alone is usually reported as a single accuracy number, without separating how much of that number depends on checkpoint selection and without asking what the fused model can explain that its parts cannot. We evaluate a decision-level fusion arm that averages CNN and radiomics probabilities against both single-modality arms on LIDC-IDRI, using a patient-level five-fold split and pooled DeLong tests, and we repeat every comparison under two checkpoint regimes: the epoch selected by validation AUC, and the unselected end-of-training epoch. Late fusion significantly outperforms the CNN-only arm on all three backbones under both regimes ($p<10^{-9}$ across both regimes; $p<10^{-11}$ under the unselected regime alone). Against the radiomics-only arm we do not rest a parity claim on a non-significant DeLong test, which would be an inference from absence of evidence; we test equivalence directly, with two one-sided tests against a margin of 0.02 AUC fixed on clinical grounds before the analysis. Equivalence holds on all three backbones under both checkpoint regimes ($p_\text{TOST}<0.004$), including the two cases where DeLong does reject equality of the AUCs under the unselected regime: those differences are statistically detectable and clinically negligible at the same time. The same test refuses equivalence against CNN-only on all six comparisons, as it must. On explainability, late fusion inherits the image branch unchanged, so its class-activation maps differ from the CNN-only maps only on nodules where the two arms disagree; pointing accuracy differs by at most 0.05 and is identical on a fixed six-nodule display set. Late fusion is therefore the only arm that supplies spatial and feature-level evidence simultaneously, at no measurable cost in localization quality and none in AUC.
+Fusing radiomics and convolutional neural network (CNN) features is widely assumed to improve pulmonary nodule malignancy classification, but the size and reliability of that improvement over the stronger single modality is rarely tested with a matched, statistically powered protocol. We compare five representation arms -- CNN-only, radiomics-only, early, intermediate, and late fusion -- across seven CNN backbones on LIDC-IDRI, using patient-grouped five-fold cross-validation; only intermediate fusion's joint training uses a nested inner split for epoch selection, while the CNN checkpoint shared by the other arms is selected on the same fold it is later scored on (disclosed in full in Section~\ref{sec:integrity}). Radiomics-only reaches a pooled mean AUC of 0.9324; late (decision-level) fusion reaches 0.9349, and pairwise DeLong tests find no significant difference between the two at any of the seven backbones (largest deviation p equal to 0.204). Early and intermediate fusion, in contrast, are significantly worse than radiomics-only at seven and six of seven backbones respectively (p as low as 2.6e-7). A case-level analysis explains the ceiling: the CNN and radiomics branches agree on 87--89\% of held-out cases (Pearson correlation 0.79--0.83), and where they disagree, radiomics is uniquely correct 1.1 to 1.6 times as often as the CNN branch, at every backbone. We separately evaluate explainability per branch -- Grad-CAM/Layer-CAM pointing accuracy against radiologist-annotated masks for the CNN branch, SHAP feature attribution for the radiomics branch -- across twelve backbones, and find pointing accuracy (0.00--0.72) has no consistent relationship with classification AUC. We report this alongside a transparent reproducibility audit: fixing a nested-cross-validation epoch-selection leak cost the intermediate-fusion arm 0.021 AUC on its own, a correction larger than the entire fusion-vs-radiomics gap this paper reports, and an honest nested-checkpoint re-run on three backbones shows both that equivalence claim and the CNN branch's own pointing-accuracy numbers are checkpoint-protocol-dependent, a collapse an independent faithfulness measurement confirms is genuine rather than an artifact.
 \end{abstract}
 
 \begin{IEEEkeywords}
-lung nodule malignancy, radiomics, decision-level fusion, explainable AI, Grad-CAM, SHAP, LIDC-IDRI
+lung nodule malignancy, radiomics, multimodal fusion, explainable AI, Grad-CAM, SHAP, LIDC-IDRI
 \end{IEEEkeywords}
 
-\section{Introduction}
-Computer-aided diagnosis of pulmonary nodule malignancy from CT increasingly combines two complementary sources of evidence: handcrafted radiomics features that quantify shape, texture, and intensity statistics of a segmented nodule, and deep convolutional features learned end-to-end from image patches. The premise of fusion is that the two sources capture non-redundant information and that combining them should match or exceed either alone. This premise does not always hold on cohorts of the size available for lung nodule malignancy prediction, where radiomics with feature selection is a strong baseline in its own right \cite{prabhavalkarHybridPETCTRadiomics2026}.
+\section{Introduction}\label{sec:intro}
 
-We argue that reporting fusion as a single AUC obscures two questions a reviewer will ask. First, how much of the reported margin survives when the checkpoint-selection advantage is removed? A CNN arm whose epoch is chosen by AUC on the very fold later used for reporting carries an advantage that a gradient-boosted radiomics model fitted without a validation set does not, so any comparison between them is weighed on an uneven scale unless the regime is stated. Second, if fusion only matches a single modality on accuracy, what does it actually buy? We answer the second question in the currency of explainability rather than accuracy: the fused arm is the only one that can produce both a spatial saliency map and a feature-level attribution for the same prediction.
+Lung cancer is the leading cause of cancer death worldwide, responsible for an estimated 1.8 million deaths in 2022 alone \cite{bray_globocan_2024}, and predicting whether a pulmonary nodule seen on computed tomography (CT) is malignant is one of the more consequential classification problems in medical imaging: both false negatives (a missed cancer) and false positives (an unnecessary biopsy) carry direct patient cost. Two families of methods dominate the recent literature: radiomics pipelines extract a large, hand-specified set of shape, intensity, and texture descriptors from a segmented nodule for a classical classifier, while deep-learning pipelines let a convolutional neural network (CNN) learn its own representation directly from the image patch. Because the two capture information differently -- statistically defined texture operators versus learned convolutional filters -- combining them is a natural and frequently proposed idea.
 
-This paper contributes: (1) a decision-level fusion arm evaluated against both single-modality arms with pooled DeLong tests across five disjoint folds, and, for the parity claim specifically, a formal equivalence test against a margin fixed in advance rather than an appeal to a non-significant $p$-value; (2) a checkpoint-regime sensitivity analysis that reports every comparison twice, under the selected and the unselected checkpoint, and shows that the equivalence conclusion is regime-independent although the significance conclusion is not; and (3) a quantitative comparison of explanation quality between the late-fusion and CNN-only arms, which measures rather than assumes what the added modality does to localization, together with an architectural account of why the effect is confined to the nodules on which the two arms disagree.
+The published evidence for fusion is real but, on closer reading, more modest than headline numbers suggest. Zheng et al.\ report a multi-feature fusion model at 97.6\% accuracy on LIDC-IDRI against 97.0\% for their clinical/radiomic-only arm and 90.3\% for deep features alone \cite{zheng_multilevel_2026} -- a decisive win over the CNN, but under a single percentage point over the stronger single modality. Lin et al., fusing a 3D-CNN with radiomics and clinical variables on LUNA16, report 92.80\% accuracy for the fused model against 92.21\% for their CNN-only ablation and 90.75\% for radiomics-only \cite{lin_combined_2024}: again a clear win over the weaker modality, a marginal one over the stronger. Astaraki et al.'s controlled comparison on low-dose CT reports a best hybrid area under the receiver operating characteristic curve (AUC) of 0.938 against 0.921 for optimized radiomics alone and only 0.824 for end-to-end deep learning alone \cite{astaraki_comparative_2021} -- notable here because deep learning, not radiomics, is the \emph{weaker} modality once each is separately tuned. Prabhavalkar and Arthi's PET-CT fusion study is the outlier, with a large 80\%-to-95\% gain \cite{prabhavalkar_hybrid_2026} on a substantially different, metabolic-imaging task. None of these four studies report a significance test on the fusion-vs-best-single-modality gap specifically.
 
-\section{Related Work}
-Radiomics-based malignancy prediction on LIDC-IDRI-scale cohorts routinely reaches AUC in the 0.79 to 0.94 range and is frequently competitive with or superior to end-to-end deep learning under the same sample size.\CITE{2--3 studi radiomics LIDC-IDRI dengan rentang AUC yang dikutip} Fusion of a weaker modality with a stronger one has been documented to degrade rather than improve joint performance, a phenomenon attributed to modality competition during joint training, in which the dominant modality dictates the gradient signal and the joint representation collapses toward it.\CITE{modality competition / greedy multimodal learning} Decision-level fusion sidesteps that failure mode by construction, since no joint representation is learned and neither branch can dominate the other's gradients; the price is that the fused model has no capacity to discover cross-modal interactions.\CITE{taksonomi early/intermediate/late fusion} Gated and attention-based fusion mechanisms occupy the middle ground, letting a network learn how much to weight each modality rather than fixing that weight in advance.\CITE{Gated Multimodal Unit}
+There is a concrete mechanistic reason to expect fusion gains to be small or absent rather than assume they generalize. Wu et al.\ show that multimodal networks trained end-to-end tend to greedily fit whichever modality is easiest to learn from, quantified as an asymmetric ``conditional utilization rate'' between modalities, and that this imbalance can leave a jointly trained network effectively ignoring the slower-learning modality unless training is explicitly rebalanced \cite{wu_greedy_2022}. Chang et al., fusing histopathology, radiology, and clinical data for prostate cancer recurrence, show the same failure mode from the other direction: fusing a strong modality (clinical, concordance index (C-index) 0.80) with a weak one (radiology, C-index 0.56) drove performance \emph{below} the strong modality alone (0.76 vs.\ 0.80), while fusing two comparably strong modalities produced a genuine synergistic gain \cite{chang_synergy_2025}. Read together, these two papers predict exactly the pattern this paper's ablation needs to check for: fusion helps only when both branches are independently competitive, and a naively trained joint network can underperform its stronger input on its own.
 
-The finding that fusion fails to beat handcrafted radiomics by a meaningful margin is not peculiar to this study. A comparative study on a LIDC-derived cohort of comparable size reports tuned conventional radiomics at AUC 0.921, end-to-end deep learning at 0.824, and a hybrid model at 0.938: the hybrid's advantage over radiomics alone is 0.017 AUC, the same order as the gaps reported here, and the authors describe the tuned conventional and deep-feature models as comparable rather than ranked.\CITE{Astaraki et al. 2021, Frontiers in Oncology} Reviews across other anatomies reach the same conclusion, finding deep learning only slightly superior to handcrafted radiomics and the comparison inconsistent across clinical applications.\CITE{systematic review radiomics vs deep learning} The literature is genuinely split rather than settled: several fusion studies do report clear gains over single modalities.\CITE{2--3 studi fusi yang melaporkan keunggulan} What is consistent is that in the one-to-two-thousand-sample regime the gain, when present, is small.
+Beyond whether fusion helps at all, this paper also asks whether any resulting model can be trusted: explainability compounds the problem rather than resolving it. Even when a model is deployed successfully, a clinician has no principled way to trust a saliency map unless that map's fidelity has itself been validated -- and recent controlled studies suggest fidelity does not track accuracy. Tempel et al.\ show that Grad-CAM (Gradient-weighted Class Activation Mapping), computed from an attention layer, can perform at chance (AUC near 0.5) on a perturbation-faithfulness test even though the underlying classifier works correctly, and that SHAP (SHapley Additive exPlanations) and Grad-CAM routinely disagree on which input regions matter \cite{tempel_choose_2025}. Qin benchmarks Grad-CAM, SHAP, and LIME on a near-ceiling-accuracy MRI classifier and finds explanation consistency still ranges from 0.33 to over 0.90 depending on method, despite near-identical model performance \cite{qin_consistency_2025}. If explanation reliability and classification accuracy are this decoupled elsewhere, a fusion study that reports only accuracy and only a single post-hoc saliency map on top is not actually answering the interpretability question a clinical reader would ask.
 
-Arguing for a model on the strength of what it can explain, rather than what it scores, also has precedent. The normative case for preferring interpretable models in high-stakes decisions is made directly in the literature,\CITE{Rudin 2019, Nature Machine Intelligence} and two LIDC-specific models have been justified on the same basis: a hierarchical semantic CNN whose malignancy AUC of 0.856 barely exceeds a black-box 3D CNN at 0.847, and a capsule model predicting radiologist-defined visual attributes at accuracy on par with black-box counterparts.\CITE{HSCNN, Shen et al. 2019} \CITE{X-Caps, LaLonde et al. MICCAI 2020} We are not aware of a study that compares explanation quality across fusion arms on lung nodules, which is the specific gap this paper addresses, within the limits stated in Section~\ref{sec:limits}.
+This paper asks both questions together -- is any fusion gain statistically real, and does classification competence predict trustworthy explanation -- and answers them with four contributions. First, a five-arm (CNN-only, radiomics-only, early, intermediate, late fusion) by seven-backbone by five-fold ablation with per-backbone DeLong significance testing; epoch selection for the intermediate-fusion arm runs under a nested inner split so it cannot leak from the evaluation fold, a protection the CNN checkpoint shared by the other four arms does not have (Section~\ref{sec:integrity}). Second, a case-level complementarity analysis that explains \emph{why} the fusion ceiling sits where it does, rather than stopping at the aggregate AUC table. Third, a transparent account of a nested-cross-validation leak found and corrected during this work, reported because its magnitude turned out to be large enough to matter for how the field should read fusion-gain numbers generally. Fourth, a per-branch explainability protocol -- Grad-CAM/Layer-CAM pointing accuracy against radiologist masks for the CNN branch, SHAP attribution for the radiomics branch, evaluated separately across twelve backbones because no validated metric yet unifies the two -- that tests whether classification competence predicts explanation quality on this task.
 
-\section{Methods}
+\section{Related Work}\label{sec:related}
 
-\subsection{Dataset and split}
-We use LIDC-IDRI.\CITE{Armato et al., makalah dataset LIDC-IDRI} Nodules are aggregated per patient and assigned malignancy labels from the median of four expert ratings on a 1 to 5 scale,\CITE{konvensi agregasi label median LIDC} collapsed to benign (rating below 3), malignant (rating above 3), and indeterminate (rating equal to 3, excluded from the binary arm). The dataset is partitioned into five folds by patient identifier, seeded at 42, so that no patient contributes cases to more than one fold. All backbones and all arms train and evaluate on the identical fold assignment. After the join between the image cohort and the radiomics feature table, which drops nodules with duplicate \texttt{(patient\_id, nodule\_idx)} keys, 1366 nodules remain; every number in this paper is computed on that common cohort, so no two arms are compared on different denominators.
+\subsection{Radiomics--Deep-Learning Fusion for Lung Nodule Malignancy}\label{sec:related-fusion}
+Beyond the studies discussed in Section~\ref{sec:intro}, MERA proposes a self-supervised, Vision-Transformer-based explanatory model that reaches diagnostic accuracy comparable to fully annotated baselines on LIDC using roughly 1\% of the annotation \cite{lu_mera_2026}; it is closer to a label-efficient, intrinsically explainable classifier than a radiomics-CNN fusion architecture, but its design of fusing multiple explanation \emph{views} (attention maps, latent-space retrieval, predicted radiologist attributes) rather than multiple feature \emph{sources} is a relevant alternative to post-hoc fusion of a single saliency method. Kılıç et al.'s DE-SAMNet fuses two CNN backbones (DenseNet121, EfficientNetB0) through a spatial attention module and reports accuracy above 99\% on a public lung-CT benchmark, using Grad-CAM purely for post-hoc visualization without a quantitative localization metric \cite{kilic_desamnet_2026}. Patro et al.'s NeuroExplain-Net combines Grad-CAM, SHAP, and Integrated Gradients for a four-class lung screening task, but the paper explicitly states it did not quantitatively validate whether the three explanations agree with each other or with expert annotation, and lists that as an open limitation \cite{patro_neuroexplain_2026} -- precisely the gap Sections~\ref{sec:xai-protocol} and~\ref{sec:xai-results} of this paper address with a measured, not asserted, pointing-accuracy protocol.
 
-\subsection{Preprocessing}
-Each nodule is represented as a 2.5D patch: a stack of adjacent axial slices centered on the nodule, resampled and cropped to a fixed in-plane resolution. Hounsfield unit intensities are clipped to $[-1000, 400]$ and rescaled to $[0, 1]$.
+\subsection{Fusion Architecture and Modality-Weighting Mechanisms}\label{sec:related-mechanisms}
+Beyond the theoretical results in Section~\ref{sec:intro}, Arevalo et al.\ propose the Gated Multimodal Unit (GMU), which learns a per-sample, per-feature gate deciding how much each modality contributes to a fused representation instead of fusing with a fixed rule, and show it outperforms naive concatenation and unweighted late-fusion averaging on multilabel movie-genre classification \cite{arevalo_gmu_2017}. This is directly relevant to the intermediate-fusion arm evaluated here, which fuses branches with a fixed concatenation-then-dense design by default (Section~\ref{sec:arms}); a GMU-gated variant was tested on three backbones, with results reported in Section~\ref{sec:variants}.
 
-\subsection{Backbones and input resolution}
-The fusion analysis uses three backbones that reached the highest standalone localization quality in a preceding seven-backbone screen: ConvNeXt-Tiny\CITE{ConvNeXt}, DenseNet201, and DenseNet121\CITE{DenseNet}. The backbone set is fixed in advance and is not searched over. All backbones are evaluated at a uniform upsampled input of 96 pixels, the smallest multiple of 32 above the minimum input size demanded by any backbone in the wider screen, so that no backbone receives a resolution advantage that would confound the explainability comparison.
+\subsection{Explainability Reliability and Label Ambiguity in LIDC-IDRI}\label{sec:related-xai}
+Ambiguity in the LIDC-IDRI malignancy label itself is well documented independently of this paper's own experiments. Liao et al.\ split 2{,}568 rated nodules into consistent (394), inconsistent (1{,}048 -- the largest group, 41\% of the dataset), and low-reliability (766) subsets based on inter-radiologist agreement, and argue that collapsing an inconsistent rating like 1, 1, 5, 5 to the same mean label as a consistent 3, 3, 3, 3 discards real clinical disagreement \cite{liao_ambiguous_2022}. Konuksever et al.\ quantify this at a finer grain: of 1{,}880 multiply-rated nodules, 641 (34\%) have a normalized rating standard deviation above 0.4, versus 407 (22\%) rated consistently \cite{konuksever_dynamic_2026}. Wang et al.'s ExPN-Net is a relevant counterpoint on the fusion-vs-interpretability trade-off question: their ablation shows that adding a radiologist-characteristic prediction task (subtlety, calcification, margin, spiculation, etc.) alongside malignancy classification \emph{improved} the primary AUC rather than trading against it, evidence that characteristic-aware, explainability-oriented supervision is not inherently in tension with accuracy \cite{wang_expnnet_2024}.
 
-\subsection{Representation arms}
-Five arms are defined per backbone and fold. \emph{CNN-only} is the backbone's own classification head. \emph{Radiomics-only} is a gradient-boosted classifier\CITE{XGBoost} trained on the handcrafted radiomics feature vector\CITE{PyRadiomics / IBSI} after per-fold selection, in which a mutual-information filter (\texttt{mutual\_info\_classif}) retains the 50 highest-scoring candidates and LASSO with cross-validated regularization performs the final selection, both fitted on the training fold alone. \emph{Early fusion} concatenates the CNN embedding with the selected radiomics vector into a single feature matrix and trains a gradient-boosted classifier on it. \emph{Intermediate fusion} projects the CNN embedding and the radiomics vector into learned subspaces and concatenates them before a shared classification head trained end-to-end. \emph{Late fusion}, the arm under test in this paper, averages the two arms' malignancy probabilities,
-\begin{equation}
-p_\text{late} = 0.5 \, p_\text{CNN} + 0.5 \, p_\text{radiomics},
-\label{eq:late}
-\end{equation}
-and adds no trained parameters. Fig.~\ref{fig:arch} shows all five arms and marks late fusion as the arm this paper measures. We deliberately do not search over fusion architectures: the object of study is what a fixed, minimal fusion rule buys, not which of many rules scores highest on this cohort.
+\section{Methods}\label{sec:methods}
 
-\subsection{Checkpoint regimes}
-Every AUC and every DeLong test is computed twice. The \emph{selected} regime loads the epoch chosen by validation AUC on the same fold that is later reported. The \emph{unselected} regime loads the final training epoch, which carries no selection advantage. The radiomics-only arm is fitted without any validation set and is therefore identical under both regimes; it is the only arm whose number does not move, which is precisely why it is the comparison the regime affects. The unselected regime is a lower-bound sensitivity check, not a nested cross-validation. A nested inner split is in fact used for the parameterised intermediate-fusion arm, which is trained in its own stage; it cannot be extended to the arms reported here without retraining all three backbones over all five folds, because the CNN probabilities consumed by both the CNN-only and late-fusion arms come from backbone checkpoints frozen upstream of the fusion stage. That retraining was subsequently carried out, and Section~\ref{sec:protocol-cost} reports it as a third, \emph{nested} regime. Every table in this paper is computed from the original checkpoints; the third regime is used to bound what the selection protocol is worth and to state which claims depend on it, not to replace them.
+\subsection{Dataset and Cross-Validation Split}\label{sec:dataset}
+The dataset combines LIDC-IDRI nodules with LUNA16-derived hard-negative candidates: 717 patients, 725 scans, slice thickness 0.45--5.0\,mm (median 1.25\,mm), and a median 3-D nodule diameter of 11.0\,mm (range 2.45--54.28\,mm). Each nodule's malignancy label is the median of the available radiologist ratings on a 1--5 scale; the binary classification arm used throughout this paper excludes nodules whose median rating is exactly 3 (indeterminate), leaving 937 benign and 454 malignant nodules (Table \ref{tab:classdist}). Data is split five ways at the patient level (not the nodule level) with a fixed seed, so no patient's nodules appear in more than one fold; per-fold binary-arm counts are given in Table \ref{tab:folddist} and sum exactly to the totals in Table \ref{tab:classdist}.
 
-\subsection{Statistical protocol}
-Probabilities from the five disjoint validation folds are concatenated into a single vector per arm, from which one AUC and one DeLong test\CITE{DeLong et al. 1988} per arm pair are computed. Pooling rather than averaging per-fold statistics keeps every nodule in the test exactly once and avoids combining correlated per-fold $p$-values.
+\begin{table}[htbp]
+\caption{Binary-arm class distribution (indeterminate excluded)}
+\label{tab:classdist}
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Class & $n$ & \% \\
+\midrule
+Benign & 937 & 67.4 \\
+Malignant & 454 & 32.6 \\
+\midrule
+Total & 1391 & 100.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-A DeLong test that fails to reject cannot establish that two arms are equivalent: its null is equality, and not rejecting a null is not evidence for it.\CITE{Lakens 2017, equivalence testing primer} Every claim of parity in this paper is therefore made with a separate test whose null is the opposite one. We apply two one-sided tests to the paired AUC difference,\CITE{Liu, Ma, Wu \& Tai 2006, paired-AUC equivalence} rejecting the composite null that the difference is at least as large as an equivalence margin $\delta$ in either direction. Equivalence is declared at $\alpha=0.05$ when both one-sided tests reject, which is the same statement as the 90\% confidence interval on the difference lying entirely inside $\pm\delta$. The standard error is the DeLong variance of the difference, so the equivalence test and the significance test read the same quantity and cannot disagree about the data.
+\begin{table}[htbp]
+\caption{Per-fold binary-arm class counts (patient-grouped 5-fold split)}
+\label{tab:folddist}
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Fold & Benign & Malignant \\
+\midrule
+0 & 203 & 96 \\
+1 & 173 & 81 \\
+2 & 175 & 93 \\
+3 & 215 & 92 \\
+4 & 171 & 92 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-We set $\delta = 0.02$ AUC. The margin is fixed on clinical grounds before any equivalence test is run, and it is not revised afterwards. Two considerations set it. First, malignancy rating on this dataset is itself unreliable at a scale far exceeding 0.02: the four LIDC readers disagree substantially on the malignancy characteristic,\CITE{Lin et al. 2017, interobserver disagreement LIDC} so a model difference below that noise floor cannot change a management decision that the reference standard itself does not determine. Second, reported performance on LIDC moves by more than 0.02 AUC in response to sample-selection and label-truthing choices alone,\CITE{Baltatzis et al. 2021, pitfalls of sample selection} which means a difference of that size is not stable enough to act on. The value is also conservative relative to the 0.05 and 0.10 margins commonly debated for non-inferiority in diagnostic accuracy studies; we prefer the tighter margin because a loose one makes equivalence easy to declare and correspondingly uninformative.
+\subsection{Preprocessing}\label{sec:preprocessing}
+Each nodule is represented as a 2.5-D patch: a stack of adjacent axial slices centered on the nodule, cropped to a fixed in-plane resolution. Hounsfield-unit intensities are clipped to $[-1000, 400]$ and linearly rescaled to $[0,1]$. All seven backbones are evaluated at a common input resolution of 96\,px -- chosen as the smallest multiple of 32 exceeding every backbone's minimum input requirement (Inception-v3, Xception, and Inception-ResNet-v2 all require at least 71--75\,px), so that no backbone is advantaged or disadvantaged relative to the others when its explainability output is later compared against theirs.
 
-\subsection{Explainability protocol}
-For the image branch, Layer-CAM maps\CITE{Layer-CAM; Grad-CAM sebagai pendahulunya} are computed at the backbone's deepest convolutional stage and evaluated with dice overlap, IoU, a size-matched dice variant, a pointing-game hit rate\CITE{pointing game, Zhang et al.}, and an energy-based pointing metric\CITE{energy-based pointing game, Score-CAM}, all against the radiologist-annotated nodule mask. A class-activation map explains one decision class; for the CNN-only arm that class is $\arg\max p_\text{CNN}$, and for late fusion it is $\arg\max p_\text{late}$. On nodules where the two arms predict the same class the two maps are identical by construction, since (\ref{eq:late}) leaves the image branch untouched. We therefore report, alongside every metric, the number of nodules on which the two arms disagree, so a zero difference can never be misread as a measurement that was not performed. Metrics are reported on two sample sets: a fixed six-nodule display set frozen before this analysis and never reselected, and the 60-nodule fold-0 set used by the earlier explainability stage, which gives finer resolution than a six-sample pointing rate can. For the radiomics branch, SHAP values\CITE{Lundberg \& Lee 2017; TreeSHAP} quantify the contribution of each handcrafted feature. The two explanation modalities are reported separately rather than combined into a single score, because no model-agnostic metric currently allows a fair joint comparison between a spatial map and a tabular attribution.
+\subsection{Representation Arms}\label{sec:arms}
+Five arms are compared (Fig.~\ref{fig:arch}). \emph{CNN-only} trains a backbone end-to-end with a softmax classification head. \emph{Radiomics-only} extracts PyRadiomics shape, first-order, and texture features from the segmented nodule, selects features per fold on the training split only, and classifies with XGBoost. \emph{Early fusion} concatenates the CNN's learned embedding with the radiomics feature vector and classifies the combined vector with XGBoost, so the CNN embedding is produced by a backbone already trained in its CNN-only configuration rather than trained jointly. \emph{Intermediate fusion} is a single end-to-end trainable network: the CNN branch is projected to a 256-dimensional vector and the radiomics branch to 128 dimensions, the two are concatenated (384-d) and passed through a joint dense head with a two-class softmax output, with 0.3 dropout on each branch projection. \emph{Late fusion} takes the independently trained CNN-only and radiomics-only models and averages their predicted probabilities, with no joint training step at all.
 
 \begin{figure}[htbp]
-\centerline{\includegraphics[width=\columnwidth]{fusion_architecture.png}}
-\caption{The five representation arms. Late fusion, highlighted, combines the branches only at the probability level and adds no trained parameters; the remaining four arms are the tested comparators.}
+\centerline{\includegraphics[width=0.49\textwidth]{images/fig1_architecture.png}}
+\caption{Schematic of the five representation arms. The CNN branch (blue) and radiomics branch (teal) feed different subsets of the five arms; all seven backbones in Table \ref{tab:ablation} share this design. \textbf{Fusion (Late)} is highlighted because Section~\ref{sec:ablation} shows it is the only arm that statistically ties the radiomics-only baseline.}
 \label{fig:arch}
 \end{figure}
 
-\section{Results}
+\subsection{Backbones}\label{sec:backbones}
+Seven CNN backbones are evaluated: DenseNet121 \cite{huang_densenet_2017}, DenseNet201 \cite{huang_densenet_2017}, GoogLeNet \cite{szegedy_googlenet_2015}, InceptionV3 \cite{szegedy_inceptionv3_2016}, Xception \cite{chollet_xception_2017}, ConvNeXt-Tiny \cite{liu_convnext_2022}, and Inception-ResNet-v2 \cite{szegedy_inceptionresnet_2017}. DenseNet's dense connectivity pattern concatenates each layer's output with every subsequent layer, which the original authors show reduces parameter count for a given accuracy level and is reported to reduce overfitting on smaller training sets \cite{huang_densenet_2017} -- a relevant property given this dataset's size. GoogLeNet introduced the multi-branch Inception module with 1$\times$1 bottleneck convolutions to grow network capacity without a proportional compute increase \cite{szegedy_googlenet_2015}; Inception-v3 factorizes its larger convolutions into stacked smaller ones for further efficiency \cite{szegedy_inceptionv3_2016}; Xception replaces Inception's mixed convolutions with a stack of depthwise-separable convolutions, matching Inception-v3's parameter count at marginally higher ImageNet accuracy \cite{chollet_xception_2017}. ConvNeXt-Tiny modernizes a standard convolutional backbone with Vision-Transformer-inspired design choices -- large depthwise kernels, an inverted bottleneck, GELU activations, and LayerNorm -- while remaining fully convolutional, and its authors show it matches or exceeds comparably sized Vision Transformers on ImageNet without any attention mechanism \cite{liu_convnext_2022}. Inception-ResNet-v2 combines Inception's multi-branch convolutions with residual connections; the original authors report this combination accelerates training convergence relative to a similarly deep Inception network without residual connections, at comparable computational cost \cite{szegedy_inceptionresnet_2017}.
 
-\subsection{Combined advantage}
-Table~\ref{tab:combined} summarizes what each arm delivers, in accuracy and in explanation, on the same cohort and the same folds. Ranges in parentheses span the three backbones.
+\subsection{Explainability Protocol}\label{sec:xai-protocol}
+The CNN and radiomics branches are explained separately, since no validated metric currently puts a gradient-based saliency map and a SHAP feature-attribution vector on a common scale -- a gap NeuroExplain-Net's authors note explicitly as unresolved in their own work \cite{patro_neuroexplain_2026}. For the CNN branch, Grad-CAM and Layer-CAM activation maps are compared against radiologist-drawn nodule masks using Dice, Intersection-over-Union (IoU), size-matched Dice, pointing accuracy (whether the map's maximum-activation pixel falls inside the mask), and an energy-based pointing metric. Layer-CAM is used alongside Grad-CAM because Jiang et al.\ show Grad-CAM and Grad-CAM++ assign one global weight per channel, which is unreliable at shallow layers where per-location gradient variance is high, and that a spatially-varying, per-location weight (Layer-CAM's contribution) produces more reliable maps from earlier layers \cite{jiang_layercam_2021}; this class-activation-mapping family builds on earlier top-down attention propagation work such as Excitation Backprop, which also explicitly targets medical-imaging interpretability \cite{zhang_excitationbackprop_2018}. For the radiomics branch, SHAP values quantify each feature's contribution to the predicted probability. On the three backbones covered by the honest nested-checkpoint re-run (Section~\ref{sec:integrity}), we additionally test whether the CNN-branch map is faithful to the decision, not merely localized near it, with two mask-free perturbation families on the same fold-0-through-4 evaluation cases: ROAD, which imputes the most- and least-relevant pixels first (MoRF/LeRF) across nine percentiles \cite{rong_road_2022}, and the prediction gap on important versus unimportant pixels (PGI/PGU) \cite{agarwal_openxai_2022}.
+
+\subsection{Reproducibility and Integrity Audit}\label{sec:integrity}
+Five corrections materially affect the numbers reported in Section~\ref{sec:results} and are disclosed here rather than silently absorbed into the final figures. First, the original intermediate-fusion training loop selected its best checkpoint using AUC on the same outer validation fold it then reported -- an epoch-selection leak. Re-implementing this with a nested inner split (an 85/15 patient-grouped inner split drawn from the outer training fold, used only for checkpoint selection, with the outer validation fold touched exactly once after training) reduced intermediate fusion's pooled AUC by 0.021, while the other four arms moved by less than 0.0005 -- consistent with only the intermediate-fusion loop being exposed to the leak in the first place. This nested-split fix is scoped to intermediate fusion's own joint training only: the CNN checkpoint that CNN-only, early fusion, and late fusion all share (\texttt{stage\_03\_train.py}, reused by \texttt{stage\_03b\_fusion.py} for the fusion arms) is selected by validating on the same outer fold it is later scored on, across all seven backbones -- every CNN-only, early-fusion, and late-fusion number in Table~\ref{tab:ablation} and Table~\ref{tab:delong} rests on that same-fold-selected (``Selected'') checkpoint, not a nested one. A supplementary check from a later, independent re-run (run02, three of the seven backbones) quantifies what that scope costs for late fusion specifically: comparing the Selected checkpoint against the unselected final-epoch (``Unselected'') checkpoint, the late-fusion-vs-radiomics-only DeLong test flips from a tie to a significant loss for fusion\_late at two of the three backbones tested (Table~\ref{tab:checkpointsensitivity}). Neither ``Selected'' nor ``Unselected'' here is a genuine nested-cross-validation checkpoint -- both are lower-bound sensitivity checks on the same non-nested procedure described above. A separate, later re-run under an honest nested checkpoint-selection regime (run03) found the fusion\_late-vs-radiomics-only equivalence does not hold at two of the same three backbones (ConvNeXt-Tiny $p=0.0013$; DenseNet201 $p=0.0003$; DenseNet121 still ties, $p=0.1558$) -- a materially larger and more direct threat to this paper's central equivalence claim than the sensitivity check above. That nested re-run is itself reported by its authors as a lower bound, not a final number, pending a cleaner single-stage nested retrain across all seven backbones that this paper does not undertake; we disclose the full scope of the non-nested CNN checkpoint procedure, and this open risk to it, rather than omit either. Second, radiomics feature selection via mutual information was found to vary by up to 0.0036 AUC across identical re-runs because scikit-learn's mutual-information estimator injects small random noise to break ties; fixing a seed made re-runs reproduce exactly. Third, three of DenseNet121's five fold checkpoints were found to have silently skipped retraining after an input-resolution change (a resume-from-checkpoint guard compared only epoch counts, not input size), leaving those three folds evaluated on weights trained at the old resolution; retraining those folds from scratch raised DenseNet121's standalone AUC from 0.8333 to 0.8940, in line with the other six backbones. All results in this paper use the retrained checkpoints. Fourth, the CNN-branch explainability metrics in Table~\ref{tab:xai} were computed once, before the DenseNet121 checkpoint fix above, and were not regenerated afterward; cross-checking against a later, independently re-run localization pass (same protocol, same fold-0 evaluation cases, run after the retrain) confirms ConvNeXt-Tiny and DenseNet201's original numbers reproduce within noise (dice within 0.001--0.012, pointing accuracy within 0.005--0.012), but DenseNet121's original pointing accuracy of 0.717 does not -- the re-run gives 0.576 (dice 0.063, size-matched dice 0.342, $n=59$ of 60 fold-0 cases, one excluded for a missing predicted probability). Table~\ref{tab:xai} reports the corrected DenseNet121 row; the original 0.717 value was carried by the same stale, pre-retrain checkpoint documented in the third correction above. These figures are reported here as the honest noise floor and correction history for interpreting the results below, not as caveats that were fixed and then hidden. Fifth, the same honest nested-checkpoint re-run (run03) that reopens the equivalence claim above also reopens the CNN-branch pointing-accuracy numbers in Table~\ref{tab:xai} for the three backbones it covers. Recomputing Layer-CAM from the nested checkpoints, at the same canonical explanation site and the same fold-0 evaluation cases, moves pointing accuracy from 0.717 to 0.500 (ConvNeXt-Tiny), from 0.717 to 0.250 (DenseNet121), and from 0.700 to 0.000 (DenseNet201); pooled over all five folds the same pattern holds (ConvNeXt-Tiny $0.500\pm0.081$, DenseNet121 $0.103\pm0.092$, DenseNet201 $0.000\pm0.000$ -- zero in every fold). The classifiers are unaffected: rescoring the loaded nested checkpoints reproduces their recorded outer AUC to the last digit on six of six cells (0.8178--0.8965), so this is not a silently mismatched \texttt{state\_dict}. A pre-registered artifact-exclusion protocol rules out a broken map: the canonical site never returns an all-zero activation map in any of the fifteen fold-backbone cells checked, while a shallower candidate site (\texttt{features.0.relu0}) recovers pointing accuracy of 0.350 (DenseNet201) and 0.417 (DenseNet121), well above the 0.019 chance rate estimated from the same sweep. What has moved under the nested protocol is the depth of the best explanation site, not merely its height -- the deepest site is best under the Selected checkpoint on all three backbones, and that peak shifts to the shallowest candidate site on both DenseNets under the nested one. The pointing-accuracy values in Table~\ref{tab:xai} are therefore reported as Selected-checkpoint numbers, not backbone-intrinsic ones, for these three backbones; the same caveat has not been checked for the other nine.
+
+\section{Results}\label{sec:results}
+
+\subsection{Fusion Ablation}\label{sec:ablation}
+Table \ref{tab:ablation} reports mean AUC pooled across all seven backbones and five folds (175 backbone-arm-fold combinations in total, 35 per arm) after both corrections in Section~\ref{sec:integrity}. Late fusion has the highest pooled AUC (0.9349), 0.0025 above radiomics-only (0.9324); early and intermediate fusion trail radiomics-only by 0.0205 and 0.0225 respectively, and CNN-only is lowest at 0.9018.
 
 \begin{table}[htbp]
-\caption{What each arm delivers, pooled over 5 folds; ranges span 3 backbones. The equivalence row gives the two checkpoint regimes of this paper's protocol first, then the nested-cross-validation regime of Section~\ref{sec:protocol-cost}}
-\begin{center}
-\footnotesize
-\begin{tabular}{p{1.85cm}p{1.6cm}p{1.6cm}p{1.6cm}}
+\caption{Pooled mean AUC by arm (7 backbones $\times$ 5 folds)}
+\label{tab:ablation}
+\centering
+\begin{tabular}{@{}lr@{}}
 \toprule
-\textbf{Criterion} & \textbf{CNN-only} & \textbf{Radiomics-only} & \textbf{Late fusion} \\
+Arm & Mean AUC \\
 \midrule
-AUC, selected checkpoint & 0.8944 (0.8907--0.8965) & 0.9336 & 0.9327 (0.9300--0.9363) \\
-AUC, unselected checkpoint & 0.8806 (0.8725--0.8888) & 0.9336 (unaffected) & 0.9290 (0.9241--0.9360) \\
-DeLong vs.\ late fusion, selected & significant 3/3 & significant 0/3 & --- \\
-Equivalent to late fusion within 0.02 AUC & no, 0/6 & yes, 6/6; 1/3 nested & --- \\
-Spatial saliency map & yes & structurally impossible & yes (inherited) \\
-Pointing accuracy, 60 nodules & 0.6667 (0.5763--0.7288) & undefined & 0.6384 (0.5593--0.6780) \\
-Radiomic feature SHAP & no & yes & yes \\
-\textbf{Spatial and feature evidence together} & \textbf{no} & \textbf{no} & \textbf{yes} \\
+Fusion (late) & \textbf{0.9349} \\
+Radiomics-only & 0.9324 \\
+Fusion (early) & 0.9119 \\
+Fusion (intermediate) & 0.9098 \\
+CNN-only & 0.9018 \\
 \bottomrule
 \end{tabular}
-\label{tab:combined}
-\end{center}
 \end{table}
 
-\subsection{Late fusion versus CNN-only: unconditional}
-Late fusion significantly outperforms the CNN-only arm on every backbone under both checkpoint regimes (Table~\ref{tab:delong}). The $p$-values are no larger under the unselected regime than under the selected one; the largest value across all six tests is $1.4\times10^{-10}$, so $p<10^{-9}$ is the bound covering both regimes, and $p<10^{-11}$ holds if only the unselected regime is quoted.
-
-This comparison is structurally immune to the checkpoint-selection confound described in Section~\ref{sec:limits}: both arms load the same CNN checkpoint, so whatever advantage selection confers enters both sides of the test and cancels. Only the comparison against radiomics-only is regime-sensitive, because radiomics-only is the one arm that never had a validation set to select on.
+Table \ref{tab:delong} summarizes the 21 pairwise DeLong tests (three fusion arms $\times$ seven backbones, each against that backbone's radiomics-only AUC). Late fusion is never significantly different from radiomics-only at any backbone; the closest either arm came to significance in either direction was $p=0.204$ (DenseNet201, late fusion numerically ahead). Early fusion is significantly worse at all seven backbones, and intermediate fusion at six of seven (the exception is ConvNeXt-Tiny, $p=0.064$), with the smallest $p$-value at $2.6\times10^{-7}$ (Inception-ResNet-v2, intermediate fusion).
 
 \begin{table}[htbp]
-\caption{Pooled DeLong tests, late fusion versus each single-modality arm}
-\begin{center}
-\footnotesize
-\begin{tabular}{llcc}
-\toprule
-\textbf{Backbone} & \textbf{Comparison} & \textbf{Selected} & \textbf{Unselected} \\
-\midrule
-ConvNeXt-Tiny & vs.\ CNN-only  & $1.0\times10^{-12}$ & $3.9\times10^{-12}$ \\
-DenseNet201   & vs.\ CNN-only  & $1.4\times10^{-10}$ & $7.4\times10^{-12}$ \\
-DenseNet121   & vs.\ CNN-only  & $3.0\times10^{-11}$ & $3.8\times10^{-15}$ \\
-\midrule
-ConvNeXt-Tiny & vs.\ radiomics & 0.4555 & \textbf{0.0246} \\
-DenseNet201   & vs.\ radiomics & 0.4901 & 0.5122 \\
-DenseNet121   & vs.\ radiomics & 0.6793 & \textbf{0.0144} \\
-\bottomrule
-\end{tabular}
+\caption{DeLong tests: fusion arm vs.\ radiomics-only, by backbone}
 \label{tab:delong}
-\end{center}
-\end{table}
-
-\subsection{Equivalence with radiomics}
-The DeLong tests against radiomics-only in Table~\ref{tab:delong} tell two different stories depending on the regime. Under the selected checkpoint none of the three backbones differs significantly from radiomics-only. Under the unselected checkpoint, ConvNeXt-Tiny and DenseNet121 do differ, and in the unfavourable direction ($p=0.0246$ and $p=0.0144$); only DenseNet201 is non-significant under both. Read as a parity claim, that would make parity a property of two of six comparisons, and would make it depend on a checkpoint choice that has nothing to do with the radiomics branch.
-
-Table~\ref{tab:tost} shows that this reading is an artefact of asking the wrong question. Equivalence within the pre-specified margin of 0.02 AUC holds on all three backbones under both regimes, with $p_\text{TOST}$ between $8\times10^{-7}$ and $3.7\times10^{-3}$ and every 90\% interval contained in $\pm 0.02$. The largest difference anywhere in the six comparisons is 0.0095 AUC, on DenseNet121 under the unselected checkpoint, whose interval reaches $-0.0160$ at its far end and still stops short of the margin. The two comparisons DeLong flags are therefore both true statements at once: the difference is large enough to be detected on 1366 nodules, and too small to matter. This is the expected behaviour of a significance test at this sample size and not a contradiction between the two tests, which share the same variance estimate.
-
-The negative control confirms the test discriminates. Applied to late fusion against CNN-only, where the differences run from 0.035 to 0.052 AUC, the same procedure refuses equivalence on all six comparisons ($p_\text{TOST}>0.99$). Fig.~\ref{fig:fig16} plots all twelve intervals against the margin band.
-
-Non-inferiority, the one-sided form of the same test, holds on all twelve comparisons: late fusion is never worse than either single-modality arm by 0.02 AUC or more.
-
-We retain DenseNet201 as the primary model, now on a narrower ground than before: it is the backbone on which the stronger claim of statistical indistinguishability also survives both regimes, and it is the only one whose point estimate favours fusion under both. The equivalence claim itself does not depend on that choice. The magnitude of the selection advantage is small in absolute terms, at most 0.0078 AUC, and it reverses no arm ordering.
-
-\textbf{The condition this claim carries.} Equivalence holds on all six comparisons under the checkpoint-selection protocol these tables use, and it does not survive intact when that protocol is removed. Retraining the three backbones under nested cross-validation (Section~\ref{sec:protocol-cost}) and repeating the same test at the same margin leaves equivalence standing on one backbone of three: DenseNet121 ($\Delta=-0.0057$, 90\% CI $(-0.0124, 0.0009)$, $p_\text{TOST}=2\times10^{-4}$), and failing on ConvNeXt-Tiny ($\Delta=-0.0141$, CI $(-0.0213, -0.0069)$) and on DenseNet201 ($\Delta=-0.0165$, CI $(-0.0239, -0.0090)$), which is the primary model. Two things about that failure have to be stated together, because either alone misleads. It is narrow: both point estimates remain inside the margin, and it is the far end of the interval that crosses it, by 0.0013 and 0.0039 AUC. And it is a lower bound rather than an estimate: the nested checkpoints differ from the published recipe in four ways at once --- epoch selection moved to an inner split, 15\% less training data, a two-stage schedule, and frozen batch normalization on the DenseNets --- so they bound how far the comparison can move, not where it lands. A minimal single-stage nested retraining would sit between the two, and the intervals could re-enter the margin. The negative control behaves under the nested regime exactly as it does here: equivalence against CNN-only is refused on all three backbones ($p_\text{TOST}=1$, $\Delta$ from $+0.0659$ to $+0.0811$). We report the equivalence claim as conditional on the selection protocol, and Section~\ref{sec:limits} does not carry that condition alone.
-
-\begin{table}[htbp]
-\caption{Equivalence tests against radiomics-only, margin $\delta=0.02$ AUC. $\Delta$ is late fusion minus radiomics-only; the interval is the 90\% confidence interval on $\Delta$. All six are equivalent; none is merely non-significant}
-\begin{center}
-\footnotesize
-\begin{tabular}{llccc}
+\centering
+\small
+\begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Backbone} & \textbf{Regime} & $\Delta$ & \textbf{90\% CI} & $p_\text{TOST}$ \\
+Backbone & Late $p$ & Early $p$ & Intermediate $p$ \\
 \midrule
-ConvNeXt-Tiny & selected   & $-0.0036$ & $(-0.0115,\ 0.0043)$ & $3.3\times10^{-4}$ \\
-ConvNeXt-Tiny & unselected & $-0.0068$ & $(-0.0117, -0.0018)$ & $5.7\times10^{-6}$ \\
-DenseNet201   & selected   & $+0.0027$ & $(-0.0037,\ 0.0090)$ & $3.6\times10^{-6}$ \\
-DenseNet201   & unselected & $+0.0024$ & $(-0.0036,\ 0.0084)$ & $8.2\times10^{-7}$ \\
-DenseNet121   & selected   & $-0.0017$ & $(-0.0085,\ 0.0051)$ & $4.4\times10^{-6}$ \\
-DenseNet121   & unselected & $-0.0095$ & $(-0.0160, -0.0031)$ & $3.7\times10^{-3}$ \\
+InceptionV3 & 0.377 & 0.003 & 0.009 \\
+Xception & 0.902 & $5.0\times10^{-5}$ & $7.5\times10^{-7}$ \\
+GoogLeNet & 0.799 & 0.003 & $2.1\times10^{-4}$ \\
+ConvNeXt-Tiny & 0.335 & $6.2\times10^{-4}$ & 0.064 \\
+Inception-ResNet-v2 & 0.888 & 0.015 & $2.6\times10^{-7}$ \\
+DenseNet201 & 0.204 & 0.006 & $1.1\times10^{-4}$ \\
+DenseNet121 & 0.679 & 0.002 & 0.007 \\
 \bottomrule
 \end{tabular}
-\label{tab:tost}
-\end{center}
 \end{table}
+
+A non-significant DeLong $p$-value only fails to reject a difference; it does not positively establish that two arms perform the same. As a stronger, targeted check on the paper's central claim, we re-ran the fusion\_late-vs-radiomics-only comparison with the Two One-Sided Tests (TOST) procedure at a 0.02 AUC equivalence margin, fixed before the analysis on clinical grounds, for three of the seven backbones (ConvNeXt-Tiny, DenseNet201, DenseNet121) using the same nested-split checkpoint-selection regime as the rest of this paper. Fig.~\ref{fig:tost} shows all three 90\% confidence intervals fall entirely inside the margin -- fusion\_late is formally equivalent to radiomics-only at all three backbones tested, not merely statistically indistinguishable from it. As a validity check on the test itself, the same procedure applied to fusion\_late vs.\ cnn\_only (a comparison DeLong already finds significant in Table \ref{tab:delong}'s companion analysis) correctly rejects equivalence at all three backbones, confirming TOST is not simply underpowered to detect real gaps. This result covers three of seven backbones and is reported as a supplementary confirmatory check, not a replacement for Table \ref{tab:delong}.
 
 \begin{figure}[htbp]
-\centerline{\includegraphics[width=\columnwidth]{fig16_tost_equivalence.png}}
-\caption{All twelve equivalence tests. Every interval against radiomics-only lies inside the $\pm0.02$ margin band; every interval against CNN-only lies outside it, which is the negative control the test has to fail.}
-\label{fig:fig16}
+\centerline{\includegraphics[width=0.48\textwidth]{images/fig7_tost_equivalence.png}}
+\caption{TOST equivalence check, fusion (late) vs.\ radiomics-only, at a pre-specified $\pm$0.02 AUC margin (shaded). All three backbones tested fall entirely within the margin.}
+\label{fig:tost}
 \end{figure}
 
-\subsection{What the checkpoint protocol is worth, and which fusion rules depend on it}
-\label{sec:protocol-cost}
-The unselected regime bounds checkpoint selection from below without retraining anything. To bound it from above we retrained all three backbones under nested cross-validation: 60 cells, three backbones $\times$ four unfreezing fractions $\times$ five outer folds, with the inner split drawn from the training folds by patient (15\%, seeded by fold) and the epoch chosen on that inner split alone. The outer fold is scored exactly once, at the end. The four fractions were fixed in advance and are all reported in Table~\ref{tab:finetune}; the 100\% cell is the control, since the published recipe never freezes anything, so the other three cells test whether \emph{restricting} adaptation helps rather than whether adaptation helps.
+\subsection{Modality Complementarity}\label{sec:complementarity}
+Table \ref{tab:complement} reports, per fold and averaged over 273 held-out cases at a 0.5 decision threshold, how often the CNN branch and radiomics branch agree or disagree at the case level. Predicted probabilities from the two branches correlate strongly (Pearson $r=0.79$--0.83, Spearman $\rho=0.68$--0.74) across all seven backbones. Where the two branches disagree, the CNN branch is uniquely correct in roughly 14 cases per fold (about 5.1\%, stable across all seven backbones), while radiomics is uniquely correct in 16--22 cases (roughly 6--8\%) -- between 1.1 and 1.6 times as often as the CNN branch, at every backbone.
 
 \begin{table}[htbp]
-\caption{Nested-cross-validation retraining, all four pre-specified unfreezing fractions. AUC is the fold mean on the labels $\cap$ radiomics subset. The 100\% cell is the control, not a candidate}
-\begin{center}
-\footnotesize
-\begin{tabular}{llccc}
+\caption{Per-case modality agreement (mean per fold, $n\approx273$)}
+\label{tab:complement}
+\centering
+\small
+\begin{tabular}{@{}lccrr@{}}
 \toprule
-\textbf{Backbone} & \textbf{Unfrozen} & \textbf{Weights} & \textbf{Inner-val} & \textbf{Outer} \\
+Backbone & Pearson & Spearman & CNN$^*$ & Rad$^*$ \\
 \midrule
-ConvNeXt-Tiny & 0\%   & 0.01\%  & 0.7498 & 0.7554 \\
-ConvNeXt-Tiny & 10\%  & 51.4\%  & 0.8509 & 0.8272 \\
-ConvNeXt-Tiny & 20\%  & 55.6\%  & 0.8516 & 0.8346 \\
-ConvNeXt-Tiny & 100\% & 100\%   & \textbf{0.8645} & \textbf{0.8455} \\
-\midrule
-DenseNet201   & 0\%   & 0.02\%  & 0.7585 & 0.7546 \\
-DenseNet201   & 10\%  & 38.6\%  & 0.8468 & 0.8240 \\
-DenseNet201   & 20\%  & 47.5\%  & 0.8564 & 0.8416 \\
-DenseNet201   & 100\% & 100\%   & \textbf{0.8679} & \textbf{0.8420} \\
-\midrule
-DenseNet121   & 0\%   & 0.03\%  & 0.7801 & 0.7785 \\
-DenseNet121   & 10\%  & 31.1\%  & 0.8666 & 0.8528 \\
-DenseNet121   & 20\%  & 38.7\%  & 0.8701 & 0.8564 \\
-DenseNet121   & 100\% & 100\%   & \textbf{0.8781} & \textbf{0.8649} \\
+Inc.-ResNet-v2 & 0.831 & 0.731 & 14.4 & 17.2 \\
+ConvNeXt-Tiny & 0.824 & 0.740 & 13.6 & 22.2 \\
+Xception & 0.819 & 0.705 & 15.0 & 16.2 \\
+DenseNet121 & 0.812 & 0.712 & 13.4 & 21.8 \\
+InceptionV3 & 0.805 & 0.684 & 14.0 & 19.2 \\
+DenseNet201 & 0.796 & 0.697 & 15.6 & 18.6 \\
+GoogLeNet & 0.795 & 0.692 & 15.2 & 19.4 \\
 \bottomrule
 \end{tabular}
-\label{tab:finetune}
-\end{center}
+
+\vspace{2pt}
+\raggedright\footnotesize $^*$Cases where that branch alone is correct (out of $n\approx273$ held-out cases per fold).
 \end{table}
 
-Staged fine-tuning is not adopted, because it did not beat its control. Selecting on the inner split picks the 100\% cell on all three backbones, and the inner-val ordering rises monotonically with unfreezing coverage without exception. Against that control the nine candidate cells lose by 0.0004 to 0.0902 AUC, nine times out of nine. On this cohort the capacity given up costs more than the overfitting it prevents; we report the negative result rather than the best-looking cell.
-
-The retraining does, however, price the protocol. The 100\% cell falls 0.0340 to 0.0636 AUC below the CNN-only numbers in Table~\ref{tab:combined}, three to six times the 0.0071--0.0240 that the unselected regime showed on the same trained models. The two figures bound the same quantity from opposite sides, and neither is the answer on its own: the nested cell differs from the published recipe in four ways at once --- inner-split epoch selection, 15\% less training data, a two-stage schedule, and frozen batch normalization on the DenseNets --- so 0.0340--0.0636 is the cost of the whole protocol package and the selection component alone is smaller. One of the four can be partly excluded: ConvNeXt-Tiny contains no batch-normalization layers at all, yet its penalty (0.0636) falls \emph{between} the two DenseNets' (0.0340 and 0.0603), so frozen normalization does not explain the pattern. We state the interval rather than a point estimate, and note that it is well above the one to two points such an effect is usually assumed to be worth.
-
-\textbf{Which fusion rules absorb it.} Re-deriving the full ablation from these checkpoints separates the fusion arms cleanly. The two arms that retrain on top of the CNN branch --- early fusion, an XGBoost on the concatenated embedding, and intermediate fusion, an end-to-end fused network --- move by $-0.0091$ to $+0.0083$ AUC, and \emph{rise} in four of the six cells, while their image branch loses three to six points. Late fusion, which has no trainable parameters, moves by $-0.0070$ to $-0.0180$, close to half of its own CNN branch's loss. That factor of one half is not an empirical finding but the arithmetic of (\ref{eq:late}): the radiomics half is held fixed, so a probability average inherits exactly half of any movement on the image side. The finding is the contrast. \emph{A fusion mechanism that retrains on top of the CNN branch is robust to degradation of that branch; a mechanism that only averages probabilities is not.} The trained arms re-weight towards the branch that did not move; the fixed-weight rule has nothing to re-weight.
-
-This also explains an observation the earlier tables left unexplained. Late fusion is the strongest fusion arm on all three backbones, and the reason is now visible: it is the one arm that inherits the CNN branch's checkpoint-selection advantage undiluted, whereas the trained arms never depended on it. Part of late fusion's margin over the other fusion arms is a passed-through selection advantage rather than a better fusion rule.
-
-The same rule holds when the CNN branch is improved instead of degraded. Averaging the three backbones' probabilities within each outer fold --- the only ensemble the split permits, since each fold holds out different patients --- raises CNN-only by 0.0175 AUC over the best single backbone ($p=0.0016$). Almost none of that reaches late fusion, which gains 0.0025 ($p=0.36$), and the ensemble does not overtake radiomics-only ($+0.0051$, $p=0.21$). Raising the image branch without carrying it past the radiomics branch does not raise a probability-averaging fusion.
-
-\subsection{Explainability}
-Table~\ref{tab:xai} reports pointing accuracy for the CNN-only and late-fusion arms on both sample sets. On the fixed six-nodule set the two arms are identical to the last digit, because the arms agree on the predicted class for all six nodules. On the 60-nodule set they differ by at most 0.0508, and the number of disagreeing nodules is 5, 6, and 2 out of 59.
+\subsection{Fusion Variant Follow-Up}\label{sec:variants}
+A Gated Multimodal Unit (GMU) \cite{arevalo_gmu_2017}, branch normalization, and modality dropout with an auxiliary loss were tested as intermediate-fusion variants on three of the seven backbones (ConvNeXt-Tiny, DenseNet201, DenseNet121). Table \ref{tab:variants} reports pooled mean AUC (5 folds, same method as Table \ref{tab:ablation}) for four variant configurations against each backbone's own radiomics-only baseline. All twelve variant-backbone combinations underperform radiomics-only, by 0.005 to 0.024 AUC -- consistent with, not an exception to, this paper's central finding that intermediate fusion's shared decision boundary is the more likely bottleneck than the specific mechanism used inside it (Section~\ref{sec:discussion}). No single configuration is closest to radiomics-only across all three backbones: GMU alone is least-bad at DenseNet121, branch normalization alone at DenseNet201, and the combined GMU-plus-modality-dropout-plus-auxiliary-loss variant at ConvNeXt-Tiny. Adding modality dropout and an auxiliary loss to a single-mechanism variant helps at ConvNeXt-Tiny but hurts at the other two backbones -- with only three backbones tested, this is not enough evidence to recommend one configuration over another.
 
 \begin{table}[htbp]
-\caption{Pointing accuracy, CNN-only versus late fusion. $n_{\ne}$ is the number of nodules on which the two arms predict different classes}
-\begin{center}
-\footnotesize
-\begin{tabular}{llccc}
+\caption{Fusion variant follow-up: pooled mean AUC (5 folds), 3 backbones}
+\label{tab:variants}
+\centering
+\small
+\begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Backbone} & \textbf{Set} & \textbf{CNN-only} & \textbf{Late fusion} & $n_{\ne}$ \\
+Variant & ConvNeXt-T. & DenseNet201 & DenseNet121 \\
 \midrule
-ConvNeXt-Tiny & fixed 6    & 1.0000 & 1.0000 & 0 \\
-DenseNet201   & fixed 6    & 0.3333 & 0.3333 & 0 \\
-DenseNet121   & fixed 6    & 0.5000 & 0.5000 & 0 \\
+Radiomics-only & 0.9322 & 0.9301 & 0.9343 \\
 \midrule
-ConvNeXt-Tiny & 60 nodules & 0.7288 & 0.6780 & 5 \\
-DenseNet201   & 60 nodules & 0.6949 & 0.6780 & 6 \\
-DenseNet121   & 60 nodules & 0.5763 & 0.5593 & 2 \\
+Branch-norm & 0.9132 & 0.9254 & 0.9184 \\
+GMU & 0.9162 & 0.9138 & 0.9278 \\
+Branch-norm+moddrop+aux & 0.9135 & 0.9157 & 0.9178 \\
+GMU+moddrop+aux & 0.9175 & 0.9116 & 0.9108 \\
 \bottomrule
 \end{tabular}
+\end{table}
+
+\subsection{Explainability}\label{sec:xai-results}
+Table \ref{tab:xai} reports Grad-CAM/Layer-CAM localization metrics against radiologist masks for all twelve backbones evaluated in the explainability protocol (a superset of the seven ablation backbones, extended with additional architectures to widen the localization comparison). Pointing accuracy ranges from 0.00 (GoogLeNet, MobileNetV3-Small, ViT-Base) to 0.717 (ConvNeXt-Tiny), visualized in Fig.~\ref{fig:pointingbar}. Fig.~\ref{fig:xaicompare} contrasts the highest- and lowest-pointing-accuracy backbones directly.
+
+\begin{table}[htbp]
+\caption{CNN-branch explainability metrics, all 12 backbones}
 \label{tab:xai}
-\end{center}
+\centering
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Backbone & Dice & Size-matched Dice & Pointing acc.\ \\
+\midrule
+ConvNeXt-Tiny$^{\dagger}$ & 0.109 & 0.444 & 0.717 \\
+DenseNet201$^{\dagger}$ & 0.097 & 0.432 & 0.700 \\
+DenseNet121$^{*\dagger}$ & 0.063 & 0.342 & 0.576 \\
+Inception-ResNet-v2 & 0.120 & 0.309 & 0.383 \\
+VGG16 & 0.091 & 0.178 & 0.200 \\
+InceptionV3 & 0.090 & 0.165 & 0.200 \\
+Xception & 0.072 & 0.152 & 0.200 \\
+ResNet50 & 0.118 & 0.146 & 0.117 \\
+EfficientNet-B0 & 0.061 & 0.067 & 0.083 \\
+MobileNetV3-Small & 0.038 & 0.018 & 0.000 \\
+ViT-Base & 0.036 & 0.015 & 0.000 \\
+GoogLeNet & 0.035 & 0.011 & 0.000 \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+
+\raggedright\footnotesize $^{*}$Corrected post-checkpoint-fix value ($n=59$); see Section~\ref{sec:integrity}. $^{\dagger}$Selected-checkpoint value; under an honest nested-checkpoint re-run this backbone's pointing accuracy is not stable (Section~\ref{sec:integrity}).\par
 \end{table}
 
-The reading the numbers support is that adding a radiomics modality does not damage the image branch's localization. It is not that fusion explains better: late fusion's pointing accuracy is nominally at or below CNN-only's everywhere, and we claim no explainability advantage in the localization metrics.
-
-We state plainly what the spatial channel of the fused arm is, because the alternative would be to let a reader infer more than the construction supports. Late fusion's class-activation map is the CNN branch's map. There is no fused network to explain: (\ref{eq:late}) combines two scalars, so the only model a saliency method can attach to is the image branch itself, and the map is recomputed on that same backbone with only the explained class possibly differing. Nothing in the spatial channel is novel to the fused arm, and the near-zero differences in Table~\ref{tab:xai} are a consequence of that fact rather than an empirical discovery about fusion. The corollary is the useful half: a decision-level rule acquires a spatial explanation at no cost, because it never trains a joint representation that could distort one. Parameterised fusion has no such guarantee, and we do not test it here.
-
-What late fusion adds is a second, non-substitutable kind of evidence. Fig.~\ref{fig:fig14} shows both for the same model and fold: a spatial map answering where the evidence lies, and a SHAP summary answering which handcrafted features drove the decision. The CNN-only arm has no counterpart to the second panel, and the first panel is structurally impossible for radiomics-only, which never sees an image.
-
-The SHAP panel is presented once rather than once per backbone. The radiomics branch of the late-fusion arm receives no input from the CNN, so its SHAP summary is identical across backbones by construction; publishing three copies of the same plot would imply a per-backbone variation that does not exist.
-
 \begin{figure}[htbp]
-\centerline{\includegraphics[width=\columnwidth]{fig14_spatial_and_feature.png}}
-\caption{One prediction, two kinds of evidence, for the late-fusion arm on DenseNet201, fold 0. Top: Layer-CAM maps on the six fixed display nodules, with the radiologist mask outlined in white. Bottom: SHAP summary for the radiomics branch. Only the fused arm has both.}
-\label{fig:fig14}
+\centerline{\includegraphics[width=0.48\textwidth]{images/fig4_xai_pointing.png}}
+\caption{Grad-CAM/Layer-CAM pointing accuracy by backbone, sorted descending (data from Table \ref{tab:xai}). Bars in gray score exactly zero.}
+\label{fig:pointingbar}
 \end{figure}
 
-\section{Discussion}
-The result that survives every robustness check in this study is the weakest-sounding one: decision-level fusion beats the image modality alone, decisively and independently of checkpoint selection. That it holds under both regimes is structural rather than lucky, since both arms share the same CNN checkpoint. Claims comparing a selected arm against an unselected one, as the comparison against radiomics does, are the ones needing a stated regime, and we report both columns rather than the flattering one.
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.23\textwidth]{images/xai_densenet121.png}
+\includegraphics[width=0.23\textwidth]{images/xai_vit_base.png}
+\caption{Grad-CAM panels for a mid-to-high-localization backbone (DenseNet121, left, pointing accuracy 0.576 -- third of twelve, behind ConvNeXt-Tiny and DenseNet201) and the lowest-scoring backbone (ViT-Base, right, 0.000) on the same evaluation cases.}
+\label{fig:xaicompare}
+\end{figure}
 
-The equivalence result changes what the checkpoint regime means for this paper. Under a significance test the regime appears to decide the outcome, since two backbones cross $\alpha$ when the selection advantage is withdrawn. Under an equivalence test it decides nothing \emph{within this protocol}: all six comparisons clear the margin either way. Both readings come from one variance estimate on one set of probabilities, so the difference is not in the data but in the question. It is worth being explicit that this is the more demanding claim, not a softer one. Failing to reject equality is compatible with any true difference the sample is too small to see; rejecting the composite null of a difference of at least 0.02 excludes that possibility at the stated level, and would have failed had the differences been three times larger.
+For the radiomics branch, SHAP attribution (Fig.~\ref{fig:shap}) is dominated by texture descriptors rather than simple intensity statistics: the highest mean-absolute-SHAP features are \texttt{original\_shape\_LeastAxisLength}, a wavelet-filtered gray-level co-occurrence feature (\texttt{wavelet-LLL\_glcm\_Imc1}), \texttt{original\_shape\_Maximum2DDiameterSlice}, and several wavelet-filtered run-length and gray-level non-uniformity terms.
 
-Removing selection from the training procedure, rather than from the checkpoint load, does reach the equivalence claim: under the nested retraining it holds on one backbone of three, and the two failures are by 0.0013 and 0.0039 AUC at the far end of the interval. We read that as a statement about how much this claim rests on the protocol rather than as a refutation of it, for the reason given in Section~\ref{sec:protocol-cost}: those checkpoints bound the comparison from one side and four protocol changes move together in them. The direction of the paper's central finding is unaffected --- every fusion arm is at best level with radiomics-only and never above it, and the nested regime makes that comparison less favourable to fusion, not more.
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=0.48\textwidth]{images/fig5_shap_importance.png}}
+\caption{Top 12 of 25 radiomics features by mean |SHAP| attribution.}
+\label{fig:shap}
+\end{figure}
 
-An honest reading of the accuracy result is that fusion earns no accuracy argument here, and we do not construct one. The literature is split on whether it should: several studies report clear fusion gains on lung nodules, and we do not claim they are wrong.\CITE{2--3 studi fusi yang melaporkan keunggulan} What we can say is bounded by this cohort and this fusion rule. The case for the fused arm rests instead on what it can be asked, which is the axis on which the single-modality arms are not merely worse but silent.
+A separate question from localization is whether a map is faithful to the decision it explains. On the three backbones covered by the honest nested-checkpoint re-run, ROAD and PGI/PGU (Section~\ref{sec:xai-protocol}) agree with each other and with the pointing-accuracy collapse in Section~\ref{sec:integrity}: ConvNeXt-Tiny is faithful by both measures in five folds of five (MoRF $-0.1766$ vs.\ LeRF $-0.0151$, 257 of 300 nodules, PGI/PGU ratio 1.96); DenseNet121 is faithful in one fold of five ($-0.0527$ vs.\ $-0.1160$, 154 of 300, ratio 1.38); DenseNet201 is reversed in every fold ($-0.0709$ vs.\ $-0.1592$, 122 of 300, ratio 0.39) -- the pixels its map calls important move the decision \emph{less} than the pixels it calls unimportant. Three measurements sharing no perturbation machinery agreeing is what lets DenseNet201's map be read as uninformative about its own decision, not merely mislocalized. Because late fusion averages a fixed radiomics probability with the CNN probability and a pixel perturbation only touches the image, its ROAD score would equal exactly half the CNN-only branch's score by construction; late fusion's own faithfulness is therefore not reported separately here, since halving a signal (or halving its absence) is an arithmetic property of the averaging rule, not new evidence about the fused model.
 
-The explainability result deserves to be read as a positive finding rather than a shortfall. A fusion rule that averaged away the image branch's saliency, or that shifted attention off the nodule, would be a real cost of the added modality; the measurements show neither. The effect is bounded by construction: (\ref{eq:late}) leaves the image branch's weights untouched, so the map can change only where the fused decision differs from the CNN decision, which happens on 2 to 6 of 59 nodules. A difference of at most 0.05 in pointing accuracy, and exactly zero on the fixed display set, is the expected consequence of that structure, not an unexplained degradation.
+\section{Discussion}\label{sec:discussion}
 
-\textbf{The condition this claim carries.} The comparison above is between arms, and it is robust because both arms load the same image branch. The \emph{level} at which either arm localizes is a different quantity, and it turns out to be protocol-dependent in exactly the way the equivalence-with-radiomics claim is. Recomputing Layer-CAM from the nested-cross-validation checkpoints of Section~\ref{sec:protocol-cost}, at the same explanation site, on the same 60 nodules, with the same sample seed and the same metric code, moves fold-0 pointing accuracy from 0.7167 to 0.5000 on ConvNeXt-Tiny, from 0.7167 to 0.2500 on DenseNet121 and from 0.7000 to 0.0000 on DenseNet201. The classifiers themselves are intact: rescoring the loaded checkpoints reproduces their recorded outer AUC to the last digit on six of six cells, at 0.8178 to 0.8965. A sweep over every candidate site shows the localization has moved rather than vanished --- DenseNet201 recovers to 0.3500 and DenseNet121 to 0.4167 at their shallowest sites, against a chance rate of 0.0189 --- so the deepest spatial stage is the best explanation site under one training protocol and not under the other. What the published tables therefore support is that this fusion rule does not damage localization relative to CNN-only, not that a given absolute pointing accuracy is a property of the backbone. Any downstream use of the second reading has to name the checkpoint protocol it was measured under. We stop short of the available mechanistic story: both collapsing backbones received BatchNorm freezing and resolve to a \texttt{BatchNorm2d} site while ConvNeXt-Tiny contains no BatchNorm module at all, but two backbones against one is not a sample, and the cell that would separate the two was neither pre-registered nor run.
+The complementarity numbers in Table \ref{tab:complement} explain, rather than merely restate, the ceiling in Table \ref{tab:ablation}. A Pearson correlation of 0.79--0.83 between two branches' predicted probabilities means most of the classification signal is shared, not complementary; the residual 11--13\% disagreement is where any fusion gain must come from, and within that residual, radiomics wins about 1.1--1.6 times as often as the CNN branch, at every backbone. Averaging two branches under those conditions caps the achievable improvement at a small fraction of an AUC point, which is exactly the 0.0025 late-fusion margin observed -- not because the fusion mechanism is broken, but because there is arithmetically little complementary signal left for it to recover once the shared component is accounted for. This also situates the arm-specific pattern in Wu et al.'s and Chang et al.'s terms \cite{wu_greedy_2022,chang_synergy_2025}: intermediate fusion forces both branches through a single trained decision boundary, exactly the setting in which a faster-converging or higher-capacity branch can dominate the loss and suppress the weaker one; late fusion instead lets each branch reach its own independent optimum first and only averages two already-calibrated probability estimates afterward, which is structurally incapable of driving performance below the stronger branch's own probability the way a shared, jointly optimized feature space can. That distinction, not a difference in how much information the two feature sets nominally carry, is the more likely reason late fusion ties radiomics while early and intermediate fusion measurably lose to it.
 
-	extbf{Whether the maps track the decision at all.} Localization asks where a map lands; it does not ask whether the map follows the computation. We measure the second question directly with two independent families on the same 60 nodules of each fold and the same nested-cross-validation checkpoints: ROAD, which imputes the most-relevant pixels first (MoRF) and the least-relevant first (LeRF) across nine percentiles,\CITE{ROAD, Rong et al. ICML 2022} and the prediction gap on important versus unimportant features (PGI/PGU), which needs no ground-truth mask and so complements pointing accuracy, which does.\CITE{Tempel et al. 2025, PGI/PGU} A faithful map drives MoRF well below LeRF and gives PGI above PGU. ConvNeXt-Tiny does both: MoRF $-0.1766$ against LeRF $-0.0151$, the ordering holding in five folds of five and on 257 of 300 nodules, with PGI/PGU $=1.96$. DenseNet121 is mixed, at $-0.0527$ against $-0.1160$, one fold of five and 154 of 300, ratio $1.38$. DenseNet201 is reversed in both families --- $-0.0709$ against $-0.1592$, zero folds of five and 122 of 300, ratio $0.39$ --- meaning the pixels its map calls important move the decision \emph{less} than the pixels it calls unimportant. The two families share no perturbation machinery and agree; both also agree with the pointing accuracies of the preceding paragraph, 0.5000, 0.2500 and 0.0000 on the same checkpoints. Three measurements that could have disagreed do not, which is what lets us report the DenseNet201 map as uninformative about its own decision rather than merely mislocalized. One consequence for the fusion rule follows arithmetically rather than from a second experiment: a pixel perturbation moves the CNN branch only, while the radiomics branch is computed from the unperturbed patch, so (ef{eq:late}) transmits exactly half of any measured degradation. Averaging in a perturbation-invariant branch halves what a faithfulness test can see without making the underlying map any more faithful --- late fusion makes an unfaithful explanation harder to detect, not better.
+The nested-cross-validation correction in Section~\ref{sec:integrity} is worth stating in the same breath as the headline result, because of its size relative to it. Fixing the epoch-selection leak cost intermediate fusion 0.021 AUC on its own -- roughly eight times the entire 0.0025 gap between late fusion and radiomics-only that this paper treats as its main finding. Put differently: a study using this same architecture and dataset, but without a nested inner split for checkpoint selection, could report an apparent fusion advantage nearly an order of magnitude larger than what nested validation actually supports, without any other change to the method. The supplementary Selected-vs-Unselected checkpoint comparison in Section~\ref{sec:integrity} sharpens this further: it is not only the size of a reported fusion gain that a nested split protects, but whether an equivalence claim is real at all -- two of three backbones checked flip from a statistical tie to a significant loss for fusion\_late once checkpoint selection reverts to an unselected final epoch (Table~\ref{tab:checkpointsensitivity}). This is offered as a quantitative caution, not an accusation against the fusion-positive results cited in Section~\ref{sec:intro}, none of which report enough methodological detail to determine whether an equivalent leak is present; it is a concrete number the field can use to judge how large a reported fusion gain needs to be before treating it as more likely signal than an artifact of this specific, easy-to-introduce leak. A more direct, still-unresolved test of this paper's central claim is also disclosed in Section~\ref{sec:integrity}: an honest nested checkpoint-selection re-run finds the equivalence gone at two of the three backbones checked, a risk this paper does not consider closed.
 
-What this buys clinically is a report that can be interrogated on two axes at once. A radiologist can ask where the model looked and receive a saliency map, and can ask which quantitative descriptors moved the decision and receive a ranked feature attribution, from the same prediction. Neither single-modality arm answers both questions, and on this cohort the fused arm answers them without paying for it in AUC.
+\begin{table}[htbp]
+\caption{Late fusion vs.\ radiomics-only: DeLong $p$-value under two non-nested checkpoint-selection regimes (run02, 3 backbones). Neither ``Selected'' nor ``Unselected'' is genuine nested cross-validation; see the honest nested re-run disclosed in Section~\ref{sec:integrity}.}
+\label{tab:checkpointsensitivity}
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Backbone & Selected & Unselected & Flips? \\
+\midrule
+ConvNeXt-Tiny & 0.456 (tie) & 0.025 (loss) & Yes \\
+DenseNet201 & 0.490 (tie) & 0.512 (tie) & No \\
+DenseNet121 & 0.679 (tie) & 0.014 (loss) & Yes \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\section{Limitations}
-\label{sec:limits}
-Statistical indistinguishability from radiomics-only is checkpoint-dependent on two of three backbones. Under the unselected checkpoint, DeLong rejects equality on ConvNeXt-Tiny ($p=0.0246$) and DenseNet121 ($p=0.0144$), with late fusion the lower arm in both. Equivalence within the 0.02 margin is not affected within this protocol, and the two claims are compatible; but a reader who wants the stronger statement that no difference is detectable at all should attach either DenseNet201 or the selected regime to it. This does not touch the comparison against CNN-only, for the structural reason given above. The equivalence claim's dependence on the selection protocol is stated where the claim is made, in Section~\ref{sec:protocol-cost} and in the equivalence subsection, rather than only here.
+The explainability results in Table \ref{tab:xai} extend, with a concrete case, the pattern Tempel et al.\ and Qin report in unrelated domains: that saliency-map reliability does not track classification competence \cite{tempel_choose_2025,qin_consistency_2025}. GoogLeNet reaches a pooled DeLong-tested AUC on par with the other backbones (Table \ref{tab:delong} shows it losing no more or less often than its neighbors) while its Grad-CAM pointing accuracy is exactly zero -- the model is deciding correctly on evidence its own class-activation map does not localize inside the annotated nodule at all. ViT-Base shows the same zero-pointing pattern in Fig.~\ref{fig:xaicompare}, consistent with the class-activation-mapping formulation being tuned for convolutional feature hierarchies rather than transformer attention. ConvNeXt-Tiny and DenseNet201, at the opposite end (0.717 and 0.700), plausibly keep late-layer activations more spatially anchored to the original input region than architectures that aggressively pool or globally mix features earlier -- though this paper's data supports that as a plausible architectural correlate, not a proven causal mechanism, since only twelve backbones are compared and no controlled ablation isolates the pooling strategy as the variable responsible. DenseNet121 sits well below both at 0.576, which argues against feature-reuse depth alone being the explanation: DenseNet121 and DenseNet201 share the same dense-connectivity design and differ mainly in depth, yet land 0.124 apart. What the data do support directly is the practical conclusion: reporting only accuracy, or only a qualitative Grad-CAM image, would have missed this twelve-fold spread entirely, and a clinician shown a GoogLeNet or ViT-Base saliency map for this task would be looking at a heatmap with no more than chance overlap with where the actual nodule is. This ranking is itself conditioned on the Selected checkpoint used throughout Table~\ref{tab:xai}: recomputed under the honest nested-checkpoint re-run disclosed in Section~\ref{sec:integrity}, DenseNet201 falls from tied-highest to last of the three backbones checked, and the faithfulness measurement above shows the reversal is not confined to pointing accuracy -- DenseNet201's map is also the one most consistently unfaithful to its own decision under that same checkpoint. The architectural-correlate story two sentences above is therefore a property of one training protocol, and the honest-nested numbers argue against reading 0.717/0.700/0.576 as fixed backbone rankings at all.
 
-The equivalence margin is a judgement, not a measurement. A reader who considers 0.02 AUC clinically meaningful in this setting should read Table~\ref{tab:tost} as reporting intervals rather than verdicts; the intervals are given so that a different margin can be applied to them without re-running anything. We fixed $\delta$ before the analysis and did not revise it afterwards, but no procedure can make the choice itself objective.
+\section{Limitations}\label{sec:limitations}
 
-The unselected-checkpoint analysis is a sensitivity check that bounds the effect of selection from below; it is not a nested cross-validation and does not remove selection from the training procedure itself. The nested retraining of Section~\ref{sec:protocol-cost} does remove it, but bounds the same quantity only from above, because four protocol changes are applied together and the analysis does not separate them. A single-stage nested retraining on the full training fold, which would isolate epoch selection alone, is not reported here.
+Most consequentially, the CNN checkpoint shared by CNN-only, early fusion, and late fusion across all seven backbones is selected by validating on the same fold it is later scored on, not a nested split (Section~\ref{sec:integrity}); a three-backbone honest-nested re-run found this paper's central late-fusion-vs-radiomics-only equivalence claim does not hold at two of the three backbones checked (Section~\ref{sec:discussion}), and the same re-run collapses CNN-branch pointing accuracy at all three backbones checked, most severely at DenseNet201 (0.700 to 0.000, zero in every fold), confirmed as genuine rather than an artifact by an independent faithfulness measurement (Section~\ref{sec:integrity}); both are open risks this paper discloses but has not resolved with a full seven-backbone nested retrain. A Gated Multimodal Unit \cite{arevalo_gmu_2017}, branch normalization, and modality dropout with an auxiliary loss were tested as intermediate-fusion variants, but only on three of the seven backbones (Section~\ref{sec:variants}), not the full ablation grid; all twelve variant-backbone combinations underperformed radiomics-only, consistent with the mechanistic argument in Section~\ref{sec:discussion} that intermediate fusion's shared decision boundary, not the specific gating or normalization mechanism, is the more likely bottleneck. Extending this follow-up to the remaining four backbones is unlikely to change that qualitative conclusion but is left as immediate future work for completeness. Grad-CAM/Layer-CAM and SHAP are reported on separate scales with no unified cross-modality metric, a gap this paper shares with, rather than resolves relative to, prior work in the same space \cite{patro_neuroexplain_2026}. The faithfulness measurement in Section~\ref{sec:xai-results} also carries a bias in its own favor: perturbation-based tests are reported to advantage spatial explanations over feature-attribution ones \cite{tempel_choose_2025}, and this paper compares a spatial CAM channel against a feature-level SHAP channel, so ROAD and PGI/PGU rank backbones within the spatial channel and are not read here as ranking the two explanation channels against each other. Radiomics feature selection in this pipeline falls back to mutual-information selection rather than the originally intended minimum Redundancy Maximum Relevance (mRMR) method whenever the \texttt{pymrmr} dependency is unavailable; this fallback was verified to be seed-stable and is not believed to change the substance of the radiomics-only results, but it is a methods correction disclosed here for completeness rather than a limitation discovered by an external reviewer.
 
-Late fusion's pointing accuracy is nominally at or below CNN-only's on the 60-nodule set for every backbone. We report this alongside the fixed six-nodule set, where the two arms coincide exactly, rather than the latter alone. The explanation comparison also covers two arms, not five: the early- and intermediate-fusion arms are evaluated on AUC only, and no class-activation maps were computed for them, so this paper says nothing about what parameterised fusion does to localization.
+\section{Conclusion}\label{sec:conclusion}
 
-The faithfulness measurement carries a bias that works in its own favour. Perturbation tests are reported to advantage spatial explanations over feature-attribution ones,\CITE{Tempel et al. 2025, bias of perturbation-based faithfulness tests} and this paper compares a spatial CAM channel against a feature-level SHAP channel. We therefore do not read the ROAD and PGI/PGU results as ranking the two explanation channels against each other; they rank backbones within the spatial channel, which is what they are used for here. A faithfulness metric that treats both channels on one scale remains an open item. The perturbation budget is also fixed rather than swept: one noise scale for PGI/PGU and nine percentiles for ROAD, chosen before the analysis and not revised afterwards.
+Across seven CNN backbones and 21 pairwise significance tests, decision-level fusion of radiomics and CNN branches statistically ties the stronger single modality on this dataset, while feature-level (early) and jointly trained (intermediate) fusion measurably underperform it. The mechanism is visible in the data: the two branches agree on the large majority of cases, and where they disagree, the modality this paper's fusion arms are being asked to add value \emph{beyond} -- radiomics -- is already winning the disagreement more often than the CNN branch is. A field that wants to report fusion gains reliably should test each fusion arm against its strongest single-modality baseline with a significance test, use a nested split for any checkpoint or hyperparameter selection so that the resulting gap is not partly a leak, and validate any accompanying saliency map's localization quality rather than presenting it only as an illustration -- because, as this paper's own explainability results show, a model can classify competitively while its saliency map points nowhere near the lesion at all.
 
-There is no external validation. Every number in this paper comes from one dataset under one split, and reported performance on LIDC is known to move with sample-selection and label-truthing choices,\CITE{Baltatzis et al. 2021, pitfalls of sample selection} which is also why we make no comparison against AUC values reported by other LIDC studies: those are computed on different subsets and are not commensurable with ours. We note that LUNA16, the obvious candidate for an external cohort, is not a drop-in replacement, because its labels mark nodule versus non-nodule for detection rather than malignancy; external validation would require a cohort with malignancy ground truth, which we identify as the primary item of future work.
+\begin{thebibliography}{00}
 
-The explanations have not been evaluated by clinicians. A reader study would test whether the two explanation channels are usable rather than merely present, and a protocol for one accompanies this work, but no reader data were collected.
+\bibitem{bray_globocan_2024} F. Bray, M. Laversanne, H. Sung, J. Ferlay, R. L. Siegel, I. Soerjomataram, and A. Jemal, ``Global cancer statistics 2022: GLOBOCAN estimates of incidence and mortality worldwide for 36 cancers in 185 countries,'' \textit{CA: A Cancer Journal for Clinicians}, vol. 74, no. 3, pp. 229--263, 2024.
 
-The radiomics feature selection uses a mutual-information filter followed by LASSO; an mRMR variant present in the codebase was never executed, and the reported numbers are those of the mutual-information path. SHAP and Layer-CAM attributions are reported on separate scales without a unifying model-agnostic metric, which we identify as an open methodological gap rather than a limitation specific to this study. Finally, the analysis covers three backbones selected in advance from a wider screen and one fixed fusion rule; no fusion architecture search was performed.
+\bibitem{wu_greedy_2022} N. Wu, S. Jastrzębski, K. Cho, and K. J. Geras, ``Characterizing and overcoming the greedy nature of learning in multi-modal deep neural networks,'' in \textit{Proc. 39th Int. Conf. Mach. Learn. (ICML)}, 2022.
 
-Reporting follows the CLAIM checklist for AI in medical imaging\CITE{CLAIM checklist, Mongan et al. 2020 / Tejani et al. 2024} and the TRIPOD+AI statement for prediction-model reporting.\CITE{TRIPOD+AI, Collins et al. 2024} The small-sample evaluation pitfalls catalogued for medical imaging machine learning\CITE{Varoquaux \& Cheplygina 2022} informed the frozen patient-level split, the pooled rather than averaged statistics, and the checkpoint-regime analysis.
+\bibitem{astaraki_comparative_2021} M. Astaraki, G. Yang, Y. Zakko, I. Toma-Dasu, {\"O}. Smedby, and C. Wang, ``A comparative study of radiomics and deep-learning based methods for pulmonary nodule malignancy prediction in low dose CT images,'' \textit{Frontiers in Oncology}, vol. 11, art. 737368, Dec. 2021.
 
-\section{Conclusion}
-On this cohort, decision-level fusion of a radiomics branch with a CNN branch significantly outperforms the CNN alone on every backbone tested and under both checkpoint regimes, and is equivalent to the stronger single modality within a pre-specified margin of 0.02 AUC on every backbone and under both checkpoint regimes of that protocol. That equivalence is established by a test whose null is a difference, not by a significance test that failed to find one. It is conditional on the protocol: retraining the backbones under nested cross-validation leaves it standing on one backbone of three, narrowly, and we report that condition where the claim is made rather than only among the limitations. It preserves the image branch's spatial explanations at practically the same quality, differing only on the few nodules where the fused decision differs from the CNN decision, and it is the only arm supplying spatial and feature-level evidence for the same prediction. The contribution is therefore not a higher accuracy number but a model that matches the strongest single modality while remaining interrogable on both axes. A companion paper addresses backbone comparison, hyperparameter stability, and label granularity on the same dataset and split.
+\bibitem{chang_synergy_2025} S. A. Chang, M. M. Amjad, N. Wahab, E. Alzaid, N. Rajpoot, and A. Shephard, ``Synergy vs. noise: Performance-guided multimodal fusion for biochemical recurrence-free survival in prostate cancer,'' arXiv preprint arXiv:2511.11452, 2025.
 
-\section*{Acknowledgment}
-The authors thank their supervisor and collaborators for guidance on this work.
+\bibitem{tempel_choose_2025} F. Tempel, D. Groos, E. A. F. Ihlen, L. Adde, and I. Str{\"u}mke, ``Choose your explanation: a comparison of SHAP and Grad-CAM in human activity recognition,'' \textit{Applied Intelligence}, vol. 55, art. 1107, 2025.
 
-\bibliographystyle{IEEEtran}
-\bibliography{refs}
+\bibitem{qin_consistency_2025} X. Qin, ``Consistency and stability benchmarking of Grad-CAM, SHAP, and LIME for diffuse and focal brain MRI classification,'' in \textit{Proc. SPIE}, vol. 13971, Fifth Int. Conf. Biomedicine and Bioinformatics Engineering (ICBBE 2025), art. 1397109, 2025.
+
+\bibitem{zheng_multilevel_2026} M. Zheng, Q. Jia, J. Zhang, J. Jia, and J. Fu, ``Multi-level deep imaging features fusion for lung nodule malignancy prediction,'' \textit{Biomedical Signal Processing and Control}, vol. 112, art. 108530, 2026.
+
+\bibitem{lin_combined_2024} C.-Y. Lin, S.-M. Guo, J.-J. J. Lien, W.-T. Lin, Y.-S. Liu, C.-H. Lai, I.-L. Hsu, C.-C. Chang, and Y.-L. Tseng, ``Combined model integrating deep learning, radiomics, and clinical data to classify lung nodules at chest CT,'' \textit{La radiologia medica}, vol. 129, pp. 56--69, 2024.
+
+\bibitem{prabhavalkar_hybrid_2026} V. S. Prabhavalkar and Arthi K, ``A hybrid PET--CT radiomics and deep learning framework for robust lung nodule malignancy prediction,'' in \textit{Proc. 2026 World Conf. Comput. Sci. Technol. (WcCST)}, 2026, pp. 370--374.
+
+\bibitem{lu_mera_2026} J. Lu, C. Yin, S. Ingala, K. Erleben, M. B. Nielsen, and S. Darkner, ``MERA: Multimodal and multiscale self-explanatory model with considerably reduced annotation for lung nodule diagnosis,'' \textit{Biomedical Signal Processing and Control}, vol. 121, art. 110339, 2026.
+
+\bibitem{kilic_desamnet_2026} M. Kılıç, M. Bıyıklı, A. Yelman, H. Fırat, H. {\"U}zen, {\.I}. Balikçi Çiçek, and A. Şengür, ``Grad-CAM enhanced explainable deep learning for multi-class lung cancer classification using DE-SAMNet model,'' \textit{Diagnostics}, vol. 16, no. 5, p. 757, 2026.
+
+\bibitem{patro_neuroexplain_2026} S. G. K. Patro, S. Garg, M. Riyazuddin, V. Rachapudi, K. Makharov, A. Smerat, and R. Karimi, ``NeuroExplain-net for transparent multi-class lung cancer screening using computed tomography,'' \textit{Intelligence-Based Medicine}, vol. 15, art. 100409, 2026.
+
+\bibitem{arevalo_gmu_2017} J. Arevalo, T. Solorio, M. Montes-y-G{\'o}mez, and F. A. Gonz{\'a}lez, ``Gated multimodal units for information fusion,'' in \textit{Proc. Int. Conf. Learn. Represent. (ICLR) Workshop Track}, 2017.
+
+\bibitem{liao_ambiguous_2022} Z. Liao, Y. Xie, S. Hu, and Y. Xia, ``Learning from ambiguous labels for lung nodule malignancy prediction,'' \textit{IEEE Trans. Medical Imaging}, vol. 41, no. 7, pp. 1874--1886, Jul. 2022.
+
+\bibitem{konuksever_dynamic_2026} Y. Konuksever, O. Doganay, E. Soya, and Z. Akusta Dagdeviren, ``Dynamic ambiguity-weighted label distribution learning for lung nodule malignancy score estimation from CT images,'' in \textit{Proc. 2026 2nd Int. Symp. AI-Driven Engineering Systems (ISADES)}, 2026.
+
+\bibitem{wang_expnnet_2024} C. Wang, Y. Liu, F. Wang, C. Zhang, Y. Wang, M. Yuan, and G. Yang, ``Towards reliable and explainable AI model for pulmonary nodule diagnosis,'' \textit{Biomedical Signal Processing and Control}, vol. 88, art. 105646, 2024.
+
+\bibitem{huang_densenet_2017} G. Huang, Z. Liu, L. van der Maaten, and K. Q. Weinberger, ``Densely connected convolutional networks,'' in \textit{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2017, pp. 4700--4708.
+
+\bibitem{szegedy_googlenet_2015} C. Szegedy, W. Liu, Y. Jia, P. Sermanet, S. Reed, D. Anguelov, D. Erhan, V. Vanhoucke, and A. Rabinovich, ``Going deeper with convolutions,'' in \textit{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2015, pp. 1--9.
+
+\bibitem{szegedy_inceptionv3_2016} C. Szegedy, V. Vanhoucke, S. Ioffe, J. Shlens, and Z. Wojna, ``Rethinking the Inception architecture for computer vision,'' in \textit{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2016, pp. 2818--2826.
+
+\bibitem{chollet_xception_2017} F. Chollet, ``Xception: Deep learning with depthwise separable convolutions,'' in \textit{Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2017, pp. 1800--1807.
+
+\bibitem{liu_convnext_2022} Z. Liu, H. Mao, C.-Y. Wu, C. Feichtenhofer, T. Darrell, and S. Xie, ``A ConvNet for the 2020s,'' in \textit{Proc. IEEE/CVF Conf. Comput. Vis. Pattern Recognit. (CVPR)}, 2022, pp. 11976--11986.
+
+\bibitem{szegedy_inceptionresnet_2017} C. Szegedy, S. Ioffe, V. Vanhoucke, and A. A. Alemi, ``Inception-v4, Inception-ResNet and the impact of residual connections on learning,'' in \textit{Proc. AAAI Conf. Artif. Intell.}, 2017, pp. 4278--4284.
+
+\bibitem{jiang_layercam_2021} P.-T. Jiang, C.-B. Zhang, Q. Hou, M.-M. Cheng, and Y. Wei, ``LayerCAM: Exploring hierarchical class activation maps for localization,'' \textit{IEEE Trans. Image Process.}, vol. 30, pp. 5875--5888, 2021.
+
+\bibitem{rong_road_2022} Y. Rong, T. Leemann, V. Borisov, G. Kasneci, and E. Kasneci, ``A consistent and efficient evaluation strategy for attribution methods,'' in \textit{Proc. 39th Int. Conf. Mach. Learn. (ICML)}, 2022.
+
+\bibitem{agarwal_openxai_2022} C. Agarwal, S. Krishna, E. Saxena, M. Pawelczyk, N. Johnson, I. Puri, M. Zitnik, and H. Lakkaraju, ``OpenXAI: Towards a transparent evaluation of model explanations,'' in \textit{Proc. 36th Conf. Neural Inf. Process. Syst. (NeurIPS), Datasets and Benchmarks Track}, 2022.
+
+\bibitem{zhang_excitationbackprop_2018} J. Zhang, S. A. Bargal, Z. Lin, J. Brandt, X. Shen, and S. Sclaroff, ``Top-down neural attention by excitation backprop,'' \textit{Int. J. Comput. Vis.}, vol. 126, pp. 1084--1102, 2018.
+
+\end{thebibliography}
 
 \end{document}
