@@ -1,0 +1,2 @@
+run_id,commit_sha,input_size,checkpoint_mtime,arm,seed,n_features_available,n_selected_min,n_selected_max,fs_method,n_nodules,n_patients,auc_mean_fold,auc_sd_fold,auc_pooled,published_spread_min,published_spread_max,published_spread_mean,auc_fold0,auc_fold1,auc_fold2,auc_fold3,auc_fold4
+2026-10-16-radiomics-seeded,59d2fda,96,none,radiomics_only,42,1130,14,27,mutual_info_classif,1366,607,0.9325506122460322,0.01559364271568361,0.9319533833254605,0.9301,0.9343,0.9323857142857144,0.9346733668341708,0.9531149646756584,0.9052348825587205,0.9308932346723044,0.938836612489307
