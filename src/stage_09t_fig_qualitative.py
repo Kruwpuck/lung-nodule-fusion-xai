@@ -213,8 +213,12 @@ def main() -> None:
     fig.savefig(OUT_PNG, dpi=300)
     fig.savefig(OUT_PDF)
     out = pd.DataFrame(records)
+    # Last commit (on any fetched ref) that touched this script, not the checked-out HEAD: the script may be run from another
+    # branch's working tree. `git log -1 -- file` alone follows HEAD and returns nothing there, hence --all.
     try:
-        sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+        here = os.path.abspath(__file__)
+        sha = subprocess.check_output(["git", "log", "--all", "-1", "--format=%h", "--", here], text=True,
+                                      cwd=os.path.dirname(here)).strip() or "unknown"
     except Exception:  # noqa: BLE001
         sha = "unknown"
     t1 = cfg.get("tracks", {}).get("track1", {})
