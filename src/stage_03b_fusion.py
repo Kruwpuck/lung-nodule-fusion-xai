@@ -97,6 +97,37 @@ def _cnn_ckpt_subdir(cfg: dict, model_name: str) -> str:
     return cfg.get("track1_fusion", {}).get("cnn_ckpt_subdir", {}).get(model_name, model_name)
 
 
+def _provenance(cfg: dict, model_name: str) -> dict:
+    """Repo rule: every new CSV carries run_id, commit_sha, input_size and checkpoint_mtime.
+
+    Returns {} unless the config sets `run_id`, so the legacy config path writes exactly what it always did.
+    `checkpoint_mtime` is the mtime of the CNN arm A checkpoint `fold0_best.pt` read for this backbone
+    (os.path.getmtime follows a directory junction to the real file).
+    """
+    if not cfg.get("run_id"):
+        return {}
+    import datetime
+    import subprocess
+    try:
+        sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+    except Exception:  # noqa: BLE001
+        sha = "unknown"
+    ck = os.path.join(cfg["paths"]["checkpoints"], _cnn_ckpt_subdir(cfg, model_name), "fold0_best.pt")
+    try:
+        mt = datetime.datetime.fromtimestamp(os.path.getmtime(ck)).strftime("%Y-%m-%d %H:%M")
+    except OSError:
+        mt = "unknown"
+    try:
+        import torch
+        torch_version = torch.__version__
+        gpu_device = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
+    except Exception:  # noqa: BLE001
+        torch_version, gpu_device = "unknown", "unknown"
+    return {"run_id": cfg["run_id"], "commit_sha": sha,
+            "input_size": cfg.get("tracks", {}).get("track1", {}).get("input_size", "unknown"),
+            "checkpoint_mtime": mt, "gpu_device": gpu_device, "torch_version": torch_version}
+
+
 def _cnn_only_preds(model_name: str, backbone_internal: str, cfg: dict, fold: int,
                      df_fold: pd.DataFrame, device, ckpt_kind: str = "best") -> np.ndarray:
     """Re-run the existing arm A checkpoint on df_fold's own patches (fusion-eligible subset).
@@ -319,6 +350,10 @@ def run(cfg: dict) -> None:
             continue
 
         rows, delong_rows = _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_folds, device)
+        prov = _provenance(cfg, model_name)
+        if prov:
+            rows = [{**prov, **row} for row in rows]
+            delong_rows = [{**prov, **row} for row in delong_rows]
         all_rows.extend(rows)
         all_delong_rows.extend(delong_rows)
 
@@ -352,6 +387,7 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
 
     rows = []
     pooled = {"cnn": [], "radiomics": [], "fusion_early": [], "fusion_late": [], "y_true": []}
+    id_frames = []  # per-case identifiers in pooled order; used only when track1_fusion.save_persample is true
     for arm in fusion_arms:
         pooled[_arm_row_name(arm, cfg)] = []
 
@@ -420,6 +456,8 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
             rows.append({"backbone": model_name, "arm": _arm_row_name(arm, cfg), "fold": fold,
                          "n_val": len(val_df), "fs_method": fs_method, **m})
 
+        id_cols = [c for c in ("patient_id", "nodule_idx", "scan_id", "fold", "label") if c in val_df.columns]
+        id_frames.append(val_df[id_cols].copy())
         pooled["y_true"].append(y_val)
         pooled["cnn"].append(cnn_prob)
         pooled["radiomics"].append(rad_prob)
@@ -433,6 +471,23 @@ def _run_backbone_arms(cfg, model_name, backbone_internal, merged, feat_cols, n_
     y_true_all = np.concatenate(pooled["y_true"])
     delong_rows = []
     arm_probs = {k: np.concatenate(v) for k, v in pooled.items() if k != "y_true"}
+
+    # Optional, additive: write per-case probabilities of every arm so downstream tests (Holm, patient-level
+    # bootstrap) can be recomputed without retraining. Off by default; never allowed to stop the run.
+    if cfg.get("track1_fusion", {}).get("save_persample", False):
+        try:
+            import pandas as pd
+            ps = pd.concat(id_frames, ignore_index=True)
+            ps.insert(0, "backbone", model_name)
+            for i, (k, v) in enumerate(_provenance(cfg, model_name).items()):
+                ps.insert(i, k, v)
+            for k, v in arm_probs.items():
+                ps[f"prob_{k}"] = v
+            ps_path = os.path.join(cfg["paths"]["results"], "fusion", f"persample_{model_name}.csv")
+            ps.to_csv(ps_path, index=False)
+            logger.info("[persample] wrote %s (%d rows)", ps_path, len(ps))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("[persample] skipped for %s: %s", model_name, exc)
     from sklearn.metrics import roc_auc_score
     aucs = {k: roc_auc_score(y_true_all, p) for k, p in arm_probs.items()}
 

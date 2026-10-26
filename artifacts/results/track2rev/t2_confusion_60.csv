@@ -1,0 +1,13 @@
+run_id,commit_sha,input_size,checkpoint_mtime,note,backbone,tn,fp,fn,tp,accuracy,malignant_recall,benign_recall
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",mobilenetv3_small,31,8,12,9,0.6666666666666666,0.42857142857142855,0.7948717948717948
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",efficientnet_b0,35,4,10,11,0.7666666666666667,0.5238095238095238,0.8974358974358975
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",densenet121,37,2,8,13,0.8333333333333334,0.6190476190476191,0.9487179487179487
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",resnet50,38,1,7,14,0.8666666666666667,0.6666666666666666,0.9743589743589743
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",vgg16,38,1,9,12,0.8333333333333334,0.5714285714285714,0.9743589743589743
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",vit_base,38,1,11,10,0.8,0.47619047619047616,0.9743589743589743
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",inceptionv3,38,1,7,14,0.8666666666666667,0.6666666666666666,0.9743589743589743
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",xception,38,1,5,16,0.9,0.7619047619047619,0.9743589743589743
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",googlenet,37,2,8,13,0.8333333333333334,0.6190476190476191,0.9487179487179487
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",convnext_tiny,35,4,5,16,0.85,0.7619047619047619,0.8974358974358975
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",inception_resnet_v2,38,1,9,12,0.8333333333333334,0.5714285714285714,0.9743589743589743
+2026-08-20-run04,6dc94ed,64,not_recorded_in_source,"post_hoc_descriptive; 60 explained nodules, fold 0; source=depth_sweep_12_persample.csv",densenet201,36,3,12,9,0.75,0.42857142857142855,0.9230769230769231

@@ -1,0 +1,10 @@
+run_id,commit_sha,input_size,checkpoint_mtime,note,regime,backbone,delta_pooled_auc,ci90_lo,ci90_hi,n_patients,inside_margin
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Selected,convnext_tiny,-0.0020210891985515,-0.0107047439741748,0.0070516871022397,607,True
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Unselected,convnext_tiny,-0.005549076917021,-0.0109874820455269,0.0001600463187701,607,True
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Nested,convnext_tiny,-0.0131586069122973,-0.0208578645341141,-0.0056705836717827,607,False
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Selected,densenet201,0.0035046154148951,-0.0031819638582462,0.0104587284708537,607,True
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Unselected,densenet201,0.0036915938434891,-0.0024212377843019,0.0100257512795566,607,True
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Nested,densenet201,-0.0154687746024249,-0.0240501078649518,-0.0073581570196448,607,False
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Selected,densenet121,0.0001291627302786,-0.0072013257250319,0.0074937019530584,607,True
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Unselected,densenet121,-0.0085677944418203,-0.0151870620102416,-0.0018675169821788,607,True
+2026-10-18-fig-regimes-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_figure_from_refswap_seeded,Nested,densenet121,-0.0047864017477563,-0.0127201060198521,0.0030904585498478,607,True

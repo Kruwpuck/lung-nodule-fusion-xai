@@ -1,0 +1,9 @@
+run_id,commit_sha,input_size,checkpoint_mtime,note,group,parity,n_sites,mean_pointing,min_pointing,max_pointing
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,size_2,even,4,0.0,0.0,0.0
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,size_3,odd,7,0.4976190476190476,0.0666666666666666,0.7166666666666667
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,size_4,even,6,0.03333333333333332,0.0,0.1
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,size_6,even,5,0.09333333333333331,0.0666666666666666,0.1333333333333333
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,size_le_6,odd,7,0.4976190476190476,0.0666666666666666,0.7166666666666667
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,size_le_6,even,15,0.044444444444444425,0.0,0.1333333333333333
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,all_sizes_gt_1,odd,16,0.3802083333333333,0.0666666666666666,0.7166666666666667
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,all_sizes_gt_1,even,47,0.19432624113475172,0.0,0.7333333333333333

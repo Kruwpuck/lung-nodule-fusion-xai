@@ -1,0 +1,7 @@
+run_id,commit_sha,input_size,checkpoint_mtime,note,fold,nodules,patients,benign,malignant
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,1,292,121,199,93
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,2,254,122,173,81
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,3,266,122,174,92
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,4,303,120,215,88
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,5,251,122,167,84
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,Total,1366,607,928,438

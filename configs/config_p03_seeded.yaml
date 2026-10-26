@@ -1,0 +1,79 @@
+# P0-3 (Track 1): main fusion ablation re-run with the seeded radiomics selection (commit 733856b).
+# Same as config.yaml except paths.results -> artifacts/results/rerun_seeded (additive; the published
+# artifacts/results/fusion/ is not touched). Post hoc sensitivity re-derivation, not a new search.
+seed: 42
+run_id: "2026-10-p03-seeded-ablation"   # turns on provenance columns in stage_03b outputs
+force_rerun: true
+
+paths:
+  raw: "./data/raw/LIDC-IDRI"
+  interim: "./artifacts/patches"
+  features: "./artifacts/features/radiomics.parquet"
+  splits: "./artifacts/splits/folds.json"
+  checkpoints: "./artifacts/checkpoints_rerun"   # junctions to the 7 CNN dirs; new fusion checkpoints land here
+  logs: "./artifacts/logs"
+  results: "./artifacts/results/rerun_seeded"
+
+data:
+  n_slices: 3
+  patch_xy: 64
+  n_folds: 5
+  include_indeterminate: true   # keep median==3 nodules (label=-1), don't discard
+  skip_existing: true           # don't re-crop the ~1391 nodules already extracted
+  freeze_from: "data/processed/labels_binary_v1.csv"  # keep old patient folds stable
+
+train:
+  epochs: 50
+  batch_size: 16
+  lr: 0.0001
+  weight_decay: 0.0001
+  early_stopping_patience: 10
+  checkpoint_every: 5
+  mixed_precision: true
+
+models:            # legacy: set 6-backbone di balik 120 checkpoint existing
+  lightweight: ["mobilenetv3_small", "efficientnet_b0", "densenet121"]
+  heavyweight: ["resnet50", "vgg16", "vit_base"]
+
+tracks:
+  track2:          # model comparison + hyperparameter/stability study
+    backbones: ["mobilenetv2", "efficientnet_b0", "resnet50", "vgg16"]
+    input_size: null          # semua native 64x64, tanpa upsample
+  track1:          # fusion radiomics-CNN + xAI per-arm
+    backbones: ["densenet121", "inceptionv3", "xception", "googlenet",
+                "convnext_tiny", "inception_resnet_v2", "densenet201"]
+    input_size: 96             # seragam lintas arm; >= 75 (floor InceptionV3/IRv2)
+
+track2_sweep:
+  enabled: true
+  optimizers: ["sgd", "adam", "adamw"]
+  weight_decays:               # default PyTorch per-optimizer +/- 1 order of magnitude
+    sgd:   [1.0e-5, 1.0e-4, 1.0e-3]
+    adam:  [1.0e-5, 1.0e-4, 1.0e-3]
+    adamw: [1.0e-3, 1.0e-2, 1.0e-1]
+  momentum: 0.9                # untuk SGD+momentum
+  # Rev1 task 7: SGD run at lr=1e-4 (same as Adam) showed up to 0.1457 AUC gap
+  # vs Adam. Literature says SGD typically needs ~10-100x Adam's lr, so test
+  # whether the gap is a tuning artifact. Run at cfg's default weight_decay;
+  # isolated from the wd-sweep combos above via the `_lr{lr:g}` run_id suffix.
+  sgd_lr_sweep: [1.0e-3, 1.0e-2, 1.0e-1]
+
+track1_fusion:
+  enabled: true
+  backbone: "mobilenetv3_small"
+  # Rev1 task 5a: additional FusionNet arms to train alongside the default
+  # "concat" arm (unchanged legacy behavior). Add "branch_norm" to also run
+  # the per-branch L2-normalized / down-projected CNN embedding arm.
+  fusion_arms: ["concat"]
+  save_persample: true   # P0-3: also write fusion/persample_{backbone}.csv
+  branch_norm_proj_dim: 32
+  # Rev1 task 5c: modality dropout + auxiliary per-branch losses. Regularizers,
+  # not a fusion topology, so they compose with any arm above rather than
+  # adding a 4th arm name. Both default to 0.0 (no-op) so the default config
+  # path reproduces today's numbers unchanged.
+  modality_dropout_rate: 0.0
+  aux_loss_weight: 0.0
+
+radiomics:
+  params_yaml: "configs/radiomics_params.yaml"
+  incremental: true   # only extract features for nodules not already in the cache
