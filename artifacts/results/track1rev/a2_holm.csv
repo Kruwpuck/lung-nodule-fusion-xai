@@ -1,0 +1,22 @@
+run_id,commit_sha,input_size,checkpoint_mtime,source_file_mtime,note,backbone,fusion_arm,fusion_auc,best_single_auc,delong_p,holm_p,significant_holm_005
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,inception_resnet_v2,fusion_intermediate,0.8839282199653598,0.9307884585104708,2.639942091597902e-07,5.5438783923555945e-06,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,xception,fusion_intermediate,0.8915721933553772,0.9311181310029916,7.548237346277631e-07,1.5096474692555262e-05,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,xception,fusion_early,0.9009248051487954,0.9311181310029916,5.041126771243576e-05,0.0009578140865362794,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,densenet201,fusion_intermediate,0.8983230987246104,0.929024464651236,0.0001072462548088,0.0019304325865584,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,googlenet,fusion_intermediate,0.9059473901747755,0.931351854038734,0.0002109008905131,0.0035853151387227,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,convnext_tiny,fusion_early,0.904227680680208,0.9317405723508108,0.0006234793840789,0.0099756701452624,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,densenet121,fusion_early,0.9129959848842704,0.9336201976066762,0.0020535552486247,0.030803328729370503,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,googlenet,fusion_early,0.9069216461974492,0.931351854038734,0.0028012028796697,0.0392168403153758,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,inceptionv3,fusion_early,0.9135483093213668,0.9329829948039678,0.0033948333858302,0.0441328340157926,True
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,densenet201,fusion_early,0.907605593607306,0.929024464651236,0.0057913739097887,0.0694964869174644,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,densenet121,fusion_intermediate,0.9156727287041412,0.9336201976066762,0.0068864656648544,0.07575112231339841,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,inceptionv3,fusion_intermediate,0.915372579121398,0.9329829948039678,0.0086799224072731,0.086799224072731,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,inception_resnet_v2,fusion_early,0.9143835616438356,0.9307884585104708,0.0148132102545566,0.1333188922910094,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,convnext_tiny,fusion_intermediate,0.9199387891670604,0.9317405723508108,0.0640102184767517,0.5120817478140136,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,xception,fusion_late,0.9316200204692174,0.9311181310029916,0.9021706278750456,1.0,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,inceptionv3,fusion_late,0.9364248740355848,0.9329829948039678,0.3773309627953241,1.0,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,inception_resnet_v2,fusion_late,0.9313272516139192,0.9307884585104708,0.8883389721534507,1.0,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,convnext_tiny,fusion_late,0.9268815934498504,0.9317405723508108,0.3354034036574851,1.0,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,googlenet,fusion_late,0.932569674067076,0.931351854038734,0.7989477010444981,1.0,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,densenet201,fusion_late,0.9342032750747914,0.929024464651236,0.2039696353512485,1.0,False
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,densenet121,fusion_late,0.9319177098094787,0.9336201976066762,0.6793126208246574,1.0,False

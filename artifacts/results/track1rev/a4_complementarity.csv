@@ -1,0 +1,7 @@
+run_id,commit_sha,input_size,checkpoint_mtime,source_file_mtime,note,regime,backbone,threshold_rule,mean_n_per_fold,cnn_only_correct_per_fold,rad_only_correct_per_fold,both_wrong_per_fold,agree_pct,rad_over_cnn_ratio,pearson_r
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,Selected,convnext_tiny,fixed_0.5,273.2,13.6,22.2,20.6,86.89604685212299,1.6323529411764706,0.8106698904562981
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,Selected,convnext_tiny,youden_other_folds,273.2,13.0,25.0,21.8,86.09077598828698,1.9230769230769231,0.8106698904562981
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,Selected,densenet201,fixed_0.5,273.2,15.6,18.6,18.6,87.48169838945827,1.1923076923076925,0.7936291014438007
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,Selected,densenet201,youden_other_folds,273.2,18.4,23.4,16.4,84.69985358711567,1.2717391304347827,0.7936291014438007
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,Selected,densenet121,fixed_0.5,273.2,13.4,21.8,20.8,87.11566617862371,1.626865671641791,0.8115321980235733
+2026-10-11-run07-posthoc,6dc94ed,96,not_recorded_in_source,2026-10-02 18:29,post_hoc_reviewer_request,Selected,densenet121,youden_other_folds,273.2,15.8,23.4,19.0,85.6515373352855,1.481012658227848,0.8115321980235733

@@ -1,0 +1,6 @@
+run_id,commit_sha,input_size,checkpoint_mtime,note,arm,n_backbones,tn_mean_per_backbone,fp_mean_per_backbone,fn_mean_per_backbone,tp_mean_per_backbone,n_nodules
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,CNN-only,7,852.8571428571429,75.14285714285714,119.71428571428571,318.2857142857143,1366
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,Radiomics-only,7,857.0,71.0,99.85714285714286,338.14285714285717,1366
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,Early fusion,7,858.4285714285714,69.57142857142857,106.42857142857143,331.57142857142856,1366
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,Intermediate fusion,7,858.7142857142857,69.28571428571429,114.28571428571429,323.7142857142857,1366
+2026-10-22-t1-tables-figs-posthoc,6dc94ed,96,not_recorded_in_source,post_hoc_descriptive; source=ablation_summary.csv,Late fusion,7,871.5714285714286,56.42857142857143,99.71428571428571,338.2857142857143,1366

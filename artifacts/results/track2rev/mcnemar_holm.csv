@@ -1,0 +1,10 @@
+run_id,commit_sha,input_size,checkpoint_mtime,note,backbone,n_tests,mcnemar_p,holm_p,significant_holm_005
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,inception_resnet_v2,9,1.6183321349672042e-09,1.4564989214704838e-08,True
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,vgg16,9,7.450580596923828e-09,5.960464477539063e-08,True
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,resnet50,9,2.384185791015625e-07,1.6689300537109375e-06,True
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,inceptionv3,9,3.032386302947998e-06,1.8194317817687988e-05,True
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,xception,9,0.00015652179718017578,0.0007826089859008789,True
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,efficientnet_b0,9,0.0009765625,0.00390625,True
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,vit_base,9,0.125,0.375,False
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,mobilenetv3_small,9,0.5,1.0,False
+2026-10-17-run08-posthoc,6dc94ed,64/96 (CNN backbones),not_recorded_in_source,post_hoc_reviewer_request,convnext_tiny,9,1.0,1.0,False
