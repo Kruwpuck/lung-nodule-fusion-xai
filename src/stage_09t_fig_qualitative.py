@@ -33,7 +33,9 @@ Run:  .venv/Scripts/python.exe -m src.stage_09t_fig_qualitative --dry-run
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
+import subprocess
 
 import numpy as np
 import pandas as pd
@@ -99,7 +101,7 @@ def main() -> None:
         assert cached(), "outputs missing"
         out = pd.read_csv(OUT_CSV)
         need = {"run_id", "commit_sha", "input_size", "checkpoint_mtime", "gpu_device", "torch_version", "backbone", "sample_idx",
-                "site_kind", "module_path", "prob_malignant", "cam_max"}
+                "site_kind", "module_path", "prob_malignant", "cam_max", "patch_xy", "source_run_id", "source_commit_sha", "script_sha256"}
         assert need <= set(out.columns), need - set(out.columns)
         per = {b: len(KINDS) + (b in EXTRA) for b in args.backbones}
         assert len(out) == sum(per.values()) * len(sel), len(out)
@@ -159,7 +161,7 @@ def main() -> None:
     nb, nn_ = len(args.backbones), len(rows)
     nk = len(KINDS) + (1 if any(b in EXTRA for b in args.backbones) else 0)
     fig, axes = plt.subplots(nb + 2, 1 + nn_ * nk, figsize=(7.16, 0.72 * (nb + 1) + 0.9),
-                             gridspec_kw={"height_ratios": [0.55] + [1] * nb + [0.12]})
+                             gridspec_kw={"height_ratios": [0.55] + [1] * nb + [0.12], "width_ratios": [1.9] + [1] * (nn_ * nk)})
     tags = ["small malignant", "large malignant", "missed malignant"]
     for k in range(nn_):
         for j in range(nk):
@@ -211,9 +213,19 @@ def main() -> None:
     fig.savefig(OUT_PNG, dpi=300)
     fig.savefig(OUT_PDF)
     out = pd.DataFrame(records)
-    out["run_id"] = sel["run_id"].iloc[0]
-    out["commit_sha"] = sel["commit_sha"].iloc[0]
-    out["input_size"] = patch_xy
+    try:
+        sha = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], text=True).strip()
+    except Exception:  # noqa: BLE001
+        sha = "unknown"
+    t1 = cfg.get("tracks", {}).get("track1", {})
+    out["run_id"] = "2026-10-qualitative-posthoc"
+    out["commit_sha"] = sha
+    out["source_run_id"] = sel["run_id"].iloc[0]
+    out["source_commit_sha"] = sel["commit_sha"].iloc[0]
+    out["script_sha256"] = hashlib.sha256(open(__file__, "rb").read()).hexdigest()
+    # model input: the track-1 backbones upsample the 64 px crop to tracks.track1.input_size inside forward
+    out["input_size"] = out["backbone"].map(lambda b: t1.get("input_size", patch_xy) if b in set(t1.get("backbones", [])) else patch_xy)
+    out["patch_xy"] = patch_xy
     out["gpu_device"] = gpu
     out["torch_version"] = torch.__version__
     out["note"] = "post_hoc_descriptive; nodules chosen by fixed rule, not by map quality"
