@@ -5,6 +5,11 @@ sudah dikerjakan beserta bukti angkanya, apa yang belum, dan apa yang harus dike
 sebelum melanjutkan. Pembaca yang dituju adalah orang yang meneruskan pekerjaan ini tanpa
 mengikuti sesi sebelumnya.
 
+> **Catatan 27 Oktober 2026.** Dokumen ini bertanggal 4 Agustus 2026 dan sudah disalip.
+> Serah-terima yang berlaku sekarang `handoff/HANDOFF_2026-10-21.md` dan
+> `handoff/P1-qualitative_figure_request.md`. Status terbaru ada di §1.1
+> `docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md`.
+
 Laporan hasil lengkap ada di `docs/laporan/LAPORAN_TRACK1_FUSION_XAI.md`. Dokumen ini
 tidak menggantikannya, melainkan merangkum keputusan dan keadaan operasional.
 
@@ -128,6 +133,11 @@ selesai. Cakupannya sengaja dibatasi pada `src/stage_03b_fusion.py`; 215 *run* T
 Hasilnya menurunkan `fusion_intermediate` sebesar 0.0210 AUC. Tiga arm lain bergerak
 di bawah 0.0005 dan `cnn_only` nol persis, yang berfungsi sebagai konfirmasi silang bahwa
 perbaikan mengenai sasaran: hanya `fusion_intermediate` yang melewati `_train_fusion_fold`.
+**Koreksi 27 Oktober 2026:** angka 0.0005 keliru. Dihitung per backbone, `radiomics_only`
+bergerak -0.0036..+0.0034 --- dan arm itu nol punya alasan bergerak sama sekali, karena
+nol menyentuh CNN; itu derau seleksi fitur tak ter-seed. `cnn_only` memang +0.0000 di enam
+backbone, tapi densenet121 +0.0637 karena checkpointnya berganti antar run. Lihat §1.1
+`LAPORAN_TRACK1_FUSION_XAI.md`.
 
 Commit `31a4ecd`, dengan perbaikan susulan `da7e0cb` untuk `drop_last=True` pada *loader*
 pelatihan. Pemotongan 85 persen mengubah ukuran himpunan latih sehingga sebagian kombinasi

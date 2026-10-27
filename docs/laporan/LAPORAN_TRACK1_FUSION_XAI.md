@@ -37,6 +37,69 @@ Konsekuensinya, klaim kesetaraan **tidak lagi bergantung pada DenseNet201 sebaga
 
 ---
 
+## 1.1 Status per 27 Oktober 2026
+
+Seksi ini disisipkan belakangan. Isi laporan di bawahnya ditulis 18--23 Agustus 2026 dan
+sebagian besarnya masih berlaku; yang berubah dicatat di sini, dan kalimat yang sudah salah
+dikoreksi di tempatnya masing-masing dengan penanda **Koreksi 27 Oktober 2026**.
+
+**Empat stage deskriptif baru, Oktober.** Keempatnya atas data yang sudah ada, jadi nol
+melanggar penutupan pencarian performa di pra-registrasi run03 bagian 5.
+
+| stage | pertanyaan | temuan |
+|---|---|---|
+| `src/stage_09h_center_baseline.py` | seberapa tinggi lantai lokalisasi | gumpalan tengah mengalahkan **seluruh** backbone |
+| `src/stage_09i_size_baseline.py` | berapa banyak AUC radiomik itu ukuran | sebagian besarnya ukuran |
+| `src/stage_09j_radiomics_seeded.py` | apakah sebaran `radiomics_only` nyata | derau seed |
+| `src/stage_09t_fig_qualitative.py` | figur Layer-CAM kualitatif Track 2 | dijalankan 26 Oktober |
+
+**Sebaran `radiomics_only` adalah derau seed, bukan efek backbone.** Dari
+`artifacts/results/size_baseline/radiomics_only_seeded.csv` (run `2026-10-16-radiomics-seeded`,
+commit `59d2fda`, 1366 nodul / 607 pasien): mean fold **0.9325506**, pooled **0.9319534**.
+Tabel I menerbitkan arm itu tujuh kali pada 0.9301--0.9343, padahal arm itu nol menyentuh
+CNN, jadi ketujuh angka nol mungkin berbeda karena backbone. Rentang 0.0042 itu derau
+seleksi fitur tak ter-seed yang ditutup commit `733856b`.
+
+Dua angka SD yang gampang tertukar, dan pernah tertukar: kolom `auc_sd_fold` = **0.0155936**
+itu SD **populasi** (ddof=0). Konvensi naskah ddof=1, yaitu **0.0174342**. Sebut yang mana
+yang dipakai setiap kali angkanya muncul.
+
+**Ukuran nodul menjelaskan sebagian besar AUC radiomik.** Dari
+`artifacts/results/size_baseline/size_baseline.csv`, kohort merged 1366 nodul: mesh volume
+mentah tanpa model mencapai AUC mean-fold 0.912 dan diameter maksimum 0.903, melawan
+radiomics_only 0.932 dengan 1130 fitur. Ruang yang tersisa untuk tekstur, intensitas, dan
+CNN sekitar 0.02 AUC. Arah skor ditetapkan a priori: nilai fitur dipakai apa adanya, nol
+negasi, nol `abs()`, nol `max(auc, 1-auc)`.
+
+**Faithfulness sudah dijalankan.** Batasan 8 dan langkah 6 di bawah sudah usang; keduanya
+dikoreksi di tempatnya. Dari `artifacts/results/run03/faithfulness_run03.csv`, rata-rata
+lima fold per backbone:
+
+| backbone | ROAD combined | PGI/PGU (rerata rasio per fold) | fold dengan MoRF di bawah LeRF |
+|---|---|---|---|
+| ConvNeXt-Tiny | +0.0807 | 1.93 | 5 dari 5 |
+| DenseNet121 | -0.0316 | 1.40 | 1 dari 5 |
+| DenseNet201 | -0.0441 | 0.41 | 0 dari 5 |
+
+DenseNet201 di bawah nol berarti piksel yang petanya sebut penting menggerakkan keputusan
+**lebih sedikit** daripada piksel yang ia sebut tidak penting.
+
+**Stabilitas peta memeringkat terbalik dari faithfulness.** Dari
+`artifacts/results/run03/ssim_stability_run03.csv`, rata-rata lima fold: SSIM rotasi /
+derau 0.870 / 0.950 untuk ConvNeXt-Tiny, 0.885 / 0.980 untuk DenseNet121, dan 0.921 / 0.986
+untuk DenseNet201. Jadi backbone yang petanya paling stabil justru yang paling nol faithful.
+Stabilitas nol boleh dipakai sebagai pengganti faithfulness.
+
+**Status naskah.** Kedua naskah sekarang ditulis di murfy.ai; `paper/` di repo ini
+**mirror**, bukan sumbernya. Keduanya **7 halaman** diukur dengan `pdflatex` asli. Keduanya
+memakai `thebibliography` manual dengan 21 `\bibitem` dan **nol** placeholder `\CITE{}`,
+jadi `paper/refs.bib` sudah nol dipakai dan `REFERENSI_DIBUTUHKAN.md` disalip.
+
+Satu cacat build yang berlaku saat seksi ini ditulis: `paper/track1/main.tex` **nol bisa
+dikompilasi** --- `latexmk` keluar 12 pada `Command \k unavailable in encoding OT1`, baris
+288, bibitem Jastrzebski. Satu baris `\usepackage[T1]{fontenc}` di preamble memberi exit 0
+dan 7 halaman. Perbaikannya harus masuk di murfy.ai, kalau nol mirror berikutnya menimpanya.
+
 ## 2. Latar belakang dan kontribusi
 
 Fusi radiomics dan fitur CNN diasumsikan saling melengkapi, tapi asumsi ini tidak selalu berlaku pada kohort sekecil LIDC-IDRI, di mana radiomics dengan seleksi fitur adalah *baseline* yang kuat. Kontribusi laporan ini: (1) perbandingan lima arm representasi pada tujuh backbone dengan uji DeLong berpasangan, (2) protokol XAI yang mengevaluasi cabang CNN (Grad-CAM/Layer-CAM) dan cabang radiomics (SHAP) secara terpisah, karena belum ada metrik *model-agnostic* terstandardisasi untuk membandingkan keduanya secara adil.
@@ -131,7 +194,7 @@ Dua tindak lanjut menjawab hal itu dari arah yang berbeda, dan hasilnya saling m
 
 Nested CV menurunkan `fusion_intermediate` sebesar **0.0210** AUC (0.9294 menjadi 0.9084). Angka itu estimasi langsung bias seleksi dari protokol lama, yang memilih epoch terbaik pada fold validasi luar lalu melaporkan fold yang sama.
 
-Tiga arm lain bergerak di bawah 0.0005 dan `cnn_only` nol persis. Pola itu bukan kebetulan melainkan konfirmasi silang bahwa perbaikan mengenai sasaran: hanya `fusion_intermediate` yang melewati `_train_fusion_fold`, satu-satunya jalur berloop epoch dengan seleksi checkpoint. `fusion_early` dan `fusion_late` memakai embedding dan probabilitas dari checkpoint arm A yang dibekukan di luar `stage_03b_fusion`, jadi memang harus diam, dan memang diam.
+Tiga arm lain bergerak di bawah 0.0005 dan `cnn_only` nol persis. **Koreksi 27 Oktober 2026:** angka 0.0005 itu keliru. Dihitung per backbone dari `artifacts/results/handoff_teman/`, `radiomics_only` bergerak **-0.0036..+0.0034** --- dan arm itu nol punya alasan bergerak sama sekali, karena ia nol menyentuh CNN. Pergerakan itu derau seleksi fitur tak ter-seed, bukan efek perbaikan nested-CV; lihat §1.1. `cnn_only` memang +0.0000 persis di enam backbone, tapi densenet121 bergerak **+0.0637** karena checkpointnya berganti antara dua run, bukan karena efek seleksi, sehingga densenet121 keluar dari rerata. Pola itu bukan kebetulan melainkan konfirmasi silang bahwa perbaikan mengenai sasaran: hanya `fusion_intermediate` yang melewati `_train_fusion_fold`, satu-satunya jalur berloop epoch dengan seleksi checkpoint. `fusion_early` dan `fusion_late` memakai embedding dan probabilitas dari checkpoint arm A yang dibekukan di luar `stage_03b_fusion`, jadi memang harus diam, dan memang diam.
 
 Arah temuannya perlu dinyatakan tegas: kebocoran ternyata **menyamarkan kekalahan, bukan menciptakan kemenangan**. Sebelum diperbaiki, `fusion_intermediate` 0.9294 tampak nyaris menyamai radiomics 0.9314; sesudahnya ia jatuh ke 0.9084 dan kalah signifikan di enam dari tujuh backbone. Kesimpulan "radiomics mengungguli fusi" menguat, bukan melemah.
 
@@ -151,7 +214,7 @@ Untuk menguji apakah kekalahan fusi berakar pada arsitektur fusi atau pada ketim
 | googlenet | 0.795 | 0.692 | 15.2 | 19.4 | 19.0 |
 | densenet121 | 0.626 | 0.611 | 13.8 | 43.6 | 20.4 |
 
-Rata-rata per fold, n rata-rata 273 kasus, ambang keputusan 0.5. AUC radiomik identik 0.9343 di seluruh baris, sebagaimana seharusnya karena arm itu tidak bergantung pada backbone; kesamaan itu berfungsi sebagai pemeriksaan kewarasan.
+Rata-rata per fold, n rata-rata 273 kasus, ambang keputusan 0.5. AUC radiomik 0.9343 di seluruh baris tabel ini. **Koreksi 27 Oktober 2026:** kalimat aslinya menyebut keseragaman itu sebagai "pemeriksaan kewarasan" --- itu terbalik. Pada kumpulan 35 baris kanonik, arm `radiomics_only` justru **nol seragam**: ia terbit tujuh kali pada 0.9301--0.9343. Karena arm itu nol bergantung pada backbone, ketujuh angka nol mungkin berbeda karena backbone, jadi sebarannya gejala cacat, bukan bukti kebenaran. Nilai ter-seed, dari `artifacts/results/size_baseline/radiomics_only_seeded.csv`: mean fold **0.9325506**, pooled **0.9319534**, dan rentang 0.0042 itu estimasi derau seed. Lihat §1.1.
 
 CNN memiliki kontribusi unik, tetapi kecil. Korelasinya tinggi namun jauh dari jenuh, dan CNN benar sementara radiomik salah pada sekitar 14 kasus per fold, yaitu 5.1 persen, stabil di ketujuh backbone. Arah ketimpangannya tetap jelas: radiomik unik-benar pada 16 sampai 22 kasus, lebih banyak.
 
@@ -555,7 +618,7 @@ Bagian ini memuat dua jenis isi yang sengaja disatukan. Daftar bernomor di bawah
 5. Seleksi fitur radiomics memakai mutual information (`mutual_info_classif`), bukan mRMR. Lihat §8.1.
 6. Ketidakterbedaan `fusion_late` dari `radiomics_only` **menurut uji DeLong** bergantung pada rezim checkpoint untuk dua dari tiga backbone. Ekuivalensi dalam margin 0.02 tidak bergantung padanya (§6.4). Lihat §8.9.
 7. Margin ekuivalensi 0.02 AUC adalah **pertimbangan, bukan pengukuran**. Pembaca yang menganggap 0.02 berarti secara klinis harus membaca tabel §6.4.3 sebagai interval, bukan vonis — intervalnya sengaja dicetak supaya margin lain bisa diterapkan tanpa menjalankan ulang apa pun. Margin ditetapkan sebelum analisis dan tidak direvisi, tapi tidak ada prosedur yang bisa membuat pemilihannya objektif.
-8. Metrik explainability mengukur **lokalisasi, bukan faithfulness**. Pointing accuracy dan variannya menanyakan di mana peta jatuh relatif terhadap mask; tidak satu pun menanyakan apakah peta itu mencerminkan komputasi yang benar-benar dilakukan model. Metrik faithfulness berbasis perturbasi (ROAD, kurva deletion/insertion) belum dijalankan dan menjadi fase tersendiri.
+8. Metrik explainability mengukur **lokalisasi, bukan faithfulness**. Pointing accuracy dan variannya menanyakan di mana peta jatuh relatif terhadap mask; tidak satu pun menanyakan apakah peta itu mencerminkan komputasi yang benar-benar dilakukan model. Metrik faithfulness berbasis perturbasi (ROAD, kurva deletion/insertion) belum dijalankan dan menjadi fase tersendiri. **Koreksi 27 Oktober 2026:** sudah dijalankan, pada tiga backbone yang dilatih ulang nested-CV. ROAD plus PGI/PGU di `artifacts/results/run03/faithfulness_run03.csv`: ConvNeXt-Tiny MoRF di bawah LeRF pada 5 fold dari 5, DenseNet121 1 dari 5, DenseNet201 0 dari 5. Batasan ini karena itu sekarang berbunyi lebih tajam, bukan lebih lunak --- lokalisasi dan faithfulness terbukti memeringkat berbeda, dan stabilitas peta memeringkat terbalik dari keduanya. Lihat §1.1.
 9. Perbandingan explainability mencakup **dua arm, bukan lima**. `fusion_early` dan `fusion_intermediate` dievaluasi hanya pada AUC; **tidak ada satu pun stage yang menghitung CAM untuk keduanya**. Laporan ini karena itu tidak menyatakan apa pun tentang efek fusi berparameter terhadap lokalisasi.
 10. **Tidak ada validasi eksternal.** Seluruh angka berasal dari satu dataset dengan satu split. LUNA16 bukan pengganti langsung: labelnya menandai nodul lawan bukan-nodul untuk tugas deteksi, bukan malignansi. Validasi eksternal menuntut kohort dengan ground truth malignansi.
 11. **Penjelasannya belum dinilai klinisi.** Protokolnya siap di `docs/laporan/PROTOKOL_READER_STUDY.md`, tapi nol data pembaca dikumpulkan.
@@ -871,7 +934,7 @@ Perbaikan strukturalnya seragam dengan butir C tapi satu tingkat lebih hulu: **p
 3. Jalankan panel XAI komparabilitas begitu checkpoint tersedia.
 4. Tambahkan sitasi yang hilang lewat Zotero (`docs/laporan/REFERENSI_DIBUTUHKAN.md`). Daftar konkretnya ada di §9.1.
 5. Tulis uji asap untuk `_trim_white` (§8.10) begitu `tests/` bisa disentuh lagi.
-6. Jalankan metrik faithfulness — ROAD dan kurva deletion/insertion — plus HiResCAM sebagai pembanding, dan perluas jalur CAM ke `fusion_intermediate` serta `fusion_early`. Ditulis sebagai GOAL terpisah di `handoff/GOAL3.md` karena beban GPU-nya besar dan hasilnya bisa mengubah pembingkaian §8 (batasan 8 dan 9).
+6. **Selesai 27 Oktober 2026 untuk bagian ROAD/PGI-PGU pada tiga backbone nested-CV; lihat §1.1.** Sisa yang belum: HiResCAM sebagai pembanding dan perluasan jalur CAM ke arm fusi. Teks asli: jalankan metrik faithfulness — ROAD dan kurva deletion/insertion — plus HiResCAM sebagai pembanding, dan perluas jalur CAM ke `fusion_intermediate` serta `fusion_early`. Ditulis sebagai GOAL terpisah di `handoff/GOAL3.md` karena beban GPU-nya besar dan hasilnya bisa mengubah pembingkaian §8 (batasan 8 dan 9).
 7. Jalankan reader study bila klinisi tersedia. Protokolnya siap di `docs/laporan/PROTOKOL_READER_STUDY.md`.
 
 Butir 8 sampai 12 ditambahkan 20 Agustus 2026, diurutkan dari yang paling murah.

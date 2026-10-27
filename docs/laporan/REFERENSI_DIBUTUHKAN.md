@@ -1,5 +1,15 @@
 # Referensi yang dibutuhkan untuk paper/track1 dan paper/track2
 
+> **Status 27 Oktober 2026: berkas ini disalip, tapi sengaja nol dihapus.**
+> Kedua naskah sekarang memakai `thebibliography` manual dengan 21 `\bibitem` dan
+> **nol** placeholder `\CITE{}` (`grep -c 'CITE{'` memulangkan 0 di `paper/track1/main.tex`
+> dan `paper/track2/main.tex`), jadi `paper/refs.bib` sudah nol dipakai sama sekali dan
+> blocker "2 entri lawan 26 placeholder" sudah mati --- diselesaikan lewat bibitem tangan,
+> bukan lewat Zotero. Yang masih berguna di sini: 22 DOI di bawah dipakai untuk memeriksa
+> apakah 21 bibitem manual itu sudah memuat sumber primer yang benar. Pemeriksaan itu
+> **belum dilakukan siapa pun**. Naskahnya sendiri sekarang ditulis di murfy.ai; `paper/`
+> di repo ini mirror.
+
 **Berkas ini daftar kanonik.** Tabel §9.1 `LAPORAN_TRACK1_FUSION_XAI.md` adalah
 cermin: ia mendaftar *klaim* mana yang menunggu sitasi, berkas ini mendaftar
 *sumber* mana yang mengisinya. Kalau keduanya berbeda, yang benar berkas ini.

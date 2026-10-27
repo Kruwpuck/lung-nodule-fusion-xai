@@ -51,6 +51,77 @@ Konsekuensi praktis yang layak dikutip: **setiap angka explainability lintas ars
 
 ---
 
+## 1.1 Status per 27 Oktober 2026
+
+Seksi ini disisipkan belakangan. Isi di bawahnya ditulis 22 Agustus 2026; yang berubah
+dicatat di sini, dan kalimat yang sudah salah dikoreksi di tempatnya dengan penanda
+**Koreksi 27 Oktober 2026**.
+
+**Lantai lokalisasi: nol dari 12 backbone mengalahkan gumpalan tengah.** Dari
+`artifacts/results/center_baseline/center_baseline.csv` (run `2026-10-14-center-baseline`,
+commit `59d2fda`), pada 60 sampel fold-0 yang sama, irisan mask yang sama, dan fungsi metrik
+yang sama:
+
+| peta | pointing | dice | dice_size_matched | energy |
+|---|---|---|---|---|
+| uniform | 0.0000 | 0.0350 | 0.0001 | 0.0000 |
+| random | 0.0333 | 0.0291 | 0.0172 | 0.0189 |
+| center_point | **0.9833** | 0.0350 | 0.7626 | 0.9012 |
+| center_gaussian | **0.9833** | 0.1356 | 0.7820 | 0.0851 |
+| backbone terbaik | 0.7167 | 0.0350--0.1200 | 0.4443 | --- |
+
+`mask_area_frac_mean` 0.018872 pada subset fold0_60, persis sama dengan garis kebetulan
+0.0189 yang sudah dipakai laporan ini.
+
+Kualifikasi yang wajib ikut setiap kali angka ini dikutip: patch **dipusatkan pada sentroid
+mask konsensus secara konstruksi** (`_crop_and_resample_nodule`, jendela 64x64x16 mm), jadi
+prior tengah unggul **by design**. Itu alasan lantainya wajib diterbitkan, bukan alasan
+mengabaikannya. Uji lokalisasi yang adil butuh nodul tak terpusat --- slice penuh, atau crop
+yang digeser acak dengan amplitudo berarti; jitter kecil nol cukup, karena pada 96 px untuk
+jendela 64 mm satu piksel cuma 0.667 mm.
+
+Catatan implementasi yang menjelaskan baris `uniform`: `energy_pointing_game` melakukan
+`cam - cam.min()` lebih dulu, jadi **peta konstan selalu nol energi**. Ia mengukur energi
+relatif terhadap kontras, bukan energi mentah, sehingga lantai kebetulan untuk energy datang
+dari peta **acak** (0.0189), bukan dari peta seragam.
+
+**Konsekuensi naskah.** Kalimat "model melokalisasi nodul" nol bisa dipertahankan, dan
+keenam angka di tabel lokalisasi berada di bawah lantai itu. Yang gugur hanya kalimat itu:
+lantai ini **nol** membatalkan tesis Track 2. Tesisnya kegagalan senyap peta penjelasan, dan
+lantai yang mengalahkan semua model adalah bukti terkuat untuk tesis itu, bukan bantahan.
+Dan 0.7167 lawan 0.9833 **bukan** bukti Layer-CAM tak berguna --- itu bukti pointing game
+kehilangan daya pisah ketika tiap nodul selalu di tengah gambar.
+
+**Faithfulness sudah dijalankan; langkah 9 di bawah sudah usang** dan dikoreksi di tempatnya.
+Dari `artifacts/results/run03/faithfulness_run03.csv`, rata-rata lima fold: ConvNeXt-Tiny
+ROAD combined +0.0807 dengan MoRF di bawah LeRF pada 5 fold dari 5, DenseNet121 -0.0316
+pada 1 dari 5, DenseNet201 -0.0441 pada 0 dari 5. Urutan itu mereproduksi pointing accuracy
+ketiga checkpoint yang sama dari dua keluarga pengukuran yang nol berbagi mesin apa pun.
+
+**Stabilitas memeringkat terbalik.** Dari `artifacts/results/run03/ssim_stability_run03.csv`,
+rata-rata lima fold, SSIM rotasi / derau: ConvNeXt-Tiny 0.870 / 0.950, DenseNet121
+0.885 / 0.980, DenseNet201 0.921 / 0.986. Backbone yang petanya paling stabil justru yang
+paling nol faithful, jadi stabilitas nol boleh dipakai sebagai pengganti faithfulness.
+
+**Figur kualitatif sudah ada.** `src/stage_09t_fig_qualitative.py` dijalankan 26 Oktober 2026
+di mesin yang memegang checkpoint dan patch, keluarannya di
+`artifacts/results/track2rev/qualitative/` (`fig_t2_qualitative_print.png`, `.pdf`,
+`t2_qualitative_selection.csv`, 39 baris, `commit_sha` `beb2099`). Empat backbone dipilih
+dengan aturan a priori --- ConvNeXt-Tiny, DenseNet121, DenseNet201 karena ketiganya punya
+angka faithfulness, plus GoogLeNet sebagai kasus site degenerate --- dan tiga nodul dipilih
+tanpa melihat peta.
+
+Hasil paling penting dari figur itu: GoogLeNet pada site band `features.17` memberi
+`cam_max` **0.0** pada ketiga nodul, sementara `features.15` dan `features.13` memberi 1.0 di
+bobot yang sama. Klaim kegagalan senyap karena itu terbukti ulang di mesin kedua dan build
+torch yang berbeda (CPU, torch 2.7.1+cpu, bukan RTX 3060 dengan 2.3.0+cu121 yang naskah
+sebut --- selisih lingkungan itu perlu satu kalimat di naskah, atau run ulang).
+
+**Status naskah.** Ditulis di murfy.ai; `paper/` di repo ini mirror. Track 2 **7 halaman**
+diukur dengan `pdflatex` asli --- bukan 6 --- dan kompilasinya bersih: nol error, nol
+undefined, nol overfull hbox. Bibliografinya `thebibliography` manual 21 `\bibitem`, nol
+placeholder `\CITE{}`.
+
 ## 2. Latar belakang dan kontribusi
 
 Pemilihan backbone, optimizer, dan granularitas label adalah tiga keputusan desain yang jarang dikuantifikasi kontribusinya secara terpisah pada dataset dan split yang sama. Kontribusi laporan ini: (1) sweep hyperparameter penuh dengan uji varians formal untuk klaim stabilitas, bukan perbandingan titik estimasi CV semata, (2) dekomposisi ANOVA yang memisahkan efek optimizer dari weight decay, (3) perbandingan granularitas label pada subset kasus identik dengan kolaps probabilitas, bukan argmax.
@@ -517,7 +588,7 @@ Butir 5 sampai 11 ditambahkan 20 Agustus 2026, diurutkan dari yang paling murah.
 6. ~~**Tutup celah provenance §6.3**~~ **Selesai 22 Agustus 2026.** Kelima CSV ada di disk (commit `fd4e50a`), angka §6.3 dan `paper/track2/main.tex` sudah ditulis ulang dari CSV itu, dan hasil rekonsiliasinya dicatat di §6.3. Tindak lanjut yang tersisa dan berbatas: periksa angka `densenet121` lain yang dihitung sebelum 2026-08-04 16:42. Itu himpunan tertutup, bukan audit terbuka.
 7. **Perbaiki modul `stage_07f_xai_comparability`** beserta ujinya: nilai `POINTING_ACC` yang di-*hardcode* sudah usang, resolusi target layer-nya memakai fungsi yang sudah digantikan, dan captionnya masih memerikan band `[7,10]`. Belum dikerjakan pada pass ini; rinciannya di §8.2 laporan Track 1.
 8. **Perbaiki jalur CAM ViT-Base** — varian CAM yang sadar attention, atau *reshaping* alternatif atas barisan token. Selama belum, baris ViT-Base tetap tampil dengan anotasi.
-9. **Jalankan metrik faithfulness berbasis perturbasi** (ROAD, kurva deletion/insertion) supaya §6.9 tidak berhenti pada sanity check yang lolos sebagian.
+9. **Selesai 27 Oktober 2026.** ROAD dan PGI/PGU dijalankan pada tiga backbone nested-CV; hasilnya di `artifacts/results/run03/faithfulness_run03.csv` dan diringkas di §1.1. §6.9 karena itu nol lagi berhenti pada sanity check yang lolos sebagian. Teks asli: jalankan metrik faithfulness berbasis perturbasi (ROAD, kurva deletion/insertion) supaya §6.9 tidak berhenti pada sanity check yang lolos sebagian.
 10. **Perluas sweep kedalaman ke `optimizer4`**, khususnya MobileNetV2 yang saat ini tidak muncul di subset mana pun selain optimizer, sehingga ketiga sumbu punya irisan yang lebih besar.
 11. Jadikan tiga figur §7 yang belum tracked ikut tracked.
 
